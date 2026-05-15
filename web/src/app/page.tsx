@@ -15,6 +15,18 @@ function formatearCOP(val: string | undefined): string {
   }).format(n);
 }
 
+function enlaceWhatsApp(telefono: string | undefined): string | null {
+  if (!telefono) return null;
+  const digits = telefono.replace(/\D/g, "");
+  if (!digits) return null;
+  const conPais = digits.startsWith("57")
+    ? digits
+    : digits.startsWith("0")
+      ? `57${digits.slice(1)}`
+      : `57${digits}`;
+  return `https://wa.me/${conPais}`;
+}
+
 function estadoMora(dias: string | undefined): { label: string; tone: string } {
   const d = parseInt(String(dias ?? "0"), 10) || 0;
   if (d <= 7) return { label: "Al día", tone: "ok" };
@@ -150,6 +162,16 @@ export default function Home() {
                   <dd className="text-zinc-200 tabular-nums">
                     {v.telefono || "—"}
                   </dd>
+                  {enlaceWhatsApp(v.telefono) ? (
+                    <a
+                      href={enlaceWhatsApp(v.telefono)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3 text-sm font-medium text-white active:scale-[0.98] transition-transform"
+                    >
+                      WhatsApp
+                    </a>
+                  ) : null}
                 </div>
               </div>
               <div>

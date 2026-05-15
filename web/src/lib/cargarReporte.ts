@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "path";
-import { unstable_cache } from "next/cache";
 
 import { parseCsvPuntoComa } from "@/lib/csvPlaca";
 import { DATABASE_URL_DEFAULT } from "@/lib/dbDefaults";
@@ -73,9 +72,19 @@ async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
   return fetchReporteFilasDesdeDb(dbUrl);
 }
 
-/** Cache breve para no leer disco / DB en cada pulsación de búsqueda. */
-export const getFilasReporte = unstable_cache(
-  getFilasReporteSinCache,
-  ["reporte-clientes-filas-v2"],
-  { revalidate: 120 },
-);
+const CACHE_TTL_MS = 120_000;
+let cacheMemoria: {
+  filas: Record<string, string>[];
+  expira: number;
+} | null = null;
+
+/** Cache en memoria (el reporte supera el límite de 2MB de `unstable_cache`). */
+export async function getFilasReporte(): Promise<Record<string, string>[]> {
+  const ahora = Date.now();
+  if (cacheMemoria && cacheMemoria.expira > ahora) {
+    return cacheMemoria.filas;
+  }
+  const filas = await getFilasReporteSinCache();
+  cacheMemoria = { filas, expira: ahora + CACHE_TTL_MS };
+  return filas;
+}
