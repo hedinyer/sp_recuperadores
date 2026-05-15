@@ -6,6 +6,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 import db_defaults
+from extracto_cliente import RegistroExtracto, calcular_metricas_extracto
 
 load_dotenv()
 
@@ -25,70 +26,123 @@ def get_connection():
     )
 
 
-SQL_REPORTE = """
-    WITH clientes_activos AS (
-        SELECT
-            c.cedula, c.nombre, c.placa, c.telefono, c.visitador,
-            c.fecha_inicio::date AS fecha_inicio,
-            c.valor_cuota::numeric AS valor_cuota,
-            COALESCE(c.otras_deudas::numeric, 0) AS otras_deudas,
-            GREATEST(1, (CURRENT_DATE - c.fecha_inicio::date + 1)) AS cuotas_generadas
-        FROM clientes c
-        WHERE c.estado = 'activo'
-          AND c.fecha_inicio IS NOT NULL
-          AND c.fecha_inicio <= CURRENT_DATE
-          AND c.valor_cuota > 0
-    ),
-    pagos_acumulados AS (
-        SELECT
-            cedula,
-            fecha_registro::date AS fecha_pago,
-            valor::numeric AS valor_pago,
-            SUM(valor::numeric) OVER (PARTITION BY cedula ORDER BY fecha_registro::date, id) AS acumulado_total
-        FROM registros
-        WHERE tipo NOT ILIKE '%anulacion%'
-    ),
-    metricas AS (
-        SELECT
-            ca.cedula, ca.nombre, ca.placa, ca.telefono, ca.visitador,
-            ca.fecha_inicio, ca.valor_cuota, ca.otras_deudas, ca.cuotas_generadas,
-            COALESCE(pa.acumulado_total, 0) AS total_pagado,
-            MAX(pa.fecha_pago) FILTER (WHERE pa.fecha_pago IS NOT NULL) AS ultimo_pago,
-            (COALESCE(pa.acumulado_total, 0) / NULLIF(ca.valor_cuota, 0))::integer AS cuotas_completas,
-            (COALESCE(pa.acumulado_total, 0) % ca.valor_cuota) AS remanente
-        FROM clientes_activos ca
-        LEFT JOIN pagos_acumulados pa ON ca.cedula = pa.cedula
-        GROUP BY ca.cedula, ca.nombre, ca.placa, ca.telefono, ca.visitador,
-                 ca.fecha_inicio, ca.valor_cuota, ca.otras_deudas, ca.cuotas_generadas,
-                 pa.acumulado_total
-    )
-    SELECT
-        cedula, nombre, placa, telefono, visitador,
-        TO_CHAR(fecha_inicio, 'YYYY-MM-DD') AS fecha_inicio,
-        ROUND(valor_cuota, 0) AS valor_cuota,
-        cuotas_generadas, cuotas_completas,
-        ROUND((cuotas_completas + (remanente / NULLIF(valor_cuota, 0)))::numeric, 1) AS cuotas_pagadas,
-        ROUND(GREATEST(0, cuotas_generadas - cuotas_completas - (remanente / NULLIF(valor_cuota, 0)))::numeric, 1) AS cuotas_pendientes,
-        ROUND(total_pagado, 0) AS total_pagado,
-        ROUND(GREATEST(0, (cuotas_generadas - cuotas_completas - (remanente / NULLIF(valor_cuota, 0))) * valor_cuota + otras_deudas)::numeric, 0) AS deuda_total,
-        TO_CHAR(ultimo_pago, 'YYYY-MM-DD') AS ultimo_pago,
-        COALESCE((CURRENT_DATE - ultimo_pago)::integer, cuotas_generadas) AS dias_mora,
-        ROUND(100.0 * total_pagado / NULLIF(cuotas_generadas * valor_cuota, 0), 1) AS cumplimiento_pct
-    FROM metricas
-    ORDER BY cumplimiento_pct ASC NULLS LAST, dias_mora DESC, nombre;
-    """
+# Consultas equivalentes a `mostrar_registros` en `func extrac.txt`
+SQL_CLIENTES_EXTRACTO = """
+SELECT
+    c.cedula,
+    c.nombre,
+    c.placa,
+    c.telefono,
+    c.visitador,
+    c.fecha_inicio::date AS fecha_inicio,
+    c.valor_cuota::numeric AS valor_cuota
+FROM clientes c
+WHERE c.estado = 'activo'
+  AND c.fecha_inicio IS NOT NULL
+  AND c.fecha_inicio <= CURRENT_DATE
+  AND c.valor_cuota > 0
+"""
+
+SQL_REGISTROS_EXTRACTO = """
+SELECT
+    r.cedula,
+    r.fecha_registro::date AS fecha_registro,
+    r.valor::numeric AS valor,
+    r.tipo,
+    r.referencia
+FROM registros r
+WHERE r.cedula = ANY(%s)
+ORDER BY r.cedula, r.fecha_registro
+"""
+
+COLUMNAS_REPORTE = [
+    "cedula",
+    "nombre",
+    "placa",
+    "telefono",
+    "visitador",
+    "fecha_inicio",
+    "valor_cuota",
+    "cuotas_generadas",
+    "cuotas_completas",
+    "cuotas_pagadas",
+    "cuotas_pendientes",
+    "total_pagado",
+    "deuda_total",
+    "ultimo_pago",
+    "dias_mora",
+    "cumplimiento_pct",
+]
 
 
 def ejecutar_consulta_reporte():
-    """Ejecuta el SQL y devuelve (columnas, filas, fecha_corte)."""
+    """Carga clientes y registros; métricas con lógica del extracto (`func extrac.txt`)."""
     fecha_corte = datetime.now().date()
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute(SQL_REPORTE)
-        columnas = [desc[0] for desc in cursor.description]
-        resultados = cursor.fetchall()
-        return columnas, resultados, fecha_corte
+        cursor.execute(SQL_CLIENTES_EXTRACTO)
+        clientes = cursor.fetchall()
+        if not clientes:
+            return list(COLUMNAS_REPORTE), [], fecha_corte
+
+        cedulas = [c[0] for c in clientes]
+        cursor.execute(SQL_REGISTROS_EXTRACTO, (cedulas,))
+        registros_rows = cursor.fetchall()
+
+        registros_por_cedula: dict[str, list[RegistroExtracto]] = {}
+        for cedula, fecha_reg, valor, tipo, referencia in registros_rows:
+            registros_por_cedula.setdefault(cedula, []).append(
+                RegistroExtracto(
+                    fecha=fecha_reg,
+                    valor=float(valor),
+                    tipo=tipo or "",
+                    referencia=referencia or "",
+                )
+            )
+
+        filas = []
+        for (
+            cedula,
+            nombre,
+            placa,
+            telefono,
+            visitador,
+            fecha_inicio,
+            valor_cuota,
+        ) in clientes:
+            valor_cuota = float(valor_cuota)
+            regs = registros_por_cedula.get(cedula, [])
+            m = calcular_metricas_extracto(fecha_inicio, valor_cuota, regs)
+            filas.append(
+                (
+                    cedula,
+                    nombre,
+                    placa,
+                    telefono,
+                    visitador,
+                    fecha_inicio.isoformat(),
+                    int(round(valor_cuota)),
+                    m.cuotas_generadas,
+                    m.cuotas_completas,
+                    round(m.cuotas_pagadas, 1),
+                    round(m.cuotas_pendientes, 1),
+                    int(round(m.total_pagado)),
+                    int(round(m.deuda_total)),
+                    m.ultimo_pago,
+                    m.dias_mora,
+                    m.cumplimiento_pct,
+                )
+            )
+
+        filas.sort(
+            key=lambda r: (
+                float(r[15] or 0),
+                -int(r[14] or 0),
+                (r[1] or ""),
+            )
+        )
+        return list(COLUMNAS_REPORTE), filas, fecha_corte
     finally:
         cursor.close()
         conn.close()

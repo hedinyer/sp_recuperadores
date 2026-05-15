@@ -174,10 +174,6 @@ export default function Home() {
                   ) : null}
                 </div>
               </div>
-              <div>
-                <dt className="text-zinc-500 text-xs">Visitador</dt>
-                <dd className="text-zinc-200">{v.visitador || "—"}</dd>
-              </div>
               <hr className="border-zinc-800" />
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -190,40 +186,6 @@ export default function Home() {
                     {formatearCOP(v.valor_cuota)}
                   </dd>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-zinc-950/80 p-2 border border-zinc-800">
-                  <span className="text-zinc-500 block">Cuotas gen.</span>
-                  <span className="text-zinc-100 font-medium">
-                    {v.cuotas_generadas ?? "—"}
-                  </span>
-                </div>
-                <div className="rounded-lg bg-zinc-950/80 p-2 border border-zinc-800">
-                  <span className="text-zinc-500 block">Pagadas</span>
-                  <span className="text-zinc-100 font-medium">
-                    {v.cuotas_pagadas ?? "—"}
-                  </span>
-                </div>
-                <div className="rounded-lg bg-zinc-950/80 p-2 border border-zinc-800">
-                  <span className="text-zinc-500 block">Pendientes</span>
-                  <span className="text-zinc-100 font-medium">
-                    {v.cuotas_pendientes ?? "—"}
-                  </span>
-                </div>
-                <div className="rounded-lg bg-zinc-950/80 p-2 border border-zinc-800">
-                  <span className="text-zinc-500 block">Cumplimiento</span>
-                  <span className="text-zinc-100 font-medium">
-                    {v.cumplimiento_pct != null && v.cumplimiento_pct !== ""
-                      ? `${v.cumplimiento_pct}%`
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-              <div className="grid gap-1">
-                <dt className="text-zinc-500 text-xs">Total pagado</dt>
-                <dd className="text-emerald-400 font-semibold">
-                  {formatearCOP(v.total_pagado)}
-                </dd>
               </div>
               <div className="grid gap-1">
                 <dt className="text-zinc-500 text-xs">Deuda total</dt>

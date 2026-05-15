@@ -1,0 +1,297 @@
+# ---------- Función para mostrar registros de un cliente ----------
+def mostrar_registros(entry_cedula):
+    cedula = entry_cedula.get().strip()
+    # Obtener alto de la pantalla
+    
+    if not cedula:
+        messagebox.showerror("Error", "Debe ingresar un cliente.")
+        return
+    
+    def obtener_area_usable():
+        user32 = ctypes.windll.user32
+        rect = ctypes.wintypes.RECT()
+        # SPI_GETWORKAREA = 48
+        if user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0):
+            ancho = rect.right - rect.left
+            alto = rect.bottom - rect.top
+            return ancho, alto
+        else:
+            return None, None
+
+    ventana = tk.Toplevel()
+    alto_pantalla = ventana.winfo_screenheight()
+    ventana.title("Extracto del Cliente")
+    ancho_usable, alto_usable = obtener_area_usable()
+    if ancho_usable and alto_usable:
+        ventana.geometry(f"900x{alto_usable-100}")  # 800 de ancho fijo, altura usable
+    else:
+        ventana.geometry("800x600")  # fallback
+
+    try:
+        """Obtiene un cliente y sus pagos de la base de datos PostgreSQL."""
+        
+        with Session(engine) as session:
+            # Obtener cliente por cédula
+            cliente = session.query(
+                tabla_clientes.c.cedula,
+                tabla_clientes.c.nombre,
+                tabla_clientes.c.placa,
+                tabla_clientes.c.fecha_inicio,
+                tabla_clientes.c.valor_cuota
+            ).filter(tabla_clientes.c.cedula == cedula).first()
+
+            if not cliente:
+                messagebox.showerror("Error", "Cliente no encontrado.")
+                return
+
+            cedula, nombre, placa, fecha_inicio, valor_cuota = cliente
+
+            if not fecha_inicio or not valor_cuota:
+                messagebox.showerror("Error", "Datos del cliente incompletos.")
+                return
+
+            fecha_inicio = datetime.strptime(str(fecha_inicio), "%Y-%m-%d")
+            fecha_actual = datetime.today()
+
+            print(f"- Fecha inicio: {fecha_inicio} (tipo: {type(fecha_inicio)})")
+            print(f"- Fecha actual: {fecha_actual} (tipo: {type(fecha_actual)})")
+
+            # Obtener registros de pagos
+            registros = session.query(
+                tabla_registros.c.fecha_registro,
+                tabla_registros.c.valor,
+                tabla_registros.c.tipo,
+                tabla_registros.c.referencia
+            ).filter(tabla_registros.c.cedula == cedula).order_by(tabla_registros.c.fecha_registro).all()
+
+            registros_modificados = []
+            for fecha, valor, tipo, referencia in registros:
+                fecha_dt = datetime.combine(fecha, time())
+                print(f"Fecha registro: {fecha_dt} (tipo: {type(fecha_dt)})")
+                registros_modificados.append((fecha_dt, valor, tipo, referencia))
+
+            
+
+        total = sum(row[1] for row in registros_modificados)  # row[1] es el campo "Valor"
+        cuotas_pagadas = math.ceil(total / valor_cuota)  # Redondea al siguiente entero
+        
+        # Calcular la diferencia de días entre fecha_inicio y fecha_actual
+        dias_rango = (fecha_actual - fecha_inicio).days + 1
+
+        # Si cuotas_pagadas es mayor que la cantidad de días en el rango, ampliamos la fecha_actual
+        if cuotas_pagadas > dias_rango:
+            diferencia = cuotas_pagadas - dias_rango
+            fecha_actual += timedelta(days=diferencia)
+
+
+        # Generación del DataFrame con fechas
+        fechas = pd.date_range(start=fecha_inicio, end=fecha_actual)
+        df = pd.DataFrame({
+            "Fecha Programada": fechas.strftime("%Y-%m-%d"),
+            "Fecha Pago": "", 
+            "Valor Pagado": 0, 
+            "Tipo": "", 
+            "Referencia": ""
+        })
+
+        # Aplicar pagos al DataFrame
+        saldo = 0
+        pagos_idx = 0
+        for i in range(len(df)):
+            while pagos_idx < len(registros_modificados) and saldo < valor_cuota:
+                registro_fecha, valor, tipo, referencia = registros_modificados[pagos_idx]
+                while valor + saldo >= valor_cuota:  # Manejar múltiples cuotas con un solo pago
+                    falta_para_cuota = valor_cuota - saldo
+                    # Evitar sobrescribir valores existentes
+                    df.at[i, "Valor Pagado"] = df.at[i, "Valor Pagado"] if pd.notna(df.at[i, "Valor Pagado"]) else 0
+                    df.at[i, "Valor Pagado"] += falta_para_cuota
+                    df.at[i, "Fecha Pago"] = registro_fecha
+                    #df.at[i, "Fecha Pago"] = registro_fecha.date().strftime("%d-%m-%Y")
+                    # df.at[i, "Fecha Pago"] = datetime.strptime(registro_fecha, "%Y-%m-%d").strftime("%d-%m-%Y")
+                    if pd.isna(df.at[i, "Referencia"]) or df.at[i, "Referencia"] == "":
+                        df.at[i, "Referencia"] = referencia
+                    if pd.isna(df.at[i, "Tipo"]) or df.at[i, "Tipo"] == "":
+                        df.at[i, "Tipo"] = tipo
+                    valor -= falta_para_cuota
+                    saldo = 0  # Reiniciar saldo porque la cuota se completó
+                    i += 1  # Pasar a la siguiente fila (día)
+                    if i >= len(df):  # Evitar salir del índice
+                        break
+
+                saldo += valor
+                #Solo asignar si todavía hay valor a registrar
+                if valor > 0:
+                    df.at[i, "Valor Pagado"] = df.at[i, "Valor Pagado"] if pd.notna(df.at[i, "Valor Pagado"]) else 0
+                    df.at[i, "Valor Pagado"] += valor
+                    if pd.isna(df.at[i, "Tipo"]) or df.at[i, "Tipo"] == "":
+                        df.at[i, "Tipo"] = tipo
+                if saldo >= valor_cuota:
+                    df.at[i, "Fecha Pago"] = registro_fecha
+                    #df.at[i, "Fecha Pago"] = registro_fecha.date().strftime("%d-%m-%Y")
+                    # df.at[i, "Fecha Pago"] = datetime.strptime(registro_fecha, "%Y-%m-%d").strftime("%d-%m-%Y")
+                    if pd.isna(df.at[i, "Referencia"]) or df.at[i, "Referencia"] == "":
+                        df.at[i, "Referencia"] = referencia
+                    if pd.isna(df.at[i, "Tipo"]) or df.at[i, "Tipo"] == "":
+                        df.at[i, "Tipo"] = tipo
+                    saldo -= valor_cuota
+                else:
+                    pagos_idx += 1  # Seguimos con el siguiente pago
+
+        
+        
+        #df["Fecha Programada"] = pd.to_datetime(df["Fecha Programada"]).dt.strftime("%d-%m-%Y")
+        df["Fecha Programada"] = pd.to_datetime(df["Fecha Programada"])
+        
+        # Cuotas completas pagadas
+        cuotas_pagadas_completas = (df["Valor Pagado"] // valor_cuota).sum()
+        # Verificar si hay un remanente en la última fila
+        remanente = (df["Valor Pagado"] % valor_cuota).sum()  # Suma de los sobrantes
+        # Si el remanente es suficiente para una fracción de cuota, la contamos proporcionalmente
+        fraccion_cuota = remanente / valor_cuota
+        # Total de cuotas pagadas (sin redondear para cálculos)
+        cuotas_pagadas = cuotas_pagadas_completas + fraccion_cuota
+        # Cuotas vencidas
+        cuotas_vencidas = len(df)
+        # Cuotas pendientes (sin redondear para cálculos)
+        cuotas_pendientes = cuotas_vencidas - cuotas_pagadas
+        # Valor pendiente (se mantiene con precisión completa)
+        valor_pendiente = cuotas_pendientes * valor_cuota
+        valor_pendiente_cop = f"${valor_pendiente:,.0f}".replace(",", ".")
+        # 🔹 Solo para mostrar con 1 decimal (sin afectar cálculos internos)
+        
+        def capturar_y_copiar():
+            # Obtener coordenadas de la ventana
+            x = ventana.winfo_rootx()
+            y = ventana.winfo_rooty()
+            ancho = x + ventana.winfo_width()
+            alto = y + ventana.winfo_height()
+            # Capturar la pantalla dentro de la ventana
+            captura = ImageGrab.grab(bbox=(x, y, ancho, alto))
+            # Guardar la imagen en un buffer de memoria en formato PNG
+            output = io.BytesIO()
+            captura.save(output, format="PNG")
+            image_data = output.getvalue()
+            # Copiar la imagen al portapapeles en formato DIB (Device Independent Bitmap)
+            output.seek(0)
+            image = ImageGrab.grab(bbox=(x, y, ancho, alto)).convert("RGB")  # Convertir a RGB
+            output = io.BytesIO()
+            image.save(output, format="DIB")
+            data = output.getvalue()
+            # Abrir el portapapeles y copiar la imagen
+            win32clipboard.OpenClipboard()
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+            win32clipboard.CloseClipboard()
+            ventana.destroy()
+
+        # ====== TÍTULO ======
+        lbl_titulo = tk.Label(ventana, text="Extracto de pagos", font=("Arial", 16, "bold"))
+        lbl_titulo.pack(pady=5)
+        # ====== Botón de Acción ======
+        boton_accion = tk.Button(ventana, text="Captura", font=("Arial", 10), bg="#d9d9d9", command=capturar_y_copiar)
+        boton_accion.pack(pady=5)
+
+        # ====== PANEL DE INFORMACIÓN ======
+        frame_info = tk.Frame(ventana, bg="#f0f0f0", bd=2, relief="solid", padx=10, pady=10)
+        frame_info.pack(fill=tk.X, padx=10, pady=5)
+
+        # Crear los 4 paneles que representarán las columnas
+        frame_col1 = tk.Frame(frame_info, bg="#f0f0f0")
+        frame_col2 = tk.Frame(frame_info, bg="#f0f0f0")
+        frame_col3 = tk.Frame(frame_info, bg="#f0f0f0")
+        frame_col4 = tk.Frame(frame_info, bg="#f0f0f0")
+
+        # Empaquetar los frames en línea horizontal
+        frame_col1.pack(side=tk.LEFT, expand=True, padx=10, pady=5)
+        frame_col2.pack(side=tk.LEFT, expand=True, padx=10, pady=5)
+        frame_col3.pack(side=tk.LEFT, expand=True, padx=10, pady=5)
+        frame_col4.pack(side=tk.LEFT, expand=True, padx=10, pady=5)
+
+        # ====== Información del Cliente (Columna 1) ======
+        tk.Label(frame_col1, text="Información del Cliente", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col1, text=f"Cédula: {cedula}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col1, text=f"Nombre: {nombre}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+
+        # ====== Información del Vehículo (Columna 2) ======
+        tk.Label(frame_col2, text="Información del Vehículo", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col2, text=f"Placa: {placa}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+        valor_cuota_cop = f"${valor_cuota:,.0f}".replace(",", ".")
+        tk.Label(frame_col2, text=f"Valor cuota: {valor_cuota_cop}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+
+        # ====== Datos Financieros (Columna 3) ======
+        tk.Label(frame_col3, text="Datos Financieros", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col3, text=f"Cuotas generadas: {cuotas_vencidas}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col3, text=f"Cuotas pagadas: {cuotas_pagadas:.1f}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+
+        # ====== Estado Financiero (Columna 4) ======
+        tk.Label(frame_col4, text="Estado Financiero", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col4, text=f"Cuotas pendientes: {cuotas_pendientes:.1f}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+        tk.Label(frame_col4, text=f"Valor para estar al día: {valor_pendiente_cop}", font=("Arial", 11), bg="#f0f0f0").pack(anchor="w")
+
+        # ====== TREEVIEW ======
+        frame_tree = tk.Frame(ventana)
+        frame_tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        columnas = ("Fecha Programada", "Fecha Pago", "Valor Pagado", "Tipo", "Referencia")
+        # Scrollbar vertical
+        scrollbar_y = ttk.Scrollbar(frame_tree, orient="vertical")
+        tree = ttk.Treeview(frame_tree, columns=columnas, show='headings', style="Custom.Treeview")
+
+        # Configurar encabezados
+        for col in columnas:
+            tree.heading(col, text=col, anchor="center")
+            tree.column(col, anchor="center", width=150)
+
+        # Estilos del Treeview
+        style = ttk.Style()
+        style.configure("Custom.Treeview", rowheight=25)
+        style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
+        # Definir un estilo para las filas resaltadas
+        tree.tag_configure("resaltado", background="lightcoral")
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Scrollbars
+        scrollbar_y = ttk.Scrollbar(frame_tree, orient="vertical", command=tree.yview)
+        scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+        tree.configure(yscrollcommand=scrollbar_y.set)
+        
+
+        # Insertar datos en el Treeview desde el DataFrame
+        for _, row in df.iterrows():
+            tags = ("pendiente",) if row["Valor Pagado"] == 0 else ()
+            valor_fecha_pago = row["Fecha Pago"]
+            valor_formateado = ""
+            if pd.notnull(valor_fecha_pago) and valor_fecha_pago:
+                if isinstance(valor_fecha_pago, datetime):
+                    # Si ya es un datetime, formatear
+                    valor_formateado = valor_fecha_pago.strftime("%d-%m-%Y")
+                else:
+                    # Si es un str, parsear y formatear
+                    try:
+                        fecha_dt = datetime.strptime(valor_fecha_pago, "%Y-%m-%d")
+                        valor_formateado = fecha_dt.strftime("%d-%m-%Y")
+                    except ValueError:
+                        # Si falla, deja el texto original
+                        valor_formateado = valor_fecha_pago
+                    
+            print(f"Valor formateado: {valor_formateado} (tipo: {type(valor_formateado)})")
+            # Insertar fila en el Treeview    
+            tree.insert(
+                "", 
+                "end", 
+                values=(
+                    row["Fecha Programada"].strftime("%d-%m-%Y"),
+                    valor_formateado,  # Aquí usamos el valor formateado
+                    row["Valor Pagado"],
+                    row["Tipo"],
+                    row["Referencia"]
+                ),
+                tags=tags
+            )
+
+
+        # Estilo para saldo pendiente
+        tree.tag_configure("pendiente", foreground="red")
+        tree.yview_moveto(1.0)
+
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Error inesperado: {str(e)}")
