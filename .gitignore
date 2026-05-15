@@ -1,0 +1,10 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+data/reporte_clientes_actual.csv
+web/node_modules/
+web/.next/
+web/out/
