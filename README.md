@@ -15,6 +15,6 @@
 
 Carpeta `web/`. En local, con el CSV en `../data/reporte_clientes_actual.csv`, la API lo encuentra sola.
 
-En **Vercel** el sistema de archivos del deploy no incluye el CSV que genera tu Python en otro servidor: configura `REPORTE_CSV_URL` en los env del proyecto (URL HTTPS al archivo actualizado) o despliega la app en el mismo host donde corre el scheduler.
+En **Vercel** no existe el CSV en `/var/task/...`. La API (`web`) intenta en orden: archivo local → descarga `REPORTE_CSV_URL` → `DATABASE_URL` (consulta directa, misma SQL que `db_general.py`). Lo más simple en Vercel es definir **`DATABASE_URL`** en el proyecto (el mismo `postgresql://...` de tu `.env`).
 
 Ver `web/.env.example`.
