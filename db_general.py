@@ -5,6 +5,8 @@ import psycopg2
 from datetime import datetime
 from dotenv import load_dotenv
 
+import db_defaults
+
 load_dotenv()
 
 # Carpeta de datos (mismo directorio que este archivo)
@@ -15,11 +17,11 @@ CSV_ACTUAL = os.path.join(DATA_DIR, "reporte_clientes_actual.csv")
 
 def get_connection():
     return psycopg2.connect(
-        host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT"),
-        database=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST", db_defaults.DB_HOST),
+        port=os.getenv("DB_PORT", db_defaults.DB_PORT),
+        database=os.getenv("DB_NAME", db_defaults.DB_NAME),
+        user=os.getenv("DB_USER", db_defaults.DB_USER),
+        password=os.getenv("DB_PASSWORD", db_defaults.DB_PASSWORD),
     )
 
 

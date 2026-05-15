@@ -5,16 +5,18 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from tabulate import tabulate
 
+import db_defaults
+
 load_dotenv()
 
 def get_connection():
     """Retorna conexión a la BD"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST'),
-        port=os.getenv('DB_PORT'),
-        database=os.getenv('DB_NAME'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD')
+        host=os.getenv("DB_HOST", db_defaults.DB_HOST),
+        port=os.getenv("DB_PORT", db_defaults.DB_PORT),
+        database=os.getenv("DB_NAME", db_defaults.DB_NAME),
+        user=os.getenv("DB_USER", db_defaults.DB_USER),
+        password=os.getenv("DB_PASSWORD", db_defaults.DB_PASSWORD),
     )
 
 def generar_reporte_métricas(fecha_corte=None):

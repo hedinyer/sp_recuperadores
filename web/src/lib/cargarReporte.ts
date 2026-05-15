@@ -3,6 +3,7 @@ import path from "path";
 import { unstable_cache } from "next/cache";
 
 import { parseCsvPuntoComa } from "@/lib/csvPlaca";
+import { DATABASE_URL_DEFAULT } from "@/lib/dbDefaults";
 import { fetchReporteFilasDesdeDb } from "@/lib/reporteFromDb";
 
 function isEnoent(e: unknown): boolean {
@@ -33,12 +34,14 @@ async function fetchCsvTextoDesdeUrl(url: string): Promise<string> {
  * 1) Archivo local (REPORTE_CSV_PATH o data/reporte… junto al monorepo)
  * 2) Si no existe: REPORTE_CSV_URL (descarga)
  * 3) Si sigue sin datos: REPORTE_CSV_FALLBACK_URL
- * 4) Si aún no: DATABASE_URL — misma consulta que db_general.py (sin CSV en Vercel)
+ * 4) Consulta directa con DATABASE_URL (misma SQL que db_general.py); si falta el env,
+ *    se usa la cadena embebida en `src/lib/dbDefaults.ts`.
  */
 async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
   const csvUrl = process.env.REPORTE_CSV_URL?.trim();
   const csvFallbackUrl = process.env.REPORTE_CSV_FALLBACK_URL?.trim();
-  const dbUrl = process.env.DATABASE_URL?.trim();
+  const dbUrl =
+    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT;
 
   const filePath =
     process.env.REPORTE_CSV_PATH?.trim() || defaultLocalCsvPath();
@@ -67,14 +70,7 @@ async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
     if (filas.length > 0) return filas;
   }
 
-  if (dbUrl) {
-    return fetchReporteFilasDesdeDb(dbUrl);
-  }
-
-  throw new Error(
-    "No hay fuente de datos: el CSV no está en disco, no hay REPORTE_CSV_URL ni DATABASE_URL. " +
-      "En Vercel añade DATABASE_URL (mismo string que en tu .env local) o una URL pública al CSV.",
-  );
+  return fetchReporteFilasDesdeDb(dbUrl);
 }
 
 /** Cache breve para no leer disco / DB en cada pulsación de búsqueda. */
