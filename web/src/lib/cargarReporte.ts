@@ -4,6 +4,7 @@ import path from "path";
 import { parseCsvPuntoComa } from "@/lib/csvPlaca";
 import { DATABASE_URL_DEFAULT } from "@/lib/dbDefaults";
 import { fetchReporteFilasDesdeDb } from "@/lib/reporteFromDb";
+import { fetchReporteFilasDesdePython } from "@/lib/reporteFromPython";
 
 function isEnoent(e: unknown): boolean {
   return (
@@ -30,18 +31,31 @@ async function fetchCsvTextoDesdeUrl(url: string): Promise<string> {
 }
 
 /**
- * 1) Archivo local (REPORTE_CSV_PATH o data/reporte… junto al monorepo)
- * 2) Si no existe: REPORTE_CSV_URL (descarga)
- * 3) Si sigue sin datos: REPORTE_CSV_FALLBACK_URL
- * 4) Consulta directa con DATABASE_URL (misma SQL que db_general.py); si falta el env,
- *    se usa la cadena embebida en `src/lib/dbDefaults.ts`.
+ * Por defecto: consulta PostgreSQL con algoritmo `client_report` (TypeScript).
+ * Si falla o no hay filas: CSV local → REPORTE_CSV_URL → REPORTE_CSV_FALLBACK_URL.
+ * REPORTE_CSV_ONLY=1 invierte el orden (útil sin base de datos).
+ * CLIENT_REPORT_PYTHON=1 intenta `client_report.py --json` antes del TS.
  */
-async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
+async function fetchDesdeAlgoritmoExtracto(
+  dbUrl: string,
+): Promise<Record<string, string>[]> {
+  if (process.env.CLIENT_REPORT_PYTHON === "1") {
+    try {
+      const filas = await fetchReporteFilasDesdePython();
+      if (filas.length > 0) return filas;
+    } catch (e) {
+      console.warn(
+        "[cargarReporte] Python falló, usando TS:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+  return fetchReporteFilasDesdeDb(dbUrl);
+}
+
+async function cargarDesdeCsv(): Promise<Record<string, string>[]> {
   const csvUrl = process.env.REPORTE_CSV_URL?.trim();
   const csvFallbackUrl = process.env.REPORTE_CSV_FALLBACK_URL?.trim();
-  const dbUrl =
-    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT;
-
   const filePath =
     process.env.REPORTE_CSV_PATH?.trim() || defaultLocalCsvPath();
 
@@ -69,7 +83,34 @@ async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
     if (filas.length > 0) return filas;
   }
 
-  return fetchReporteFilasDesdeDb(dbUrl);
+  return [];
+}
+
+async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
+  const dbUrl =
+    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT;
+  const soloCsv = process.env.REPORTE_CSV_ONLY === "1";
+
+  if (!soloCsv) {
+    try {
+      const filasDb = await fetchDesdeAlgoritmoExtracto(dbUrl);
+      if (filasDb.length > 0) return filasDb;
+    } catch (e) {
+      console.warn(
+        "[cargarReporte] DB falló, probando CSV:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+
+  const filasCsv = await cargarDesdeCsv();
+  if (filasCsv.length > 0) return filasCsv;
+
+  if (soloCsv) {
+    return fetchDesdeAlgoritmoExtracto(dbUrl);
+  }
+
+  return [];
 }
 
 const CACHE_TTL_MS = 120_000;

@@ -1,8 +1,7 @@
 /**
- * Métricas del extracto — misma lógica que `mostrar_registros` en `func extrac.txt`.
- * Consultas equivalentes:
- *   clientes: cedula, nombre, placa, fecha_inicio, valor_cuota (+ telefono, visitador para la web)
- *   registros: fecha_registro, valor, tipo, referencia ORDER BY fecha_registro
+ * Algoritmo de extracto — réplica de `client_report.py` / `func extrac.txt`.
+ * `generarFilasExtracto` ≡ `generar_dataframe_extracto`
+ * `calcularResumenExtracto` ≡ `calcular_resumen_extracto`
  */
 
 export type RegistroExtracto = {
@@ -24,6 +23,21 @@ export type MetricasExtracto = {
   cumplimiento_pct: number;
 };
 
+type RegistroModificado = {
+  fecha: Date;
+  valor: number;
+  tipo: string;
+  referencia: string;
+};
+
+export type FilaExtracto = {
+  fechaProgramada: Date;
+  fechaPago: Date | "";
+  valorPagado: number;
+  tipo: string;
+  referencia: string;
+};
+
 function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -35,6 +49,17 @@ function daysBetween(a: Date, b: Date): number {
   return Math.floor(ms / 86400000);
 }
 
+function dateRange(start: Date, end: Date): Date[] {
+  const dates: Date[] = [];
+  const cur = startOfDay(start);
+  const endD = startOfDay(end);
+  while (cur.getTime() <= endD.getTime()) {
+    dates.push(new Date(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
 function formatFecha(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -42,12 +67,12 @@ function formatFecha(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** Replica el reparto de pagos por día del DataFrame en `func extrac.txt`. */
-export function calcularMetricasExtracto(
+/** Equivalente a `generar_dataframe_extracto` en client_report.py */
+export function generarFilasExtracto(
   fechaInicio: Date,
   valorCuota: number,
   registros: RegistroExtracto[],
-): MetricasExtracto {
+): FilaExtracto[] {
   if (valorCuota <= 0) {
     throw new Error("valor_cuota inválido");
   }
@@ -55,41 +80,62 @@ export function calcularMetricasExtracto(
   const inicio = startOfDay(fechaInicio);
   let fin = startOfDay(new Date());
 
-  const total = registros.reduce((s, r) => s + r.valor, 0);
-  const cuotasPagadasCeil = Math.ceil(total / valorCuota);
+  const registrosModificados: RegistroModificado[] = registros
+    .filter((r) => r.valor != null && !Number.isNaN(Number(r.valor)))
+    .map((r) => ({
+      fecha: startOfDay(r.fecha),
+      valor: Number(r.valor),
+      tipo: r.tipo || "",
+      referencia: r.referencia || "",
+    }));
 
-  let diasRango = daysBetween(inicio, fin) + 1;
+  const total = registrosModificados.reduce((s, r) => s + r.valor, 0);
+  const cuotasPagadasCeil = total > 0 ? Math.ceil(total / valorCuota) : 0;
+
+  const diasRango = daysBetween(inicio, fin) + 1;
   if (cuotasPagadasCeil > diasRango) {
     fin = new Date(fin);
     fin.setDate(fin.getDate() + (cuotasPagadasCeil - diasRango));
   }
 
-  const n = daysBetween(inicio, fin) + 1;
-  const valorPagado = new Array<number>(n).fill(0);
+  const filas: FilaExtracto[] = dateRange(inicio, fin).map((d) => ({
+    fechaProgramada: d,
+    fechaPago: "",
+    valorPagado: 0,
+    tipo: "",
+    referencia: "",
+  }));
 
   let saldo = 0;
   let pagosIdx = 0;
-  const regs = registros.map((r) => ({ ...r, valor: Number(r.valor) }));
 
-  for (let i = 0; i < n; i++) {
-    while (pagosIdx < regs.length && saldo < valorCuota) {
-      let { valor } = regs[pagosIdx];
+  for (let i = 0; i < filas.length; i++) {
+    while (pagosIdx < registrosModificados.length && saldo < valorCuota) {
+      const reg = registrosModificados[pagosIdx];
+      let valor = reg.valor;
 
       while (valor + saldo >= valorCuota) {
         const faltaParaCuota = valorCuota - saldo;
-        valorPagado[i] += faltaParaCuota;
+        filas[i].valorPagado += faltaParaCuota;
+        filas[i].fechaPago = reg.fecha;
+        if (filas[i].referencia === "") filas[i].referencia = reg.referencia;
+        if (filas[i].tipo === "") filas[i].tipo = reg.tipo;
         valor -= faltaParaCuota;
         saldo = 0;
         i += 1;
-        if (i >= n) break;
+        if (i >= filas.length) break;
       }
-      if (i >= n) break;
+      if (i >= filas.length) break;
 
       saldo += valor;
       if (valor > 0) {
-        valorPagado[i] += valor;
+        filas[i].valorPagado += valor;
+        if (filas[i].tipo === "") filas[i].tipo = reg.tipo;
       }
       if (saldo >= valorCuota) {
+        filas[i].fechaPago = reg.fecha;
+        if (filas[i].referencia === "") filas[i].referencia = reg.referencia;
+        if (filas[i].tipo === "") filas[i].tipo = reg.tipo;
         saldo -= valorCuota;
       } else {
         pagosIdx += 1;
@@ -97,17 +143,53 @@ export function calcularMetricasExtracto(
     }
   }
 
+  return filas;
+}
+
+/** Equivalente a `calcular_resumen_extracto` en client_report.py */
+export function calcularResumenExtracto(
+  filas: FilaExtracto[],
+  valorCuota: number,
+): Pick<
+  MetricasExtracto,
+  | "cuotas_generadas"
+  | "cuotas_completas"
+  | "cuotas_pagadas"
+  | "cuotas_pendientes"
+  | "total_pagado"
+  | "deuda_total"
+> {
+  const total = filas.reduce((s, f) => s + f.valorPagado, 0);
   let cuotasPagadasCompletas = 0;
   let remanente = 0;
-  for (const v of valorPagado) {
-    cuotasPagadasCompletas += Math.floor(v / valorCuota);
-    remanente += v % valorCuota;
+  for (const f of filas) {
+    cuotasPagadasCompletas += Math.floor(f.valorPagado / valorCuota);
+    remanente += f.valorPagado % valorCuota;
   }
   const fraccionCuota = remanente / valorCuota;
   const cuotasPagadas = cuotasPagadasCompletas + fraccionCuota;
-  const cuotasVencidas = n;
+  const cuotasVencidas = filas.length;
   const cuotasPendientes = cuotasVencidas - cuotasPagadas;
   const valorPendiente = cuotasPendientes * valorCuota;
+
+  return {
+    cuotas_generadas: cuotasVencidas,
+    cuotas_completas: cuotasPagadasCompletas,
+    cuotas_pagadas: cuotasPagadas,
+    cuotas_pendientes: cuotasPendientes,
+    total_pagado: total,
+    deuda_total: valorPendiente,
+  };
+}
+
+/** Métricas completas para la web (client_report + campos de mora). */
+export function calcularMetricasExtracto(
+  fechaInicio: Date,
+  valorCuota: number,
+  registros: RegistroExtracto[],
+): MetricasExtracto {
+  const filas = generarFilasExtracto(fechaInicio, valorCuota, registros);
+  const resumen = calcularResumenExtracto(filas, valorCuota);
 
   let ultimoPago = "";
   if (registros.length > 0) {
@@ -118,22 +200,19 @@ export function calcularMetricasExtracto(
     ultimoPago = formatFecha(startOfDay(maxFecha));
   }
 
+  const fin = startOfDay(new Date());
   const diasMora = ultimoPago
     ? daysBetween(new Date(ultimoPago), fin)
-    : cuotasVencidas;
+    : resumen.cuotas_generadas;
 
   const cumplimientoPct =
-    cuotasVencidas > 0
-      ? Math.round((1000 * cuotasPagadas) / cuotasVencidas) / 10
+    resumen.cuotas_generadas > 0
+      ? Math.round((1000 * resumen.cuotas_pagadas) / resumen.cuotas_generadas) /
+        10
       : 0;
 
   return {
-    cuotas_generadas: cuotasVencidas,
-    cuotas_completas: cuotasPagadasCompletas,
-    cuotas_pagadas: cuotasPagadas,
-    cuotas_pendientes: cuotasPendientes,
-    total_pagado: total,
-    deuda_total: valorPendiente,
+    ...resumen,
     ultimo_pago: ultimoPago,
     dias_mora: diasMora,
     cumplimiento_pct: cumplimientoPct,

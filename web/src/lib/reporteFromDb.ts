@@ -5,9 +5,7 @@ import {
   type RegistroExtracto,
 } from "@/lib/extractoCliente";
 
-/**
- * Consultas equivalentes a `mostrar_registros` en `func extrac.txt`.
- */
+/** Mismas consultas que `client_report.py` (SQL_CLIENTES_ACTIVOS / SQL_REGISTROS_LOTE). */
 export const SQL_CLIENTES_EXTRACTO = `
 SELECT
     c.cedula,
@@ -20,7 +18,6 @@ SELECT
 FROM clientes c
 WHERE c.estado = 'activo'
   AND c.fecha_inicio IS NOT NULL
-  AND c.fecha_inicio <= CURRENT_DATE
   AND c.valor_cuota > 0
 `;
 
@@ -55,15 +52,6 @@ const COLUMNAS = [
   "cumplimiento_pct",
 ] as const;
 
-function celdaAString(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "object" && v !== null && "toString" in v) {
-    const s = (v as { toString: () => string }).toString();
-    if (s !== "[object Object]") return s;
-  }
-  return String(v);
-}
-
 function fechaAString(v: unknown): string {
   if (v instanceof Date) {
     const y = v.getFullYear();
@@ -71,7 +59,7 @@ function fechaAString(v: unknown): string {
     const d = String(v.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
-  return celdaAString(v);
+  return v == null ? "" : String(v);
 }
 
 function registrosPorCedula(
@@ -85,6 +73,7 @@ function registrosPorCedula(
 ): Map<string, RegistroExtracto[]> {
   const map = new Map<string, RegistroExtracto[]>();
   for (const row of rows) {
+    if (row.fecha_registro == null || row.valor == null) continue;
     const lista = map.get(row.cedula) ?? [];
     lista.push({
       fecha: new Date(row.fecha_registro),
@@ -97,7 +86,7 @@ function registrosPorCedula(
   return map;
 }
 
-/** Filas en el mismo shape que `parseCsvPuntoComa` (strings), vía lógica del extracto. */
+/** Filas CSV-compatibles calculadas con el algoritmo de `client_report.py`. */
 export async function fetchReporteFilasDesdeDb(
   connectionString: string,
 ): Promise<Record<string, string>[]> {
