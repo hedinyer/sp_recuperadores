@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 
+import { NavFooter } from "@/components/NavFooter";
+
 type Vehiculo = Record<string, string>;
 
 function formatearCOP(val: string | undefined): string {
@@ -199,7 +201,7 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
     : null;
 
   return (
-    <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80">
         <h1 className="text-base font-semibold tracking-tight text-white">
           Consulta por placa
@@ -557,6 +559,7 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
           </div>
         )}
       </main>
+      <NavFooter />
     </div>
   );
 }

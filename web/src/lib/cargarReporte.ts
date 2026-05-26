@@ -2,7 +2,10 @@ import fs from "fs/promises";
 import path from "path";
 
 import { parseCsvPuntoComa } from "@/lib/csvPlaca";
-import { DATABASE_URL_DEFAULT } from "@/lib/dbDefaults";
+import {
+  DATABASE_URL_DEFAULT,
+  DATABASE_URL_PUNTO_VENTA_2,
+} from "@/lib/dbDefaults";
 import { fetchReporteFilasDesdeDb } from "@/lib/reporteFromDb";
 import { fetchReporteFilasDesdePython } from "@/lib/reporteFromPython";
 
@@ -37,7 +40,7 @@ async function fetchCsvTextoDesdeUrl(url: string): Promise<string> {
  * CLIENT_REPORT_PYTHON=1 intenta `client_report.py --json` antes del TS.
  */
 async function fetchDesdeAlgoritmoExtracto(
-  dbUrl: string,
+  dbUrls: string[],
 ): Promise<Record<string, string>[]> {
   if (process.env.CLIENT_REPORT_PYTHON === "1") {
     try {
@@ -50,7 +53,7 @@ async function fetchDesdeAlgoritmoExtracto(
       );
     }
   }
-  return fetchReporteFilasDesdeDb(dbUrl);
+  return fetchReporteFilasDesdeDb(dbUrls);
 }
 
 async function cargarDesdeCsv(): Promise<Record<string, string>[]> {
@@ -87,13 +90,15 @@ async function cargarDesdeCsv(): Promise<Record<string, string>[]> {
 }
 
 async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
-  const dbUrl =
-    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT;
+  const dbUrls = [
+    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT,
+    process.env.DATABASE_URL_2?.trim() || DATABASE_URL_PUNTO_VENTA_2,
+  ].filter(Boolean);
   const soloCsv = process.env.REPORTE_CSV_ONLY === "1";
 
   if (!soloCsv) {
     try {
-      const filasDb = await fetchDesdeAlgoritmoExtracto(dbUrl);
+      const filasDb = await fetchDesdeAlgoritmoExtracto(dbUrls);
       if (filasDb.length > 0) return filasDb;
     } catch (e) {
       console.warn(
@@ -107,7 +112,7 @@ async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
   if (filasCsv.length > 0) return filasCsv;
 
   if (soloCsv) {
-    return fetchDesdeAlgoritmoExtracto(dbUrl);
+    return fetchDesdeAlgoritmoExtracto(dbUrls);
   }
 
   return [];

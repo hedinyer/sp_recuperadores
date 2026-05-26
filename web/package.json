@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.4",
     "html-to-image": "^1.11.13",
     "next": "15.5.18",
     "pg": "^8.20.0",
