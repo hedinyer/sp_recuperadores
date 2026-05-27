@@ -107,6 +107,7 @@ const RECUPERADORES_FIJOS = [
   "Josué Mindiola",
   "Fabián Garzón",
   "Nicolás Garrido",
+  "Everth baptista",
 ];
 
 const OPCIONES_GPS_MOTO = ["iop gps", "system track"] as const;

@@ -58,6 +58,7 @@ const RECUPERADORES_FIJOS = [
   "Josué Mindiola",
   "Fabián Garzón",
   "Nicolás Garrido",
+  "Everth baptista",
 ];
 
 function limpiarNumero(valor: string): string {

@@ -17,6 +17,7 @@ const RECUPERADORES_FIJOS = [
   "Josué Mindiola",
   "Fabián Garzón",
   "Nicolás Garrido",
+  "Everth baptista",
 ];
 
 function formatearCOP(val: string | undefined): string {
