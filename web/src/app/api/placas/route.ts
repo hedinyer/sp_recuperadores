@@ -32,13 +32,20 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const placa = (body.placa ?? "").trim().toUpperCase();
+    const gpsMotoRaw = String(body.gps_moto ?? "").trim().toLowerCase();
+    const gps_moto = gpsMotoRaw === "system track" ? "system track" : "iop gps";
     if (!placa) {
       return NextResponse.json({ error: "Falta la placa" }, { status: 400 });
     }
 
     const { data, error } = await supabase
       .from("placas")
-      .insert({ placa, status: "pendiente", fecha: new Date().toISOString() })
+      .insert({
+        placa,
+        status: "pendiente",
+        fecha: new Date().toISOString(),
+        gps_moto,
+      })
       .select()
       .single();
 

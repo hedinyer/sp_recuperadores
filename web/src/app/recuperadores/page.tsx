@@ -11,6 +11,7 @@ type Asignacion = {
   estado: string;
   pagado: number;
   multa: number;
+  gps_moto: string;
   fecha_asignada: string | null;
   fecha_recuperada: string | null;
 };
@@ -576,6 +577,11 @@ export default function RecuperadoresPage() {
                         >
                           {asig.estado}
                         </span>
+                        {asig.gps_moto && (
+                          <span className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-300">
+                            GPS: {asig.gps_moto}
+                          </span>
+                        )}
                       </div>
                       <span className="text-[10px] text-zinc-500">
                         {formatFechaCorta(asig.fecha_asignada)}

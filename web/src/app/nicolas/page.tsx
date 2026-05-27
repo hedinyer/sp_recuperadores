@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { NavFooter } from "@/components/NavFooter";
 
@@ -9,6 +9,7 @@ type PlacaDelDia = {
   placa: string;
   status: string;
   fecha: string;
+  gps_moto: string | null;
 };
 
 type RecuperadorGroup = {
@@ -107,6 +108,8 @@ const RECUPERADORES_FIJOS = [
   "Fabián Garzón",
   "Nicolás Garrido",
 ];
+
+const OPCIONES_GPS_MOTO = ["iop gps", "system track"] as const;
 
 function formatearCOP(val: string | number | undefined): string {
   if (val == null || val === "") return "—";
@@ -251,6 +254,7 @@ function NicolasAdminPanel() {
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   const [nuevaPlaca, setNuevaPlaca] = useState("");
+  const [nuevoGpsMoto, setNuevoGpsMoto] = useState<(typeof OPCIONES_GPS_MOTO)[number]>("iop gps");
   const [asignarPlaca, setAsignarPlaca] = useState("");
   const [asignarRecup, setAsignarRecup] = useState("");
   const [tab, setTab] = useState<"placas" | "asignadas" | "recuperadas" | "metricas">("placas");
@@ -288,17 +292,18 @@ function NicolasAdminPanel() {
     const res = await fetch("/api/placas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ placa: p }),
+      body: JSON.stringify({ placa: p, gps_moto: nuevoGpsMoto }),
     });
     if (res.ok) {
       setNuevaPlaca("");
-      setMensaje(`Placa ${p} publicada`);
+      setNuevoGpsMoto("iop gps");
+      setMensaje(`Placa ${p} publicada (${nuevoGpsMoto})`);
       cargarDatos();
     } else {
       const data = await res.json();
       setMensaje(data.error || "Error al publicar");
     }
-  }, [nuevaPlaca, cargarDatos]);
+  }, [nuevaPlaca, nuevoGpsMoto, cargarDatos]);
 
   const asignar = useCallback(async () => {
     if (!asignarPlaca || !asignarRecup) return;
@@ -328,18 +333,29 @@ function NicolasAdminPanel() {
   const etiquetaPeriodo =
     PERIODOS_METRICA.find((p) => p.key === periodoMetrica)?.label ?? "";
 
-  const placasPendientes = placas.filter((p) => p.status === "pendiente");
-  const asignacionesHoy = grupos.flatMap((g) =>
-    g.asignaciones.map((a) => ({
-      ...a,
-      recuperador: g.nombre,
-    })),
+  const placasPendientes = useMemo(
+    () => placas.filter((p) => p.status === "pendiente"),
+    [placas],
   );
-  const recuperadas = asignacionesHoy.filter((a) => a.estado === "recuperada");
+  const asignacionesHoy = useMemo(
+    () =>
+      grupos.flatMap((g) =>
+        g.asignaciones.map((a) => ({
+          ...a,
+          recuperador: g.nombre,
+        })),
+      ),
+    [grupos],
+  );
+  const recuperadas = useMemo(
+    () => asignacionesHoy.filter((a) => a.estado === "recuperada"),
+    [asignacionesHoy],
+  );
 
   useEffect(() => {
     if (recuperadas.length === 0) {
-      setDeudasRecuperadas({});
+      setDeudasRecuperadas((prev) => (Object.keys(prev).length ? {} : prev));
+      setCargandoDeudasRecuperadas(false);
       return;
     }
 
@@ -412,6 +428,19 @@ function NicolasAdminPanel() {
           <label className="text-xs text-zinc-400 pl-0.5">
             Publicar nueva placa
           </label>
+          <select
+            value={nuevoGpsMoto}
+            onChange={(e) =>
+              setNuevoGpsMoto(e.target.value as (typeof OPCIONES_GPS_MOTO)[number])
+            }
+            className="w-full min-h-[44px] rounded-xl bg-zinc-900 border border-zinc-700 px-3 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600"
+          >
+            {OPCIONES_GPS_MOTO.map((gps) => (
+              <option key={gps} value={gps}>
+                GPS: {gps}
+              </option>
+            ))}
+          </select>
           <div className="flex gap-2">
             <input
               type="text"
@@ -486,6 +515,9 @@ function NicolasAdminPanel() {
                           }`}
                         >
                           {p.placa}
+                          <span className="text-[9px] uppercase tracking-normal text-zinc-400 font-medium">
+                            {p.gps_moto || "sin gps"}
+                          </span>
                           {p.status === "asignada" && (
                             <span className="text-[9px] font-medium text-zinc-600 uppercase tracking-normal">
                               asig

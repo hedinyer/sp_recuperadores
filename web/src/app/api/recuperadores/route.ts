@@ -6,12 +6,24 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from("recuperadores")
-      .select("*")
-      .order("fecha_hora_asignada", { ascending: false });
+    const [{ data, error }, { data: placasData, error: placasError }] =
+      await Promise.all([
+        supabase
+          .from("recuperadores")
+          .select("*")
+          .order("fecha_hora_asignada", { ascending: false }),
+        supabase.from("placas").select("placa, gps_moto"),
+      ]);
 
     if (error) throw error;
+    if (placasError) throw placasError;
+
+    const gpsPorPlaca = new Map<string, string>();
+    for (const row of placasData ?? []) {
+      const placa = String(row.placa ?? "").toUpperCase().replace(/\s/g, "");
+      if (!placa) continue;
+      gpsPorPlaca.set(placa, String(row.gps_moto ?? "").trim());
+    }
 
     const agrupado: Record<
       string,
@@ -23,6 +35,7 @@ export async function GET() {
           estado: string;
           pagado: number;
           multa: number;
+          gps_moto: string;
           fecha_asignada: string | null;
           fecha_recuperada: string | null;
         }>;
@@ -40,6 +53,10 @@ export async function GET() {
         estado: row.estado_moto || "pendiente",
         pagado: Number(row.Pagado) || 0,
         multa: Number(row.multa) || 0,
+        gps_moto:
+          gpsPorPlaca.get(
+            (row.placa_asignada || "").toUpperCase().replace(/\s/g, ""),
+          ) || "",
         fecha_asignada: row.fecha_hora_asignada,
         fecha_recuperada: row.fecha_hora_recuperada,
       });
