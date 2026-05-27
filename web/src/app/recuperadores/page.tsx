@@ -24,6 +24,12 @@ type Vehiculo = Record<string, string>;
 
 type TipoRecibo = "pago" | "recuperada";
 
+type DeudaPlaca = {
+  nombre: string;
+  deuda_total: string;
+  dias_mora: number;
+};
+
 function formatearCOP(val: string | number | undefined): string {
   if (val == null || val === "") return "—";
   const n = typeof val === "string" ? Number(val.replace(/,/g, "")) : Number(val);
@@ -53,6 +59,19 @@ const RECUPERADORES_FIJOS = [
   "Nicolás Garrido",
 ];
 
+function actualizarAsignacion(
+  recuperadores: Recuperador[],
+  id: number,
+  cambios: Partial<Asignacion>,
+): Recuperador[] {
+  return recuperadores.map((r) => ({
+    ...r,
+    asignaciones: r.asignaciones.map((a) =>
+      a.id === id ? { ...a, ...cambios } : a,
+    ),
+  }));
+}
+
 export default function RecuperadoresPage() {
   const [recuperadores, setRecuperadores] = useState<Recuperador[]>([]);
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -79,20 +98,26 @@ export default function RecuperadoresPage() {
   } | null>(null);
 
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [deudasPorPlaca, setDeudasPorPlaca] = useState<
+    Record<string, DeudaPlaca | null>
+  >({});
+  const [cargandoDeudas, setCargandoDeudas] = useState(false);
 
   const reciboRef = useRef<HTMLDivElement>(null);
+  const asignacionesRef = useRef<HTMLElement>(null);
+
+  const recargarRecuperadores = useCallback(async () => {
+    const res = await fetch("/api/recuperadores", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      setRecuperadores(data.recuperadores ?? []);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/recuperadores")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.recuperadores) {
-          setRecuperadores(data.recuperadores);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    recargarRecuperadores().finally(() => setLoading(false));
+  }, [recargarRecuperadores]);
 
   const asignacionesActuales = useMemo(
     () =>
@@ -102,6 +127,67 @@ export default function RecuperadoresPage() {
         : [],
     [selectedName, recuperadores],
   );
+
+  const placasConDeuda = useMemo(
+    () =>
+      [
+        ...new Set(
+          asignacionesActuales
+            .filter(
+              (a) => a.estado !== "recuperada" && a.estado !== "Abonó",
+            )
+            .map((a) => a.placa),
+        ),
+      ].sort().join(","),
+    [asignacionesActuales],
+  );
+
+  useEffect(() => {
+    if (!placasConDeuda) {
+      setDeudasPorPlaca({});
+      return;
+    }
+
+    const placas = placasConDeuda.split(",");
+    let cancelled = false;
+    setCargandoDeudas(true);
+
+    Promise.all(
+      placas.map(async (placa) => {
+        try {
+          const res = await fetch(
+            `/api/placa?placa=${encodeURIComponent(placa)}`,
+            { cache: "no-store" },
+          );
+          const data = await res.json();
+          if (!res.ok || !data.vehiculo) return [placa, null] as const;
+          const v = data.vehiculo as Vehiculo;
+          return [
+            placa,
+            {
+              nombre: v.nombre || "—",
+              deuda_total: v.deuda_total || "0",
+              dias_mora: parseInt(String(v.dias_mora ?? "0"), 10) || 0,
+            },
+          ] as const;
+        } catch {
+          return [placa, null] as const;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, DeudaPlaca | null> = {};
+      for (const [placa, info] of results) {
+        next[placa] = info;
+      }
+      setDeudasPorPlaca(next);
+      setCargandoDeudas(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [placasConDeuda]);
 
   const placaReciboYaRecuperada = useMemo(() => {
     if (!recibo) return false;
@@ -190,6 +276,8 @@ export default function RecuperadoresPage() {
     const multa = parseFloat(montoMulta) || 0;
     const placaNorm = (selectedPlaca || "").toUpperCase().replace(/\s/g, "");
 
+    const asignacion = asignacionesActuales.find((a) => a.placa === placaNorm);
+
     setRecibo({
       referencia,
       fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
@@ -199,12 +287,24 @@ export default function RecuperadoresPage() {
       montoPago: pago,
       montoMulta: multa,
       total: pago - multa,
-      tipo: tipoRecibo,
+      tipo: "pago",
     });
     setShowPagoForm(false);
 
-    const asignacion = asignacionesActuales.find((a) => a.placa === placaNorm);
     if (!asignacion) return;
+
+    setRecuperadores((prev) =>
+      actualizarAsignacion(prev, asignacion.id, {
+        estado: "Abonó",
+        pagado: pago,
+        multa: multa,
+      }),
+    );
+    setMensajeExito(`Placa ${placaNorm} registrada como Abonó`);
+    asignacionesRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
 
     try {
       const res = await fetch("/api/recuperadores", {
@@ -218,41 +318,46 @@ export default function RecuperadoresPage() {
         }),
       });
       if (res.ok) {
-        setMensajeExito(`Placa ${placaNorm} registrada como Abonó`);
-        setRecuperadores((prev) =>
-          prev.map((r) => {
-            if (r.nombre !== selectedName) return r;
-            return {
-              ...r,
-              asignaciones: r.asignaciones.map((a) =>
-                a.id === asignacion.id
-                  ? { ...a, estado: "Abonó", pagado: pago, multa: multa }
-                  : a,
-              ),
-            };
-          }),
-        );
+        await recargarRecuperadores();
+      } else {
+        await recargarRecuperadores();
+        setMensajeExito(null);
       }
     } catch {
-      // ignore
+      await recargarRecuperadores();
+      setMensajeExito(null);
     }
   }, [
     montoPago,
     montoMulta,
     vehiculo,
     selectedPlaca,
-    tipoRecibo,
     asignacionesActuales,
-    selectedName,
+    recargarRecuperadores,
   ]);
 
   const marcarRecuperada = useCallback(async () => {
-    if (!selectedPlaca || !recibo) return;
+    if (!recibo || confirmando) return;
 
     const asignacion = asignacionesActuales.find(
       (a) => a.placa === recibo.placa,
     );
     if (!asignacion) return;
+
+    const fechaRecuperada = new Date().toISOString();
+    setConfirmando(true);
+
+    setRecuperadores((prev) =>
+      actualizarAsignacion(prev, asignacion.id, {
+        estado: "recuperada",
+        fecha_recuperada: fechaRecuperada,
+      }),
+    );
+    setMensajeExito(`Moto ${recibo.placa} marcada como recuperada`);
+    asignacionesRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
 
     try {
       const res = await fetch("/api/recuperadores", {
@@ -266,31 +371,18 @@ export default function RecuperadoresPage() {
         }),
       });
       if (res.ok) {
-        setMensajeExito(
-          `Moto ${recibo.placa} marcada como recuperada`,
-        );
-        setRecuperadores((prev) =>
-          prev.map((r) => {
-            if (r.nombre !== selectedName) return r;
-            return {
-              ...r,
-              asignaciones: r.asignaciones.map((a) =>
-                a.id === asignacion.id
-                  ? {
-                      ...a,
-                      estado: "recuperada",
-                      fecha_recuperada: new Date().toISOString(),
-                    }
-                  : a,
-              ),
-            };
-          }),
-        );
+        await recargarRecuperadores();
+      } else {
+        await recargarRecuperadores();
+        setMensajeExito(null);
       }
     } catch {
-      // ignore
+      await recargarRecuperadores();
+      setMensajeExito(null);
+    } finally {
+      setConfirmando(false);
     }
-  }, [selectedPlaca, recibo, asignacionesActuales, selectedName]);
+  }, [recibo, asignacionesActuales, confirmando, recargarRecuperadores]);
 
   const compartirReciboWpp = useCallback(async () => {
     if (!recibo) return;
@@ -450,7 +542,10 @@ export default function RecuperadoresPage() {
                 </p>
               </div>
             ) : (
-              <section className="flex flex-col gap-2">
+              <section
+                ref={asignacionesRef}
+                className="flex flex-col gap-2"
+              >
                 <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 pl-0.5">
                   Tus motos asignadas
                 </h2>
@@ -486,6 +581,45 @@ export default function RecuperadoresPage() {
                         {formatFechaCorta(asig.fecha_asignada)}
                       </span>
                     </div>
+
+                    {asig.estado !== "recuperada" && asig.estado !== "Abonó" && (
+                      <div className="mt-2 rounded-xl bg-rose-950/40 border border-rose-900/50 px-3 py-2">
+                        {deudasPorPlaca[asig.placa] ? (
+                          <>
+                            <p className="text-[11px] text-zinc-400 truncate">
+                              {deudasPorPlaca[asig.placa]!.nombre}
+                            </p>
+                            <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                              <p className="text-[10px] uppercase tracking-wide text-rose-300/90">
+                                Debe para estar al día
+                              </p>
+                              <p className="text-base font-bold text-rose-400 tabular-nums">
+                                {formatearCOP(
+                                  deudasPorPlaca[asig.placa]!.deuda_total,
+                                )}
+                              </p>
+                            </div>
+                            {deudasPorPlaca[asig.placa]!.dias_mora > 0 && (
+                              <span className="mt-1 inline-flex text-[10px] rounded-full bg-amber-950/80 border border-amber-800/60 px-2 py-0.5 text-amber-200">
+                                {deudasPorPlaca[asig.placa]!.dias_mora}{" "}
+                                {deudasPorPlaca[asig.placa]!.dias_mora === 1
+                                  ? "día"
+                                  : "días"}{" "}
+                                sin pagar
+                              </span>
+                            )}
+                          </>
+                        ) : cargandoDeudas ? (
+                          <p className="text-xs text-zinc-500">
+                            Consultando deuda…
+                          </p>
+                        ) : (
+                          <p className="text-xs text-zinc-500">
+                            Sin datos de deuda en el reporte
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {asig.estado !== "recuperada" && asig.estado !== "Abonó" && (
                       <div className="mt-3 flex gap-2">
@@ -643,9 +777,10 @@ export default function RecuperadoresPage() {
               <button
                 type="button"
                 onClick={marcarRecuperada}
-                className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
+                disabled={confirmando}
+                className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
               >
-                Confirmar y marcar como recuperada
+                {confirmando ? "Confirmando…" : "Confirmar y marcar como recuperada"}
               </button>
             )}
           </div>

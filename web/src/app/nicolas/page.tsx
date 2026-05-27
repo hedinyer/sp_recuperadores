@@ -33,6 +33,12 @@ type Metricas = {
   total_multa: number;
 };
 
+type DeudaPlaca = {
+  nombre: string;
+  deuda_total: string;
+  dias_mora: number;
+};
+
 type PeriodoMetrica = "hoy" | "semana" | "mes" | "año";
 
 const PERIODOS_METRICA: { key: PeriodoMetrica; label: string }[] = [
@@ -136,6 +142,109 @@ function calcularMetricas(grupos: RecuperadorGroup[]): Metricas[] {
 }
 
 export default function NicolasPage() {
+  const [authState, setAuthState] = useState<"checking" | "login" | "ok">(
+    "checking",
+  );
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/auth", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => setAuthState(data.ok ? "ok" : "login"))
+      .catch(() => setAuthState("login"));
+  }, []);
+
+  const iniciarSesion = useCallback(async () => {
+    if (!password.trim()) {
+      setAuthError("Escribe la contraseña");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setPassword("");
+        setAuthState("ok");
+      } else {
+        setAuthError(data.error || "Contraseña incorrecta");
+      }
+    } catch {
+      setAuthError("Sin conexión");
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [password]);
+
+  if (authState === "checking") {
+    return (
+      <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <main className="flex-1 flex items-center justify-center px-4">
+          <p className="text-sm text-zinc-500">Verificando acceso…</p>
+        </main>
+        <NavFooter />
+      </div>
+    );
+  }
+
+  if (authState === "login") {
+    return (
+      <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80">
+          <h1 className="text-base font-semibold tracking-tight text-white">
+            Admin — Nicolas
+          </h1>
+          <p className="text-[11px] text-zinc-500 mt-0.5">
+            Acceso restringido
+          </p>
+        </header>
+        <main className="flex-1 w-full max-w-[414px] mx-auto px-3 sm:px-4 pt-6 flex flex-col gap-4">
+          <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-3">
+            <label htmlFor="admin-password" className="text-xs text-zinc-400">
+              Contraseña de administrador
+            </label>
+            <input
+              id="admin-password"
+              type="password"
+              inputMode="numeric"
+              autoComplete="current-password"
+              placeholder="••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && iniciarSesion()}
+              className="w-full min-h-[50px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600"
+            />
+            {authError && (
+              <p role="alert" className="text-sm text-red-300">
+                {authError}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={iniciarSesion}
+              disabled={authLoading}
+              className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation"
+            >
+              {authLoading ? "Entrando…" : "Entrar"}
+            </button>
+          </section>
+        </main>
+        <NavFooter />
+      </div>
+    );
+  }
+
+  return <NicolasAdminPanel />;
+}
+
+function NicolasAdminPanel() {
   const [placas, setPlacas] = useState<PlacaDelDia[]>([]);
   const [grupos, setGrupos] = useState<RecuperadorGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,6 +255,11 @@ export default function NicolasPage() {
   const [asignarRecup, setAsignarRecup] = useState("");
   const [tab, setTab] = useState<"placas" | "asignadas" | "recuperadas" | "metricas">("placas");
   const [periodoMetrica, setPeriodoMetrica] = useState<PeriodoMetrica>("hoy");
+  const [deudasRecuperadas, setDeudasRecuperadas] = useState<
+    Record<string, DeudaPlaca | null>
+  >({});
+  const [cargandoDeudasRecuperadas, setCargandoDeudasRecuperadas] =
+    useState(false);
 
   const cargarDatos = useCallback(async () => {
     const [resPlacas, resRecup] = await Promise.all([
@@ -222,6 +336,55 @@ export default function NicolasPage() {
     })),
   );
   const recuperadas = asignacionesHoy.filter((a) => a.estado === "recuperada");
+
+  useEffect(() => {
+    if (recuperadas.length === 0) {
+      setDeudasRecuperadas({});
+      return;
+    }
+
+    const placasUnicas = [
+      ...new Set(recuperadas.map((a) => a.placa.toUpperCase().replace(/\s/g, ""))),
+    ];
+
+    let cancelled = false;
+    setCargandoDeudasRecuperadas(true);
+
+    Promise.all(
+      placasUnicas.map(async (placa) => {
+        try {
+          const res = await fetch(`/api/placa?placa=${encodeURIComponent(placa)}`, {
+            cache: "no-store",
+          });
+          const data = await res.json();
+          if (!res.ok || !data.vehiculo) return [placa, null] as const;
+          const v = data.vehiculo as Record<string, string>;
+          return [
+            placa,
+            {
+              nombre: v.nombre || "—",
+              deuda_total: v.deuda_total || "0",
+              dias_mora: parseInt(String(v.dias_mora ?? "0"), 10) || 0,
+            },
+          ] as const;
+        } catch {
+          return [placa, null] as const;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, DeudaPlaca | null> = {};
+      for (const [placa, info] of results) {
+        next[placa] = info;
+      }
+      setDeudasRecuperadas(next);
+      setCargandoDeudasRecuperadas(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recuperadas]);
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -453,10 +616,22 @@ export default function NicolasPage() {
                       </div>
                       <div className="mt-1 flex justify-between text-xs text-zinc-400">
                         <span>{a.recuperador}</span>
-                        <div className="flex gap-2">
-                          <span>Pagó: {formatearCOP(a.pagado)}</span>
-                          <span>Multa: {formatearCOP(a.multa)}</span>
-                        </div>
+                        {deudasRecuperadas[
+                          a.placa.toUpperCase().replace(/\s/g, "")
+                        ] ? (
+                          <span>
+                            Debía:{" "}
+                            {formatearCOP(
+                              deudasRecuperadas[
+                                a.placa.toUpperCase().replace(/\s/g, "")
+                              ]!.deuda_total,
+                            )}
+                          </span>
+                        ) : cargandoDeudasRecuperadas ? (
+                          <span>Debía: …</span>
+                        ) : (
+                          <span>Debía: —</span>
+                        )}
                       </div>
                     </div>
                   ))
