@@ -1,5 +1,6 @@
 """
-Reporte de extracto por cliente — misma lógica que `mostrar_registros` en `func extrac.txt`.
+Reporte de extracto por cliente — consulta por PLACA con exportación a CSV.
+Misma lógica que `mostrar_registros` en `func extrac.txt`.
 Consulta tablas `clientes` y `registros` en PostgreSQL.
 """
 
@@ -8,8 +9,9 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import date, datetime, time, timedelta
 from typing import Any, Sequence
 
@@ -33,7 +35,8 @@ def get_connection():
     )
 
 
-SQL_CLIENTE = """
+# 🔹 CONSULTAS MODIFICADAS PARA BUSCAR POR PLACA
+SQL_CLIENTE_PLACA = """
 SELECT
     c.cedula,
     c.nombre,
@@ -41,17 +44,24 @@ SELECT
     c.fecha_inicio::date,
     c.valor_cuota::numeric
 FROM clientes c
-WHERE c.cedula = %s
+WHERE c.placa IS NOT NULL
+  AND TRIM(c.placa) <> ''
+  AND LOWER(TRIM(c.placa)) = LOWER(TRIM(%s))
+LIMIT 1
 """
 
-SQL_REGISTROS_CLIENTE = """
+SQL_REGISTROS_CLIENTE_PLACA = """
 SELECT
     r.fecha_registro::date,
     r.valor::numeric,
     r.tipo,
     r.referencia
 FROM registros r
-WHERE r.cedula = %s
+WHERE r.cedula = (
+    SELECT cedula FROM clientes 
+    WHERE LOWER(TRIM(placa)) = LOWER(TRIM(%s))
+    LIMIT 1
+)
 ORDER BY r.fecha_registro
 """
 
@@ -329,47 +339,132 @@ def _formato_cop(valor: float) -> str:
     return f"${valor:,.0f}".replace(",", ".")
 
 
-def cargar_cliente_y_registros(cedula: str) -> tuple[
+# 🔹 FUNCIÓN: SANITIZAR NOMBRE DE ARCHIVO
+def _sanitizar_nombre_archivo(nombre: str) -> str:
+    """Elimina caracteres inválidos para nombres de archivo en cualquier SO."""
+    # Reemplazar caracteres problemáticos por guión bajo
+    nombre_limpio = re.sub(r'[<>:"/\\|?*]', '_', nombre)
+    # Eliminar espacios extras y convertir a mayúsculas para consistencia
+    return '_'.join(nombre_limpio.strip().upper().split())
+
+
+# 🔹 FUNCIÓN: EXPORTAR EXTRACTO A CSV
+def exportar_extracto_csv(
+    placa: str,
+    cliente: tuple[str, str, str, date, float],
+    df: pd.DataFrame,
+    resumen: ResumenExtracto,
+    ruta_salida: str = "."
+) -> str:
+    """
+    Exporta el extracto del cliente a CSV con formato: informe_placa_XXXXXX.csv
+    
+    El CSV incluye:
+    - Hoja 1: Resumen financiero (métricas clave)
+    - Hoja 2: Detalle diario de pagos programados vs realizados
+    """
+    cedula_db, nombre, placa_db, fecha_inicio, valor_cuota = cliente
+    
+    # Nombre del archivo: informe_placa_XXXXXX.csv
+    placa_limpia = _sanitizar_nombre_archivo(placa_db or placa)
+    nombre_archivo = f"informe_placa_{placa_limpia}.csv"
+    ruta_completa = os.path.join(ruta_salida, nombre_archivo)
+    
+    # Preparar DataFrame de resumen
+    resumen_data = {
+        "Campo": [
+            "Cédula",
+            "Nombre",
+            "Placa",
+            "Fecha de inicio",
+            "Valor de cuota",
+            "Cuotas generadas",
+            "Cuotas pagadas",
+            "Cuotas pendientes",
+            "Total pagado",
+            "Deuda total",
+            "Fecha de generación",
+        ],
+        "Valor": [
+            cedula_db,
+            nombre or "",
+            placa_db or "",
+            fecha_inicio.strftime("%Y-%m-%d"),
+            f"${valor_cuota:,.0f}".replace(",", "."),
+            resumen.cuotas_generadas,
+            f"{resumen.cuotas_pagadas:.1f}",
+            f"{resumen.cuotas_pendientes:.1f}",
+            f"${resumen.total_pagado:,.0f}".replace(",", "."),
+            f"${resumen.valor_pendiente:,.0f}".replace(",", "."),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        ]
+    }
+    df_resumen = pd.DataFrame(resumen_data)
+    
+    # Preparar DataFrame de detalle (formateado para CSV)
+    df_detalle = df.copy()
+    df_detalle["Fecha Programada"] = df_detalle["Fecha Programada"].dt.strftime("%d-%m-%Y")
+    df_detalle["Fecha Pago"] = df_detalle["Fecha Pago"].apply(_formato_fecha_pago)
+    df_detalle["Valor Pagado"] = df_detalle["Valor Pagado"].apply(
+        lambda x: f"${x:,.0f}".replace(",", ".") if pd.notna(x) and x > 0 else ""
+    )
+    
+    # Exportar a CSV con dos secciones separadas por líneas en blanco
+    with open(ruta_completa, "w", encoding="utf-8-sig") as f:
+        # Sección 1: Resumen
+        f.write("=== RESUMEN FINANCIERO ===\n")
+        df_resumen.to_csv(f, index=False, sep=";", encoding="utf-8-sig")
+        f.write("\n")
+        
+        # Sección 2: Detalle
+        f.write("=== DETALLE DE PAGOS ===\n")
+        df_detalle.to_csv(f, index=False, sep=";", encoding="utf-8-sig", float_format="%.2f")
+    
+    return ruta_completa
+
+
+# 🔹 FUNCIÓN MODIFICADA: CARGAR CLIENTE POR PLACA
+def cargar_cliente_y_registros_por_placa(placa: str) -> tuple[
     tuple[str, str, str, date, float],
     list[tuple[date, float, str | None, str | None]],
 ]:
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute(SQL_CLIENTE, (cedula.strip(),))
+        cur.execute(SQL_CLIENTE_PLACA, (placa.strip(),))
         cliente = cur.fetchone()
         if not cliente:
-            raise LookupError("Cliente no encontrado.")
+            raise LookupError(f"Cliente con placa '{placa}' no encontrado.")
 
-        cedula_db, nombre, placa, fecha_inicio, valor_cuota = cliente
+        cedula_db, nombre, placa_db, fecha_inicio, valor_cuota = cliente
         if not fecha_inicio or not valor_cuota:
             raise ValueError("Datos del cliente incompletos.")
 
-        cur.execute(SQL_REGISTROS_CLIENTE, (cedula_db,))
+        cur.execute(SQL_REGISTROS_CLIENTE_PLACA, (placa.strip(),))
         registros = cur.fetchall()
-        return (cedula_db, nombre, placa, fecha_inicio, float(valor_cuota)), list(registros)
+        return (cedula_db, nombre, placa_db, fecha_inicio, float(valor_cuota)), list(registros)
     finally:
         cur.close()
         conn.close()
 
 
-def extracto_cliente(cedula: str) -> tuple[
+# 🔹 FUNCIÓN MODIFICADA: EXTRACTO POR PLACA
+def extracto_cliente_por_placa(placa: str) -> tuple[
     tuple[str, str, str, date, float],
     pd.DataFrame,
     ResumenExtracto,
 ]:
-    cliente, registros = cargar_cliente_y_registros(cedula)
+    cliente, registros = cargar_cliente_y_registros_por_placa(placa)
     _, _, _, fecha_inicio, valor_cuota = cliente
     df = generar_dataframe_extracto(fecha_inicio, valor_cuota, registros)
     resumen = calcular_resumen_extracto(df, valor_cuota)
     return cliente, df, resumen
 
 
-def imprimir_extracto_cliente(cedula: str) -> None:
+# 🔹 FUNCIÓN MODIFICADA: IMPRIMIR EXTRACTO POR PLACA
+def imprimir_extracto_cliente_por_placa(placa: str) -> None:
     try:
-        (cedula_db, nombre, placa, fecha_inicio, valor_cuota), df, resumen = extracto_cliente(
-            cedula
-        )
+        (cedula_db, nombre, placa_db, fecha_inicio, valor_cuota), df, resumen = extracto_cliente_por_placa(placa)
     except LookupError as e:
         print(f"❌ {e}")
         return
@@ -387,7 +482,7 @@ def imprimir_extracto_cliente(cedula: str) -> None:
     print("\n--- Información del cliente ---")
     print(f"Cédula: {cedula_db}")
     print(f"Nombre: {nombre}")
-    print(f"Placa: {placa}")
+    print(f"Placa: {placa_db}")
     print(f"Fecha inicio: {fecha_inicio}")
     print(f"Valor cuota: {_formato_cop(valor_cuota)}")
 
@@ -417,6 +512,33 @@ def imprimir_extracto_cliente(cedula: str) -> None:
             tablefmt="grid",
         )
     )
+
+
+# 🔹 NUEVA FUNCIÓN: EXTRAER Y EXPORTAR A CSV
+def extraer_y_exportar_csv(placa: str, ruta_salida: str = ".") -> bool:
+    """
+    Obtiene el extracto del cliente por placa y lo exporta a CSV.
+    Retorna True si la exportación fue exitosa.
+    """
+    try:
+        cliente, df, resumen = extracto_cliente_por_placa(placa)
+        ruta_archivo = exportar_extracto_csv(placa, cliente, df, resumen, ruta_salida)
+        
+        print(f"\n✅ Archivo exportado exitosamente:")
+        print(f"   📄 {os.path.abspath(ruta_archivo)}")
+        print(f"   📊 Tamaño: {os.path.getsize(ruta_archivo) / 1024:.1f} KB")
+        return True
+        
+    except LookupError as e:
+        print(f"❌ {e}")
+    except ValueError as e:
+        print(f"❌ {e}")
+    except PermissionError:
+        print(f"❌ Error de permisos: no se puede escribir en '{ruta_salida}'")
+    except Exception as e:
+        print(f"❌ Error inesperado al exportar: {e}")
+    
+    return False
 
 
 def ejecutar_reporte_general() -> list[tuple]:
@@ -530,27 +652,51 @@ def ejecutar_reporte_general() -> list[tuple]:
         conn.close()
 
 
+# 🔹 MENÚ PRINCIPAL ACTUALIZADO CON OPCIONES DE EXPORTACIÓN
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--json":
         print(json.dumps(build_report_rows(), ensure_ascii=False))
         sys.exit(0)
 
+    # Soporte para exportar directamente desde línea de comandos:
+    # python script.py --csv ABC123
+    if len(sys.argv) == 3 and sys.argv[1] == "--csv":
+        placa_arg = sys.argv[2].strip()
+        print(f"🔄 Generando informe para placa: {placa_arg}")
+        if extraer_y_exportar_csv(placa_arg):
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
     print("📋 REPORTE DE CLIENTES (lógica extracto)")
     print("=" * 60)
     while True:
         print("\nOpciones:")
-        print("  1. Extracto de un cliente (por cédula)")
-        print("  2. Reporte general (todos los activos)")
-        print("  3. Salir")
+        print("  1. Ver extracto de un cliente (por placa) 🔍")
+        print("  2. Exportar extracto a CSV 📥 (informe_placa_XXXXXX.csv)")
+        print("  3. Reporte general (todos los activos) 📊")
+        print("  4. Salir 👋")
+        
         opcion = input("\n👉 Tu elección: ").strip()
+        
         if opcion == "1":
-            ced = input("Cédula: ").strip()
-            if ced:
-                imprimir_extracto_cliente(ced)
+            placa = input("🚗 Placa del vehículo: ").strip()
+            if placa:
+                imprimir_extracto_cliente_por_placa(placa)
+                
         elif opcion == "2":
-            ejecutar_reporte_general()
+            placa = input("🚗 Placa del vehículo a exportar: ").strip()
+            if placa:
+                # Opcional: especificar ruta de salida
+                ruta = input("📁 Ruta de salida (Enter para carpeta actual): ").strip()
+                ruta = ruta if ruta else "."
+                extraer_y_exportar_csv(placa, ruta)
+                
         elif opcion == "3":
+            ejecutar_reporte_general()
+            
+        elif opcion == "4":
             print("👋 ¡Hasta luego!")
             break
         else:
-            print("⚠️ Opción no válida.")
+            print("⚠️ Opción no válida. Intenta de nuevo.")

@@ -525,8 +525,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={generarReciboRecuperada}
-                disabled={!recuperadorRecibo}
-                className="flex-1 min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-base disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
+                className="flex-1 min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
               >
                 Moto Recuperada
               </button>
