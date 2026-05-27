@@ -4,6 +4,54 @@ import { supabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const nombre_recuperador = String(body.nombre_recuperador ?? "").trim();
+    const placa_asignada = String(body.placa_asignada ?? "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s/g, "");
+
+    if (!nombre_recuperador || !placa_asignada) {
+      return NextResponse.json(
+        { error: "Faltan nombre_recuperador o placa_asignada" },
+        { status: 400 },
+      );
+    }
+
+    const estado_moto = String(body.estado_moto ?? "Abonó").trim() || "Abonó";
+    const pagado = Number(body.pagado ?? 0) || 0;
+    const multa = Number(body.multa ?? 0) || 0;
+
+    const payload: Record<string, unknown> = {
+      nombre_recuperador,
+      placa_asignada,
+      estado_moto,
+      Pagado: pagado,
+      multa,
+      fecha_hora_asignada: new Date().toISOString(),
+    };
+
+    if (estado_moto === "recuperada") {
+      payload.fecha_hora_recuperada = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase
+      .from("recuperadores")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ asignacion: data }, { status: 201 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al crear registro";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
 export async function GET() {
   try {
     const [{ data, error }, { data: placasData, error: placasError }] =
@@ -85,6 +133,9 @@ export async function PATCH(request: Request) {
       Pagado: body.pagado ?? 0,
       multa: body.multa ?? 0,
     };
+    if (body.nombre_recuperador) {
+      update.nombre_recuperador = String(body.nombre_recuperador).trim();
+    }
     if (estado === "recuperada") {
       update.fecha_hora_recuperada = new Date().toISOString();
     }

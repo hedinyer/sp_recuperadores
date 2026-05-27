@@ -60,6 +60,18 @@ const RECUPERADORES_FIJOS = [
   "Nicolás Garrido",
 ];
 
+function limpiarNumero(valor: string): string {
+  return valor.replace(/\D/g, "");
+}
+
+function formatearConPuntos(valor: string): string {
+  const limpio = limpiarNumero(valor);
+  if (!limpio) return "";
+  return new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 0,
+  }).format(Number(limpio));
+}
+
 function actualizarAsignacion(
   recuperadores: Recuperador[],
   id: number,
@@ -85,10 +97,12 @@ export default function RecuperadoresPage() {
   const [showPagoForm, setShowPagoForm] = useState(false);
   const [montoPago, setMontoPago] = useState("");
   const [montoMulta, setMontoMulta] = useState("");
+  const [recuperadorRecibo, setRecuperadorRecibo] = useState("");
   const [tipoRecibo, setTipoRecibo] = useState<TipoRecibo>("pago");
   const [recibo, setRecibo] = useState<{
     referencia: string;
     fecha: string;
+    recuperador: string;
     cliente: string;
     cedula: string;
     placa: string;
@@ -221,15 +235,17 @@ export default function RecuperadoresPage() {
       setTipoRecibo("pago");
       setMontoPago("");
       setMontoMulta("");
+      setRecuperadorRecibo(selectedName || "");
       setShowPagoForm(true);
     },
-    [],
+    [selectedName, recuperadorRecibo],
   );
 
   const generarReciboRecuperada = useCallback(
     async (placa: string) => {
       setSelectedPlaca(placa);
       setTipoRecibo("recuperada");
+      setRecuperadorRecibo(selectedName || "");
       setRecibo(null);
       setVehiculo(null);
 
@@ -250,6 +266,7 @@ export default function RecuperadoresPage() {
         setRecibo({
           referencia,
           fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
+          recuperador: recuperadorRecibo || selectedName || "—",
           cliente: v?.nombre || "—",
           cedula: v?.cedula || "—",
           placa: placa.toUpperCase().replace(/\s/g, ""),
@@ -262,7 +279,7 @@ export default function RecuperadoresPage() {
         // ignore
       }
     },
-    [],
+    [selectedName],
   );
 
   const generarRecibo = useCallback(async () => {
@@ -273,8 +290,8 @@ export default function RecuperadoresPage() {
     const rand = String(Math.floor(10000 + Math.random() * 90000));
     const referencia = `${dd}${mm}${yy}${rand}`;
 
-    const pago = parseFloat(montoPago) || 0;
-    const multa = parseFloat(montoMulta) || 0;
+    const pago = Number(limpiarNumero(montoPago)) || 0;
+    const multa = Number(limpiarNumero(montoMulta)) || 0;
     const placaNorm = (selectedPlaca || "").toUpperCase().replace(/\s/g, "");
 
     const asignacion = asignacionesActuales.find((a) => a.placa === placaNorm);
@@ -282,6 +299,7 @@ export default function RecuperadoresPage() {
     setRecibo({
       referencia,
       fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
+      recuperador: recuperadorRecibo || selectedName || "—",
       cliente: vehiculo?.nombre || "—",
       cedula: vehiculo?.cedula || "—",
       placa: placaNorm,
@@ -316,6 +334,7 @@ export default function RecuperadoresPage() {
           estado_moto: "Abonó",
           pagado: pago,
           multa: multa,
+          nombre_recuperador: recuperadorRecibo || selectedName,
         }),
       });
       if (res.ok) {
@@ -333,6 +352,8 @@ export default function RecuperadoresPage() {
     montoMulta,
     vehiculo,
     selectedPlaca,
+    recuperadorRecibo,
+    selectedName,
     asignacionesActuales,
     recargarRecuperadores,
   ]);
@@ -369,6 +390,7 @@ export default function RecuperadoresPage() {
           estado_moto: "recuperada",
           pagado: asignacion.pagado,
           multa: asignacion.multa,
+          nombre_recuperador: recuperadorRecibo || selectedName,
         }),
       });
       if (res.ok) {
@@ -383,7 +405,14 @@ export default function RecuperadoresPage() {
     } finally {
       setConfirmando(false);
     }
-  }, [recibo, asignacionesActuales, confirmando, recargarRecuperadores]);
+  }, [
+    recibo,
+    asignacionesActuales,
+    confirmando,
+    recargarRecuperadores,
+    recuperadorRecibo,
+    selectedName,
+  ]);
 
   const compartirReciboWpp = useCallback(async () => {
     if (!recibo) return;
@@ -397,6 +426,7 @@ export default function RecuperadoresPage() {
       `🧾 *${titulo}*`,
       `─────────────────`,
       `Cliente: ${recibo.cliente}`,
+      `Recuperador: ${recibo.recuperador}`,
       `Cédula: ${recibo.cedula}`,
       `Placa: ${recibo.placa}`,
       `Fecha: ${recibo.fecha}`,
@@ -500,6 +530,7 @@ export default function RecuperadoresPage() {
                   type="button"
                   onClick={() => {
                     setSelectedName(nom);
+                    setRecuperadorRecibo(nom);
                     setVehiculo(null);
                     setRecibo(null);
                     setSelectedPlaca(null);
@@ -692,6 +723,12 @@ export default function RecuperadoresPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-zinc-400">Recuperador</span>
+                  <span className="text-zinc-100 font-medium text-right max-w-[60%]">
+                    {recibo.recuperador}
+                  </span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-zinc-400">Cédula</span>
                   <span className="text-zinc-100 font-medium">
                     {recibo.cedula}
@@ -780,14 +817,43 @@ export default function RecuperadoresPage() {
             </div>
 
             {recibo.tipo === "recuperada" && !placaReciboYaRecuperada && (
-              <button
-                type="button"
-                onClick={marcarRecuperada}
-                disabled={confirmando}
-                className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
-              >
-                {confirmando ? "Confirmando…" : "Confirmar y marcar como recuperada"}
-              </button>
+              <div className="flex flex-col gap-2">
+                <div>
+                  <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
+                    Recuperador que la recupera
+                  </label>
+                  <select
+                    value={recuperadorRecibo}
+                    onChange={(e) => {
+                      const nombre = e.target.value;
+                      setRecuperadorRecibo(nombre);
+                      setRecibo((prev) =>
+                        prev && prev.tipo === "recuperada"
+                          ? { ...prev, recuperador: nombre || "—" }
+                          : prev,
+                      );
+                    }}
+                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value="">Seleccionar recuperador</option>
+                    {RECUPERADORES_FIJOS.map((nom) => (
+                      <option key={nom} value={nom}>
+                        {nom}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={marcarRecuperada}
+                  disabled={confirmando || !recuperadorRecibo}
+                  className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
+                >
+                  {confirmando
+                    ? "Confirmando…"
+                    : "Confirmar y marcar como recuperada"}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -814,14 +880,31 @@ export default function RecuperadoresPage() {
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
+                    Recuperador
+                  </label>
+                  <select
+                    value={recuperadorRecibo}
+                    onChange={(e) => setRecuperadorRecibo(e.target.value)}
+                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="">Seleccionar recuperador</option>
+                    {RECUPERADORES_FIJOS.map((nom) => (
+                      <option key={nom} value={nom}>
+                        {nom}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
                     Valor del abono ($)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     placeholder="0"
-                    value={montoPago}
-                    onChange={(e) => setMontoPago(e.target.value)}
+                    value={formatearConPuntos(montoPago)}
+                    onChange={(e) => setMontoPago(limpiarNumero(e.target.value))}
                     className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
                   />
                 </div>
@@ -830,11 +913,11 @@ export default function RecuperadoresPage() {
                     Valor de la multa ($)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     placeholder="0"
-                    value={montoMulta}
-                    onChange={(e) => setMontoMulta(e.target.value)}
+                    value={formatearConPuntos(montoMulta)}
+                    onChange={(e) => setMontoMulta(limpiarNumero(e.target.value))}
                     className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
                   />
                 </div>
@@ -854,6 +937,7 @@ export default function RecuperadoresPage() {
                 <button
                   type="button"
                   onClick={generarRecibo}
+                  disabled={!recuperadorRecibo}
                   className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation"
                 >
                   Generar recibo

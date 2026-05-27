@@ -6,6 +6,18 @@ import { toPng } from "html-to-image";
 import { NavFooter } from "@/components/NavFooter";
 
 type Vehiculo = Record<string, string>;
+type TipoRecibo = "pago" | "recuperada";
+
+const RECUPERADORES_FIJOS = [
+  "John Sáenz",
+  "Diego Rodríguez",
+  "Moisés Ojeda",
+  "David Berastegui",
+  "Jean Pier Mindiola",
+  "Josué Mindiola",
+  "Fabián Garzón",
+  "Nicolás Garrido",
+];
 
 function formatearCOP(val: string | undefined): string {
   if (val == null || val === "") return "—";
@@ -35,6 +47,18 @@ function formatFechaCorta(iso: string | undefined): string {
   const [y, m, d] = iso.split("-");
   if (!d) return iso;
   return `${d}/${m}/${y?.slice(2) ?? y}`;
+}
+
+function limpiarNumero(valor: string): string {
+  return valor.replace(/\D/g, "");
+}
+
+function formatearConPuntos(valor: string): string {
+  const limpio = limpiarNumero(valor);
+  if (!limpio) return "";
+  return new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 0,
+  }).format(Number(limpio));
 }
 
 function StatMini({
@@ -71,16 +95,20 @@ export default function Home() {
   const [showPagoForm, setShowPagoForm] = useState(false);
   const [montoPago, setMontoPago] = useState("");
   const [montoMulta, setMontoMulta] = useState("");
+  const [recuperadorRecibo, setRecuperadorRecibo] = useState("");
   const [recibo, setRecibo] = useState<{
     referencia: string;
     fecha: string;
+    recuperador: string;
     cliente: string;
     cedula: string;
     placa: string;
     montoPago: number;
     montoMulta: number;
     total: number;
+    tipo: TipoRecibo;
   } | null>(null);
+  const [confirmandoRecuperada, setConfirmandoRecuperada] = useState(false);
 
   const reciboRef = useRef<HTMLDivElement>(null);
 
@@ -112,7 +140,9 @@ export default function Home() {
     }
   }, [placa]);
 
-  const generarRecibo = useCallback(() => {
+  const generarRecibo = useCallback(async () => {
+    if (!v || !recuperadorRecibo) return;
+
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, "0");
     const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -120,40 +150,125 @@ export default function Home() {
     const rand = String(Math.floor(10000 + Math.random() * 90000));
     const referencia = `${dd}${mm}${yy}${rand}`;
 
-    const pago = parseFloat(montoPago) || 0;
-    const multa = parseFloat(montoMulta) || 0;
+    const pago = Number(limpiarNumero(montoPago)) || 0;
+    const multa = Number(limpiarNumero(montoMulta)) || 0;
+    const placaNormalizada = (v.placa || "—").toUpperCase().replace(/\s/g, "");
 
     setRecibo({
       referencia,
       fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
+      recuperador: recuperadorRecibo,
       cliente: v?.nombre || "—",
       cedula: v?.cedula || "—",
-      placa: (v?.placa || "—").toUpperCase().replace(/\s/g, ""),
+      placa: placaNormalizada,
       montoPago: pago,
       montoMulta: multa,
       total: pago - multa,
+      tipo: "pago",
     });
     setShowPagoForm(false);
     setMontoPago("");
     setMontoMulta("");
-  }, [montoPago, montoMulta, v]);
+
+    try {
+      await fetch("/api/recuperadores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre_recuperador: recuperadorRecibo,
+          placa_asignada: placaNormalizada,
+          estado_moto: "Abonó",
+          pagado: pago,
+          multa,
+        }),
+      });
+    } catch {
+      // No bloqueamos la UI del recibo por fallos de red.
+    }
+  }, [montoPago, montoMulta, v, recuperadorRecibo]);
+
+  const generarReciboRecuperada = useCallback(() => {
+    if (!v || !recuperadorRecibo) {
+      setError("Selecciona recuperador para recuperar la moto");
+      return;
+    }
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yy = String(now.getFullYear()).slice(-2);
+    const rand = String(Math.floor(10000 + Math.random() * 90000));
+    const referencia = `${dd}${mm}${yy}${rand}`;
+
+    setRecibo({
+      referencia,
+      fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
+      recuperador: recuperadorRecibo,
+      cliente: v?.nombre || "—",
+      cedula: v?.cedula || "—",
+      placa: (v?.placa || "—").toUpperCase().replace(/\s/g, ""),
+      montoPago: 0,
+      montoMulta: 0,
+      total: 0,
+      tipo: "recuperada",
+    });
+    setError(null);
+  }, [v, recuperadorRecibo]);
+
+  const confirmarMotoRecuperada = useCallback(async () => {
+    if (!recibo || recibo.tipo !== "recuperada" || confirmandoRecuperada) return;
+    setConfirmandoRecuperada(true);
+    try {
+      const res = await fetch("/api/recuperadores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre_recuperador: recibo.recuperador,
+          placa_asignada: recibo.placa,
+          estado_moto: "recuperada",
+          pagado: 0,
+          multa: 0,
+        }),
+      });
+      if (!res.ok) {
+        setError("No se pudo marcar la moto como recuperada");
+      }
+    } catch {
+      setError("Sin conexión para confirmar recuperación");
+    } finally {
+      setConfirmandoRecuperada(false);
+    }
+  }, [recibo, confirmandoRecuperada]);
 
   const compartirReciboWpp = useCallback(async () => {
     if (!recibo) return;
 
-    const texto = `🧾 *RECIBO DE PAGO*
-─────────────────
-Cliente: ${recibo.cliente}
-Cédula: ${recibo.cedula}
-Placa: ${recibo.placa}
-Fecha: ${recibo.fecha}
-─────────────────
-Abono: ${formatearCOP(String(recibo.montoPago))}
-Multa: ${formatearCOP(String(recibo.montoMulta))}
-*Neto abonado: ${formatearCOP(String(recibo.total))}*
-─────────────────
-*Ref: ${recibo.referencia}*
-─────────────────`;
+    const titulo =
+      recibo.tipo === "pago"
+        ? "RECIBO DE PAGO"
+        : "RECIBO DE MOTO RECUPERADA";
+
+    const lineas = [
+      `🧾 *${titulo}*`,
+      `─────────────────`,
+      `Cliente: ${recibo.cliente}`,
+      `Cédula: ${recibo.cedula}`,
+      `Placa: ${recibo.placa}`,
+      `Recuperador: ${recibo.recuperador}`,
+      `Fecha: ${recibo.fecha}`,
+    ];
+
+    if (recibo.tipo === "pago") {
+      lineas.push(
+        `─────────────────`,
+        `Abono: ${formatearCOP(String(recibo.montoPago))}`,
+        `Multa: ${formatearCOP(String(recibo.montoMulta))}`,
+        `*Neto abonado: ${formatearCOP(String(recibo.total))}*`,
+      );
+    }
+
+    lineas.push(`─────────────────`, `*Ref: ${recibo.referencia}*`, `─────────────────`);
+
+    const texto = lineas.join("\n");
 
     if (reciboRef.current) {
       try {
@@ -252,6 +367,23 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
 
         {v && (
           <>
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+              <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
+                Recuperador
+              </label>
+              <select
+                value={recuperadorRecibo}
+                onChange={(e) => setRecuperadorRecibo(e.target.value)}
+                className="w-full min-h-[44px] rounded-xl bg-zinc-800 border border-zinc-700 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              >
+                <option value="">Seleccionar recuperador</option>
+                {RECUPERADORES_FIJOS.map((nom) => (
+                  <option key={nom} value={nom}>
+                    {nom}
+                  </option>
+                ))}
+              </select>
+            </section>
             <article className="flex flex-col rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden shadow-lg shadow-black/30">
               {/* Placa */}
               <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-zinc-900 border-b border-zinc-800">
@@ -381,14 +513,23 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
               </footer>
             </article>
 
-            {/* Botón Generar Pago */}
-            <button
-              type="button"
-              onClick={() => setShowPagoForm(true)}
-              className="w-full min-h-[50px] rounded-xl bg-emerald-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-emerald-900/30"
-            >
-              Generar Pago
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPagoForm(true)}
+                className="flex-1 min-h-[50px] rounded-xl bg-emerald-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-emerald-900/30"
+              >
+                Generar Pago
+              </button>
+              <button
+                type="button"
+                onClick={generarReciboRecuperada}
+                disabled={!recuperadorRecibo}
+                className="flex-1 min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-base disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
+              >
+                Moto Recuperada
+              </button>
+            </div>
           </>
         )}
 
@@ -401,7 +542,9 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
             >
               <div className="text-center border-b border-zinc-700 pb-3 mb-3">
                 <p className="text-[10px] uppercase tracking-widest text-zinc-500">
-                  Recibo de Pago
+                  {recibo.tipo === "pago"
+                    ? "Recibo de Pago"
+                    : "Recibo de Moto Recuperada"}
                 </p>
                 <p className="text-xs text-zinc-600 mt-0.5">{recibo.fecha}</p>
               </div>
@@ -411,6 +554,12 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
                   <span className="text-zinc-400">Cliente</span>
                   <span className="text-zinc-100 font-medium text-right max-w-[60%]">
                     {recibo.cliente}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Recuperador</span>
+                  <span className="text-zinc-100 font-medium text-right max-w-[60%]">
+                    {recibo.recuperador}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -427,26 +576,28 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
                 </div>
               </div>
 
-              <div className="border-t border-zinc-700 my-3 pt-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Abono</span>
-                  <span className="text-zinc-100 font-medium tabular-nums">
-                    {formatearCOP(String(recibo.montoPago))}
-                  </span>
+              {recibo.tipo === "pago" && (
+                <div className="border-t border-zinc-700 my-3 pt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Abono</span>
+                    <span className="text-zinc-100 font-medium tabular-nums">
+                      {formatearCOP(String(recibo.montoPago))}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Multa</span>
+                    <span className="text-amber-400 font-medium tabular-nums">
+                      {formatearCOP(String(recibo.montoMulta))}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-zinc-700 pt-2">
+                    <span className="text-zinc-300 font-semibold">Neto abonado</span>
+                    <span className="text-emerald-400 font-bold text-base tabular-nums">
+                      {formatearCOP(String(recibo.total))}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Multa</span>
-                  <span className="text-amber-400 font-medium tabular-nums">
-                    {formatearCOP(String(recibo.montoMulta))}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t border-zinc-700 pt-2">
-                  <span className="text-zinc-300 font-semibold">Neto abonado</span>
-                  <span className="text-emerald-400 font-bold text-base tabular-nums">
-                    {formatearCOP(String(recibo.total))}
-                  </span>
-                </div>
-              </div>
+              )}
 
               <div className="border-t border-zinc-700 pt-3 mt-1 text-center">
                 <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
@@ -497,6 +648,18 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
                 Descargar
               </button>
             </div>
+            {recibo.tipo === "recuperada" && (
+              <button
+                type="button"
+                onClick={confirmarMotoRecuperada}
+                disabled={confirmandoRecuperada}
+                className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
+              >
+                {confirmandoRecuperada
+                  ? "Confirmando…"
+                  : "Confirmar y marcar como recuperada"}
+              </button>
+            )}
           </div>
         )}
 
@@ -510,14 +673,31 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
+                    Recuperador
+                  </label>
+                  <select
+                    value={recuperadorRecibo}
+                    onChange={(e) => setRecuperadorRecibo(e.target.value)}
+                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="">Seleccionar recuperador</option>
+                    {RECUPERADORES_FIJOS.map((nom) => (
+                      <option key={nom} value={nom}>
+                        {nom}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
                     Valor del abono ($)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     placeholder="0"
-                    value={montoPago}
-                    onChange={(e) => setMontoPago(e.target.value)}
+                    value={formatearConPuntos(montoPago)}
+                    onChange={(e) => setMontoPago(limpiarNumero(e.target.value))}
                     className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
                   />
                 </div>
@@ -526,11 +706,11 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
                     Valor de la multa ($)
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
                     placeholder="0"
-                    value={montoMulta}
-                    onChange={(e) => setMontoMulta(e.target.value)}
+                    value={formatearConPuntos(montoMulta)}
+                    onChange={(e) => setMontoMulta(limpiarNumero(e.target.value))}
                     className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
                   />
                 </div>
@@ -550,6 +730,7 @@ Multa: ${formatearCOP(String(recibo.montoMulta))}
                 <button
                   type="button"
                   onClick={generarRecibo}
+                  disabled={!recuperadorRecibo}
                   className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation"
                 >
                   Generar recibo
