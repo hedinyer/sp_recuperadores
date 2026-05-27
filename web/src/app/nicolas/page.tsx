@@ -286,8 +286,11 @@ function NicolasAdminPanel() {
   }, [cargarDatos]);
 
   const agregarPlaca = useCallback(async () => {
-    const p = nuevaPlaca.trim().toUpperCase();
-    if (!p) return;
+    const p = nuevaPlaca.trim().toUpperCase().replace(/\s/g, "");
+    if (!/^[A-Z0-9]{6}$/.test(p)) {
+      setMensaje("La placa debe tener exactamente 6 caracteres");
+      return;
+    }
     setMensaje(null);
     const res = await fetch("/api/placas", {
       method: "POST",
@@ -456,6 +459,7 @@ function NicolasAdminPanel() {
             <button
               type="button"
               onClick={agregarPlaca}
+              disabled={!/^[A-Z0-9]{6}$/.test(nuevaPlaca.trim().toUpperCase().replace(/\s/g, ""))}
               className="shrink-0 min-h-[50px] min-w-[88px] rounded-xl bg-blue-700 text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation"
             >
               Publicar

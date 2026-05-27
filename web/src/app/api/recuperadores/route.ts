@@ -90,21 +90,27 @@ export async function GET() {
       }
     > = {};
 
+    const vistos = new Set<string>();
     for (const row of data) {
       const nom = row.nombre_recuperador || "Sin nombre";
+      const placaNormalizada = (row.placa_asignada || "")
+        .toUpperCase()
+        .replace(/\s/g, "");
+      const dedupeKey = `${nom}::${placaNormalizada}`;
+      if (vistos.has(dedupeKey)) continue;
+      vistos.add(dedupeKey);
+
       if (!agrupado[nom]) {
         agrupado[nom] = { nombre: nom, asignaciones: [] };
       }
       agrupado[nom].asignaciones.push({
         id: row.id,
-        placa: (row.placa_asignada || "").toUpperCase().replace(/\s/g, ""),
+        placa: placaNormalizada,
         estado: row.estado_moto || "pendiente",
         pagado: Number(row.Pagado) || 0,
         multa: Number(row.multa) || 0,
         gps_moto:
-          gpsPorPlaca.get(
-            (row.placa_asignada || "").toUpperCase().replace(/\s/g, ""),
-          ) || "",
+          gpsPorPlaca.get(placaNormalizada) || "",
         fecha_asignada: row.fecha_hora_asignada,
         fecha_recuperada: row.fecha_hora_recuperada,
       });
