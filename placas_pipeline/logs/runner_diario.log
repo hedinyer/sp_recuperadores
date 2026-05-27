@@ -1,0 +1,46 @@
+2026-05-27 10:08:20,632 - INFO - 🚀 Iniciando pipeline diario de recuperación
+2026-05-27 10:08:20,632 - INFO - 📥 Paso 1: Extrayendo datos de PostgreSQL...
+2026-05-27 10:08:25,794 - INFO - 🔍 Paso 2: Analizando patrones de pago...
+2026-05-27 10:08:26,055 - INFO -    ✅ 9 placas analizadas
+2026-05-27 10:08:26,055 - INFO - 🤖 Paso 3: Prediciendo riesgo de mora...
+2026-05-27 10:08:26,056 - WARNING - ⚠️ No se encontró modelo entrenado. Usando reglas heurísticas.
+2026-05-27 10:08:26,056 - INFO - 📋 Paso 4: Generando lista priorizada de recuperación...
+2026-05-27 10:08:26,062 - ERROR - ❌ Error en pipeline: "['telefono', 'visitador'] not in index"
+Traceback (most recent call last):
+  File "/home/hedinyer/Documents/sp_recuperadores/placas_pipeline/runner_diario.py", line 82, in ejecutar_pipeline_diario
+    lista_recuperacion = predictor.generar_lista_recuperacion(
+        df_patrones,
+        umbral_proba=umbral_recuperacion,
+        max_registros=max_vehiculos_recuperar
+    )
+  File "/home/hedinyer/Documents/sp_recuperadores/placas_pipeline/predictor_riesgo.py", line 195, in generar_lista_recuperacion
+    return lista[columnas_salida].round(2)
+           ~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/hedinyer/anaconda3/lib/python3.13/site-packages/pandas/core/frame.py", line 4119, in __getitem__
+    indexer = self.columns._get_indexer_strict(key, "columns")[1]
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/hedinyer/anaconda3/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 6212, in _get_indexer_strict
+    self._raise_if_missing(keyarr, indexer, axis_name)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hedinyer/anaconda3/lib/python3.13/site-packages/pandas/core/indexes/base.py", line 6264, in _raise_if_missing
+    raise KeyError(f"{not_found} not in index")
+KeyError: "['telefono', 'visitador'] not in index"
+2026-05-27 10:08:26,074 - INFO - ❌ Error en pipeline diario:
+"['telefono', 'visitador'] not in index"
+2026-05-27 10:14:14,832 - INFO - 🚀 Iniciando pipeline diario de recuperación
+2026-05-27 10:14:14,832 - INFO - 📥 Paso 1: Extrayendo datos de PostgreSQL...
+2026-05-27 10:14:20,009 - INFO - 🔍 Paso 2: Analizando patrones de pago...
+2026-05-27 10:14:29,072 - INFO -    ✅ 419 placas analizadas
+2026-05-27 10:14:29,072 - INFO - 🤖 Paso 3: Prediciendo riesgo de mora...
+2026-05-27 10:14:29,072 - WARNING - ⚠️ No se encontró modelo entrenado. Usando reglas heurísticas.
+2026-05-27 10:14:29,072 - INFO - 📋 Paso 4: Generando lista priorizada de recuperación...
+2026-05-27 10:14:29,078 - INFO - ✅ Pipeline completado exitosamente
+2026-05-27 10:14:29,079 - INFO -    📊 Vehículos analizados: 419
+2026-05-27 10:14:29,079 - INFO -    🎯 En lista de recuperación: 26
+2026-05-27 10:14:29,079 - INFO -    💰 Deuda priorizada: $43,479,400
+2026-05-27 10:14:29,079 - INFO -    ⏱️ Tiempo total: 14.2 segundos
+2026-05-27 10:14:29,082 - INFO - ✅ Pipeline diario completado
+📊 Analizados: 419 vehículos
+🎯 Recuperación: 26 vehículos
+💰 Deuda priorizada: $43,479,400
+📄 CSV: output/recuperacion_20260527.csv

@@ -1,0 +1,27 @@
+﻿placa;nombre;telefono;visitador;probabilidad_mora;cuotas_atrasadas_estimadas;valor_cuota;deuda_estimada;dias_desde_ultimo_pago;riesgo_mora;frecuencia_principal;regularidad_score;score_prioridad
+TSI79H **;Jaime Andres Ramirez Muentes;3123467300;David Berastegui;0.8;150.0;38000.0;5700000.0;142;crítico;diaria;0.0;26144000.0
+TIR70H;Ronny Rafael Valera Ramos-Bogota;3044053136;Guillen;0.8;98.0;38000.0;3724000.0;95;crítico;irregular;0.0;12413333.33
+TSK26H;Andres Felipe Roman Porras;3154288737;Andrea;0.8;71.0;52000.0;3692000.0;60;crítico;irregular;0.02;8860800.0
+TSK29H;Paulo Cesar Segura Garcia;3213963836;Andrea Lemus;0.8;81.5;38000.0;3097000.0;69;crítico;irregular;0.05;8176080.0
+TRT27H;Juan Carlos De Avila;3187812011;Sebastian Bateca;0.8;76.0;50000.0;3800000.0;48;crítico;semanal;0.0;7904000.0
+TTE18H;Juan Pablo Jaimes Vargas;3174235196;Andrea Lemus;0.8;56.6;55000.0;3113000.0;48;crítico;irregular;0.0;6475040.0
+TTL21H;Thairon Alberto Gomez Hernandez-Bogota;3004572239;Alejandro Guillen;0.8;40.3;38000.0;1531400.0;55;crítico;irregular;0.04;3471173.33
+TTE31H;Jair Steve Rueda Giraldo;3222703518;Alejandro Mindiola;0.8;31.0;50000.0;1550000.0;31;crítico;cada_3_dias;1.0;2521333.33
+TIR90H;Sergio Geovanni  Guevara Vargas;3244098172;andrea;0.8;48.9;38000.0;1858200.0;16;alto;irregular;0.0;2279392.0
+CIG23I;Laucimer Estela Perez Ceballos;3105758155;Freddy Esauz;0.8;40.0;40000.0;1600000.0;22;alto;irregular;0.77;2218666.67
+DTV96I;Jhonny Arnulfo Molina Rodriguez*;302555325402;Sebastian;0.8;29.7;40000.0;1188000.0;23;alto;cada_3_dias;0.0;1679040.0
+ZOK49H;Kener Antonio Vanegas Romero;3205391828;Andrea;0.8;31.4;37000.0;1161800.0;24;alto;cada_3_dias;0.0;1672992.0
+TIJ74H;Nicanor Enrique Martinez Tovar Bogota;3242537064;Guillen;0.8;32.9;38000.0;1250200.0;20;alto;irregular;0.4;1666933.33
+CIG58I;Yonathan Antonio Lopez Ramirez;3022615946;Freddy Elsauz;0.8;29.5;40000.0;1180000.0;22;alto;irregular;0.0;1636266.67
+TRT13H;Brayan Yesyd Nieto Guerra;3227702752;ANGEL;0.8;26.0;38000.0;988000.0;29;alto;irregular;0.29;1554453.33
+TTL03H;Kevin Alexander Jaimes Niño;3043122076;Sebastian Bateca;0.8;33.0;38000.0;1254000.0;16;alto;irregular;0.0;1538240.0
+CHE39I;Leidy Yojanna Arias Cano Chia;3006434371;Freddy Elsauz;0.8;26.0;31000.0;806000.0;41;crítico;quincenal;1.0;1526026.67
+TIM91H;Jesus Eduardo Leon Guzman;3159667920;DAVID VERASTEGUI;0.8;16.4;38000.0;623200.0;46;crítico;irregular;0.0;1263018.67
+CHU76I;Jesus Alexander Ramirez Infante-Bogota;3118585509;Guillen;0.8;24.5;38000.0;931000.0;19;alto;cada_3_dias;0.0;1216506.67
+CHU68I;Yorman Daniel Piña Betancourt;3046086892;CHIA;0.8;22.0;40000.0;880000.0;18;alto;quincenal;0.55;1126400.0
+ZPE19H;Kerlyn Andreina Perez Perez;3004588351;Sebastian;0.8;21.0;40000.0;840000.0;20;alto;diaria;0.0;1120000.0
+TIR96H;Yeferson Manrique Sepulveda;3123784222;Ivan;0.8;18.0;38000.0;684000.0;18;alto;irregular;0.24;875520.0
+DUP86I;Melisa Isabel Medina Perez Bogota;3133965736;Guillen;0.8;15.0;40000.0;600000.0;18;alto;semanal;0.89;768000.0
+TTL18H;Franklin Samir Romero Fernandez Bogota;3150760788;Guillen;0.8;15.0;38000.0;570000.0;16;alto;cada_3_dias;0.4;699200.0
+TSK21H;Stiven Martinez Villamizar;3237824355;Andrea;0.8;8.8;52000.0;457600.0;26;alto;quincenal;0.22;683349.33
+GWL28I;Neiderson Raumir Apolinar Adarme Bogota;3005178489;Guillen;0.8;10.0;40000.0;400000.0;17;alto;semanal;1.0;501333.33
