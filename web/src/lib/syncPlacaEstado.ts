@@ -29,6 +29,48 @@ export async function actualizarStatusPlaca(
   if (error) throw error;
 }
 
+export type OrigenPlacaPendiente = "placas" | "recuperadores";
+
+/** True si la placa ya está pendiente en placas o recuperadores. */
+export async function placaEstaPendiente(
+  placa: string,
+): Promise<{ pendiente: boolean; origen?: OrigenPlacaPendiente }> {
+  const placaNorm = normalizarPlaca(placa);
+  if (!placaNorm) return { pendiente: false };
+
+  const [{ data: enPlacas, error: errPlacas }, { data: enRecup, error: errRecup }] =
+    await Promise.all([
+      supabase
+        .from("placas")
+        .select("id")
+        .eq("placa", placaNorm)
+        .eq("status", "pendiente")
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("recuperadores")
+        .select("id")
+        .eq("placa_asignada", placaNorm)
+        .eq("estado_moto", "pendiente")
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+  if (errPlacas) throw errPlacas;
+  if (errRecup) throw errRecup;
+
+  if (enPlacas) return { pendiente: true, origen: "placas" };
+  if (enRecup) return { pendiente: true, origen: "recuperadores" };
+  return { pendiente: false };
+}
+
+export function mensajePlacaPendiente(origen: OrigenPlacaPendiente): string {
+  if (origen === "placas") {
+    return "Esta placa ya está pendiente en el listado publicado";
+  }
+  return "Esta placa está pendiente con un recuperador asignado";
+}
+
 export type FilaRecuperadorSync = {
   placa_asignada: string;
   estado_moto: string;

@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { buscarPorPlaca } from "@/lib/csvPlaca";
 import { getFilasReporte } from "@/lib/cargarReporte";
 import { supabase } from "@/lib/supabase";
+import {
+  mensajePlacaPendiente,
+  placaEstaPendiente,
+} from "@/lib/syncPlacaEstado";
 
 export const runtime = "nodejs";
 
@@ -52,6 +56,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "La placa no existe en la base principal de consulta" },
         { status: 400 },
+      );
+    }
+
+    const { pendiente, origen } = await placaEstaPendiente(placa);
+    if (pendiente && origen) {
+      return NextResponse.json(
+        { error: mensajePlacaPendiente(origen) },
+        { status: 409 },
       );
     }
 

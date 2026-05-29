@@ -280,6 +280,30 @@ function NicolasAdminPanel() {
     setLoading(false);
   }, []);
 
+  const placasEnPendiente = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of placas) {
+      const st = (p.status || "pendiente").toLowerCase();
+      if (st === "pendiente") {
+        set.add(p.placa.toUpperCase().replace(/\s/g, ""));
+      }
+    }
+    for (const g of grupos) {
+      for (const a of g.asignaciones) {
+        if (a.estado === "pendiente" || !a.estado) {
+          set.add(a.placa.toUpperCase().replace(/\s/g, ""));
+        }
+      }
+    }
+    return set;
+  }, [placas, grupos]);
+
+  const nuevaPlacaNorm = nuevaPlaca.trim().toUpperCase().replace(/\s/g, "");
+  const nuevaPlacaYaPendiente =
+    nuevaPlacaNorm.length === 6 && placasEnPendiente.has(nuevaPlacaNorm);
+  const nuevaPlacaValida =
+    /^[A-Z0-9]{6}$/.test(nuevaPlacaNorm) && !nuevaPlacaYaPendiente;
+
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
@@ -313,6 +337,10 @@ function NicolasAdminPanel() {
       setMensaje("La placa debe tener exactamente 6 caracteres");
       return;
     }
+    if (placasEnPendiente.has(p)) {
+      setMensaje("Esta placa ya está pendiente (publicada o asignada sin gestionar)");
+      return;
+    }
     setMensaje(null);
     const res = await fetch("/api/placas", {
       method: "POST",
@@ -328,7 +356,7 @@ function NicolasAdminPanel() {
       const data = await res.json();
       setMensaje(data.error || "Error al publicar");
     }
-  }, [nuevaPlaca, nuevoGpsMoto, cargarDatos]);
+  }, [nuevaPlaca, nuevoGpsMoto, cargarDatos, placasEnPendiente]);
 
   const asignar = useCallback(async () => {
     if (!asignarPlaca || !asignarRecup) return;
@@ -485,18 +513,27 @@ function NicolasAdminPanel() {
               placeholder="Ej. TIJ66H"
               value={nuevaPlaca}
               onChange={(e) => setNuevaPlaca(e.target.value.toUpperCase())}
-              onKeyDown={(e) => e.key === "Enter" && agregarPlaca()}
-              className="flex-1 min-h-[50px] rounded-xl bg-zinc-900 border border-zinc-700 px-3.5 text-lg font-semibold tracking-[0.12em] text-white placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-600"
+              onKeyDown={(e) => e.key === "Enter" && nuevaPlacaValida && agregarPlaca()}
+              className={`flex-1 min-h-[50px] rounded-xl bg-zinc-900 border px-3.5 text-lg font-semibold tracking-[0.12em] text-white placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:ring-2 ${
+                nuevaPlacaYaPendiente
+                  ? "border-amber-700 focus:ring-amber-500/50 focus:border-amber-600"
+                  : "border-zinc-700 focus:ring-blue-500/50 focus:border-blue-600"
+              }`}
             />
             <button
               type="button"
               onClick={agregarPlaca}
-              disabled={!/^[A-Z0-9]{6}$/.test(nuevaPlaca.trim().toUpperCase().replace(/\s/g, ""))}
-              className="shrink-0 min-h-[50px] min-w-[88px] rounded-xl bg-blue-700 text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation"
+              disabled={!nuevaPlacaValida}
+              className="shrink-0 min-h-[50px] min-w-[88px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 active:scale-[0.98] transition-transform touch-manipulation"
             >
               Publicar
             </button>
           </div>
+          {nuevaPlacaYaPendiente ? (
+            <p className="text-xs text-amber-400 pl-0.5">
+              Ya está pendiente en placas o con un recuperador asignado
+            </p>
+          ) : null}
         </section>
 
         {/* Tabs */}
