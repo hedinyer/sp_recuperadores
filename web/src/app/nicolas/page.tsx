@@ -365,7 +365,7 @@ function NicolasAdminPanel() {
       ),
     [placas],
   );
-  const asignacionesHoy = useMemo(
+  const todasAsignaciones = useMemo(
     () =>
       grupos.flatMap((g) =>
         g.asignaciones.map((a) => ({
@@ -375,9 +375,16 @@ function NicolasAdminPanel() {
       ),
     [grupos],
   );
+  const asignacionesHoy = useMemo(
+    () =>
+      todasAsignaciones.filter(
+        (a) => a.estado === "pendiente" || !a.estado,
+      ),
+    [todasAsignaciones],
+  );
   const recuperadas = useMemo(
-    () => asignacionesHoy.filter((a) => a.estado === "recuperada"),
-    [asignacionesHoy],
+    () => todasAsignaciones.filter((a) => a.estado === "recuperada"),
+    [todasAsignaciones],
   );
 
   useEffect(() => {
@@ -620,12 +627,12 @@ function NicolasAdminPanel() {
             {tab === "asignadas" && (
               <section className="flex flex-col gap-2">
                 <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 pl-0.5">
-                  Placas asignadas ({asignacionesHoy.length})
+                  Pendientes ({asignacionesHoy.length})
                 </h2>
                 {asignacionesHoy.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
                     <p className="text-sm text-zinc-500">
-                      No hay asignaciones aún
+                      No hay placas pendientes de gestión
                     </p>
                   </div>
                 ) : (
