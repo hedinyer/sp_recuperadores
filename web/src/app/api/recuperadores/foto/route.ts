@@ -23,8 +23,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Falta la placa" }, { status: 400 });
     }
 
-    const ext = file.type.includes("png") ? "png" : "jpg";
-    const nombre = `${placaRaw}_${Date.now()}.${ext}`;
+    // El cliente envía JPEG comprimido; en servidor siempre guardamos .jpg
+    const nombre = `${placaRaw}_${Date.now()}.jpg`;
     const ruta = `${CARPETA}/${nombre}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
       .upload(ruta, buffer, {
-        contentType: file.type || `image/${ext}`,
+        contentType: "image/jpeg",
         upsert: false,
       });
 

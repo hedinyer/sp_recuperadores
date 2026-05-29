@@ -1,5 +1,11 @@
 import { toPng } from "html-to-image";
 
+import {
+  guardarFotoEnCache,
+  leerFotoDeCache,
+  normalizarPlaca,
+} from "@/lib/fotoComprobante";
+
 export function dataUrlToBlob(dataUrl: string): Blob {
   const [header, base64] = dataUrl.split(",");
   const mime = /:(.*?);/.exec(header)?.[1] ?? "image/png";
@@ -29,16 +35,26 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-/** Convierte URL remota (Supabase) a data URL vía proxy same-origin (evita CORS en canvas). */
-async function urlImagenADataUrl(url: string): Promise<string> {
+/** Convierte URL remota (Supabase) a data URL; prioriza caché local por placa. */
+async function urlImagenADataUrl(
+  url: string,
+  placa?: string,
+): Promise<string> {
   if (url.startsWith("data:")) return url;
+
+  if (placa) {
+    const enCache = await leerFotoDeCache(placa);
+    if (enCache) return enCache;
+  }
 
   const res = await fetch(
     `/api/imagen-proxy?url=${encodeURIComponent(url)}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error("No se pudo cargar la imagen del comprobante");
-  return blobToDataUrl(await res.blob());
+  const dataUrl = await blobToDataUrl(await res.blob());
+  if (placa) await guardarFotoEnCache(placa, dataUrl);
+  return dataUrl;
 }
 
 async function esperarImagenLista(img: HTMLImageElement): Promise<void> {
@@ -72,8 +88,11 @@ async function inlineImagenesParaCaptura(
     if (!original) continue;
     originals.set(img, original);
 
+    const placaAttr = img.dataset.placa;
+    const placa = placaAttr ? normalizarPlaca(placaAttr) : undefined;
+
     try {
-      const dataUrl = await urlImagenADataUrl(original);
+      const dataUrl = await urlImagenADataUrl(original, placa);
       img.src = dataUrl;
       img.removeAttribute("crossorigin");
       await esperarImagenLista(img);

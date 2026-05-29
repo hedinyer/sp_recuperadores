@@ -8,13 +8,18 @@ import {
   mensajeErrorGps,
   obtenerGpsUbicacion,
 } from "@/lib/geolocation";
+import { FotoComprobante } from "@/components/FotoComprobante";
+import {
+  leerFotoDeCache,
+  normalizarPlaca,
+  prepararFotoPresencial,
+} from "@/lib/fotoComprobante";
 import {
   abrirWhatsAppConTexto,
   capturarReciboPng,
   compartirReciboWhatsApp,
   descargarBlob,
   dataUrlToBlob,
-  fileToDataUrl,
 } from "@/lib/reciboImagen";
 
 type Vehiculo = Record<string, string>;
@@ -116,6 +121,7 @@ export default function Home() {
   const [esPresencial, setEsPresencial] = useState<boolean | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
   const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [procesandoFoto, setProcesandoFoto] = useState(false);
   const [gpsCapturado, setGpsCapturado] = useState<string | null>(null);
   const [solicitandoGps, setSolicitandoGps] = useState(false);
   const [guardandoPago, setGuardandoPago] = useState(false);
@@ -192,15 +198,28 @@ export default function Home() {
             : 0;
 
   const onSeleccionarFoto = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file) return;
-      setFotoFile(file);
-      const reader = new FileReader();
-      reader.onload = () => setFotoPreview(String(reader.result));
-      reader.readAsDataURL(file);
+      if (!file || !v?.placa) return;
+      setProcesandoFoto(true);
+      setError(null);
+      try {
+        const placaNorm = normalizarPlaca(v.placa);
+        const { dataUrl, file: comprimido } = await prepararFotoPresencial(
+          placaNorm,
+          file,
+        );
+        setFotoFile(comprimido);
+        setFotoPreview(dataUrl);
+      } catch {
+        setError("No se pudo procesar la foto. Intenta de nuevo.");
+        setFotoFile(null);
+        setFotoPreview(null);
+      } finally {
+        setProcesandoFoto(false);
+      }
     },
-    [],
+    [v?.placa],
   );
 
   const consultar = useCallback(async () => {
@@ -294,8 +313,10 @@ export default function Home() {
       const pago = Number(limpiarNumero(montoPago)) || 0;
       const multa = Number(limpiarNumero(montoMulta)) || 0;
 
-      const fotoLocal =
-        esPresencial && fotoFile ? await fileToDataUrl(fotoFile) : undefined;
+      const fotoLocal = esPresencial
+        ? (await leerFotoDeCache(placaNormalizada)) ??
+          (fotoPreview ?? undefined)
+        : undefined;
 
       setRecibo({
         referencia,
@@ -819,16 +840,12 @@ export default function Home() {
                       <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2 text-center">
                         Comprobante presencial
                       </p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={recibo.fotoLocal ?? recibo.fotoUrl}
-                        alt="Foto del pago presencial"
+                      <FotoComprobante
+                        placa={recibo.placa}
+                        fotoLocal={recibo.fotoLocal}
+                        fotoRemota={recibo.fotoUrl}
                         className="w-full rounded-xl border border-zinc-700 object-cover max-h-48 bg-zinc-800"
-                        crossOrigin={
-                          !recibo.fotoLocal && recibo.fotoUrl
-                            ? "anonymous"
-                            : undefined
-                        }
+                        alt="Foto del pago presencial"
                       />
                     </div>
                   ) : null}
@@ -1097,7 +1114,11 @@ export default function Home() {
                     className="hidden"
                     onChange={onSeleccionarFoto}
                   />
-                  {fotoPreview ? (
+                  {procesandoFoto ? (
+                    <p className="w-full min-h-[120px] flex items-center justify-center text-sm text-zinc-400 mb-3">
+                      Comprimiendo foto…
+                    </p>
+                  ) : fotoPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={fotoPreview}
@@ -1108,7 +1129,8 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => inputFotoRef.current?.click()}
-                      className="w-full min-h-[120px] rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800/50 text-zinc-300 text-sm font-medium touch-manipulation"
+                      disabled={procesandoFoto}
+                      className="w-full min-h-[120px] rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800/50 text-zinc-300 text-sm font-medium touch-manipulation disabled:opacity-50"
                     >
                       Tocar para abrir cámara
                     </button>
@@ -1139,7 +1161,7 @@ export default function Home() {
                       type="button"
                       onClick={() => void generarRecibo()}
                       disabled={
-                        !fotoFile || guardandoPago || !gpsCapturado
+                        !fotoFile || guardandoPago || !gpsCapturado || procesandoFoto
                       }
                       className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
                     >

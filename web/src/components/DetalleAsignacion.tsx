@@ -1,3 +1,4 @@
+import { FotoComprobante } from "@/components/FotoComprobante";
 import { formatFechaHora } from "@/lib/fechas";
 
 type Props = {
@@ -46,20 +47,7 @@ export function DetalleAsignacion({
         </div>
       )}
       {foto ? (
-        <a
-          href={foto}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block touch-manipulation"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={foto}
-            alt={`Comprobante de pago placa ${placa}`}
-            className="w-full rounded-xl border border-zinc-700 object-cover max-h-44"
-            loading="lazy"
-          />
-        </a>
+        <FotoComprobante placa={placa} fotoRemota={foto} />
       ) : null}
     </div>
   );
