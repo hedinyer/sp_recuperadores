@@ -18,16 +18,15 @@ create table public.recuperadores (
 ) TABLESPACE pg_default;
 
 
-nombre recuperadores: 
+nombre recuperadores (etiqueta UI):
 
-John Sáenz
-Diego Rodríguez
-Moisés Ojeda 
-David Berastegui
-Jean Pier Mindiola
-Josué Mindiola
-Fabián Garzón
-Nicolás Garrido
+John Sáenz → Jhon
+Diego Rodríguez → Diego
+Moisés Ojeda → Chipiri
+David Berastegui → Berastegui
+Fabián Garzón → Fabian
+Nicolás Garrido → Nicolas
+Everth baptista → Everth
 
 
 y este es la base donde publicamos las placas del dia que son para recoger, entonces en la pagina /nicolas el admin va a asignarle las placas al recuperador que el escoja tambien, y todo esto quedara guardado. 

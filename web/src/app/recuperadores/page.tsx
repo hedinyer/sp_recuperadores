@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { NavFooter } from "@/components/NavFooter";
+import {
+  etiquetaRecuperador,
+  RECUPERADORES_FIJOS,
+} from "@/lib/recuperadores";
 import { formatFechaHora } from "@/lib/fechas";
 import {
   abrirWhatsAppConTexto,
@@ -64,18 +68,6 @@ function formatearCOP(val: string | number | undefined): string {
     maximumFractionDigits: 0,
   }).format(n);
 }
-
-const RECUPERADORES_FIJOS = [
-  "John Sáenz",
-  "Diego Rodríguez",
-  "Moisés Ojeda",
-  "David Berastegui",
-  "Jean Pier Mindiola",
-  "Josué Mindiola",
-  "Fabián Garzón",
-  "Nicolás Garrido",
-  "Everth baptista",
-];
 
 function limpiarNumero(valor: string): string {
   return valor.replace(/\D/g, "");
@@ -521,7 +513,9 @@ export default function RecuperadoresPage() {
     }
   }, [recibo, exportandoRecibo]);
 
-  const nombreRecuperador = selectedName || "Selecciona tu nombre";
+  const nombreRecuperador = selectedName
+    ? etiquetaRecuperador(selectedName)
+    : "Selecciona tu nombre";
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -589,7 +583,7 @@ export default function RecuperadoresPage() {
                       : "bg-zinc-900 text-zinc-300 border border-zinc-700 active:bg-zinc-800"
                   }`}
                 >
-                  {nom}
+                  {etiquetaRecuperador(nom)}
                   {tieneAsig ? (
                     <span className="ml-1.5 text-[10px] opacity-60">
                       ({tieneAsig})
@@ -760,7 +754,7 @@ export default function RecuperadoresPage() {
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Recuperador</span>
                   <span className="text-zinc-100 font-medium text-right max-w-[60%]">
-                    {recibo.recuperador}
+                    {etiquetaRecuperador(recibo.recuperador)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -875,7 +869,7 @@ export default function RecuperadoresPage() {
                     <option value="">Seleccionar recuperador</option>
                     {RECUPERADORES_FIJOS.map((nom) => (
                       <option key={nom} value={nom}>
-                        {nom}
+                        {etiquetaRecuperador(nom)}
                       </option>
                     ))}
                   </select>
@@ -927,7 +921,7 @@ export default function RecuperadoresPage() {
                     <option value="">Seleccionar recuperador</option>
                     {RECUPERADORES_FIJOS.map((nom) => (
                       <option key={nom} value={nom}>
-                        {nom}
+                        {etiquetaRecuperador(nom)}
                       </option>
                     ))}
                   </select>

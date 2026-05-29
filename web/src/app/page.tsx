@@ -6,6 +6,10 @@ import { HistorialPlaca } from "@/components/HistorialPlaca";
 import { NavFooter } from "@/components/NavFooter";
 import type { ItemHistorialPlaca } from "@/lib/historialPlaca";
 import {
+  etiquetaRecuperador,
+  RECUPERADORES_FIJOS,
+} from "@/lib/recuperadores";
+import {
   enlaceGoogleMaps,
   mensajeErrorGps,
   obtenerGpsUbicacion,
@@ -30,18 +34,6 @@ type MetodoPago = "Efectivo" | "Nequi" | "Transferencia";
 type PagoPaso = "montos" | "metodo" | "modalidad" | "foto";
 
 const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia"];
-
-const RECUPERADORES_FIJOS = [
-  "John Sáenz",
-  "Diego Rodríguez",
-  "Moisés Ojeda",
-  "David Berastegui",
-  "Jean Pier Mindiola",
-  "Josué Mindiola",
-  "Fabián Garzón",
-  "Nicolás Garrido",
-  "Everth baptista",
-];
 
 function formatearCOP(val: string | undefined): string {
   if (val == null || val === "") return "—";
@@ -668,7 +660,7 @@ export default function Home() {
                 <option value="">Seleccionar recuperador</option>
                 {RECUPERADORES_FIJOS.map((nom) => (
                   <option key={nom} value={nom}>
-                    {nom}
+                    {etiquetaRecuperador(nom)}
                   </option>
                 ))}
               </select>
@@ -891,7 +883,7 @@ export default function Home() {
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Recuperador</span>
                   <span className="text-zinc-100 font-medium text-right max-w-[60%]">
-                    {recibo.recuperador}
+                    {etiquetaRecuperador(recibo.recuperador)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -1304,7 +1296,7 @@ export default function Home() {
                 </span>
               </p>
               <p className="text-sm text-zinc-500 mb-5">
-                Recuperador: {recuperadorRecibo}
+                Recuperador: {etiquetaRecuperador(recuperadorRecibo)}
               </p>
               <div className="flex gap-2">
                 <button

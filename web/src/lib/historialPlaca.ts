@@ -7,6 +7,7 @@ import {
   DATABASE_URL_PUNTO_VENTA_2,
 } from "@/lib/dbDefaults";
 import { supabase } from "@/lib/supabase";
+import { etiquetaRecuperador } from "@/lib/recuperadores";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 
 export type ItemHistorialPlaca = {
@@ -132,7 +133,9 @@ async function eventosRecuperadores(
         fecha: new Date(fecha).toISOString(),
         categoria: "recogida",
         titulo: "Moto recuperada",
-        subtitulo: recuperador || undefined,
+        subtitulo: recuperador
+          ? etiquetaRecuperador(recuperador)
+          : undefined,
       });
       continue;
     }
@@ -147,7 +150,7 @@ async function eventosRecuperadores(
     if (!fecha) continue;
 
     const partes: string[] = [];
-    if (recuperador) partes.push(recuperador);
+    if (recuperador) partes.push(etiquetaRecuperador(recuperador));
     if (tipoPago) partes.push(tipoPago);
     if (presencial) partes.push(presencial);
     if (multa > 0) partes.push(`Multa ${multa.toLocaleString("es-CO")}`);

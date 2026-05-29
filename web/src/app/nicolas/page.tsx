@@ -5,6 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DetalleAsignacion } from "@/components/DetalleAsignacion";
 import { NavFooter } from "@/components/NavFooter";
 import { formatFechaHora } from "@/lib/fechas";
+import {
+  etiquetaRecuperador,
+  RECUPERADORES_FIJOS,
+} from "@/lib/recuperadores";
 
 type PlacaDelDia = {
   id: number;
@@ -102,18 +106,6 @@ function filtrarGruposPorPeriodo(
     ),
   }));
 }
-
-const RECUPERADORES_FIJOS = [
-  "John Sáenz",
-  "Diego Rodríguez",
-  "Moisés Ojeda",
-  "David Berastegui",
-  "Jean Pier Mindiola",
-  "Josué Mindiola",
-  "Fabián Garzón",
-  "Nicolás Garrido",
-  "Everth baptista",
-];
 
 const OPCIONES_GPS_MOTO = ["iop gps", "system track"] as const;
 
@@ -572,47 +564,29 @@ function NicolasAdminPanel() {
                       No hay placas publicadas hoy
                     </p>
                   </div>
+                ) : placasPendientes.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
+                    <p className="text-sm text-zinc-500">
+                      Todas las placas del día ya están asignadas
+                    </p>
+                  </div>
                 ) : (
                   <section className="flex flex-col gap-1.5">
                     <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 pl-0.5">
-                      Placas del día ({placas.length})
+                      Pendientes por asignar ({placasPendientes.length})
                     </h2>
                     <div className="flex flex-wrap gap-1.5">
-                      {placas.map((p) => {
-                        const st = (p.status || "pendiente").toLowerCase();
-                        const cerrada =
-                          st === "asignada" ||
-                          st === "abonada" ||
-                          st === "recuperada";
-                        return (
-                          <span
-                            key={p.id}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tracking-wider ${
-                              st === "recuperada"
-                                ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/60"
-                                : st === "abonada"
-                                  ? "bg-blue-950/60 text-blue-300 border border-blue-800/60"
-                                  : st === "asignada"
-                                    ? "bg-zinc-800 text-zinc-500 line-through"
-                                    : "bg-zinc-900 text-white border border-zinc-700"
-                            }`}
-                          >
-                            {p.placa}
-                            <span className="text-[9px] uppercase tracking-normal text-zinc-400 font-medium">
-                              {p.gps_moto || "sin gps"}
-                            </span>
-                            {cerrada && (
-                              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-normal">
-                                {st === "abonada"
-                                  ? "abonó"
-                                  : st === "recuperada"
-                                    ? "recup"
-                                    : "asig"}
-                              </span>
-                            )}
+                      {placasPendientes.map((p) => (
+                        <span
+                          key={p.id}
+                          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tracking-wider bg-zinc-900 text-white border border-zinc-700"
+                        >
+                          {p.placa}
+                          <span className="text-[9px] uppercase tracking-normal text-zinc-400 font-medium">
+                            {p.gps_moto || "sin gps"}
                           </span>
-                        );
-                      })}
+                        </span>
+                      ))}
                     </div>
                   </section>
                 )}
@@ -643,7 +617,7 @@ function NicolasAdminPanel() {
                       <option value="">Seleccionar recuperador</option>
                       {RECUPERADORES_FIJOS.map((nom) => (
                         <option key={nom} value={nom}>
-                          {nom}
+                          {etiquetaRecuperador(nom)}
                         </option>
                       ))}
                     </select>
@@ -697,7 +671,7 @@ function NicolasAdminPanel() {
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-zinc-300 font-medium">
-                            {a.recuperador}
+                            {etiquetaRecuperador(a.recuperador)}
                           </p>
                           <p className="text-[10px] text-zinc-500 tabular-nums">
                             {formatFechaHora(a.fecha_asignada)}
@@ -753,7 +727,7 @@ function NicolasAdminPanel() {
                         </span>
                       </div>
                       <div className="mt-1 flex justify-between text-xs text-zinc-400">
-                        <span>{a.recuperador}</span>
+                        <span>{etiquetaRecuperador(a.recuperador)}</span>
                         {deudasRecuperadas[
                           a.placa.toUpperCase().replace(/\s/g, "")
                         ] ? (
@@ -821,7 +795,7 @@ function NicolasAdminPanel() {
                       className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3"
                     >
                       <p className="text-sm font-semibold text-zinc-100">
-                        {m.nombre}
+                        {etiquetaRecuperador(m.nombre)}
                       </p>
                       <div className="mt-2 grid grid-cols-5 gap-1.5 text-center text-xs">
                         <div className="rounded-lg bg-zinc-800/50 py-2">
