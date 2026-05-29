@@ -1,9 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toPng } from "html-to-image";
 
+import { DetalleAsignacion } from "@/components/DetalleAsignacion";
 import { NavFooter } from "@/components/NavFooter";
+import { formatFechaHora } from "@/lib/fechas";
+import {
+  abrirWhatsAppConTexto,
+  capturarReciboPng,
+  compartirReciboWhatsApp,
+  descargarBlob,
+  dataUrlToBlob,
+} from "@/lib/reciboImagen";
 
 type Asignacion = {
   id: number;
@@ -14,6 +22,9 @@ type Asignacion = {
   gps_moto: string;
   fecha_asignada: string | null;
   fecha_recuperada: string | null;
+  foto: string | null;
+  tipo_pago: string | null;
+  presencial: boolean | null;
 };
 
 type Recuperador = {
@@ -40,13 +51,6 @@ function formatearCOP(val: string | number | undefined): string {
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(n);
-}
-
-function formatFechaCorta(iso: string | undefined | null): string {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("T")[0].split("-");
-  if (!d) return iso;
-  return `${d}/${m}/${y?.slice(2) ?? y}`;
 }
 
 const RECUPERADORES_FIJOS = [
@@ -119,6 +123,8 @@ export default function RecuperadoresPage() {
     Record<string, DeudaPlaca | null>
   >({});
   const [cargandoDeudas, setCargandoDeudas] = useState(false);
+  const [exportandoRecibo, setExportandoRecibo] = useState(false);
+  const [mensajeRecibo, setMensajeRecibo] = useState<string | null>(null);
 
   const reciboRef = useRef<HTMLDivElement>(null);
   const asignacionesRef = useRef<HTMLElement>(null);
@@ -416,7 +422,9 @@ export default function RecuperadoresPage() {
   ]);
 
   const compartirReciboWpp = useCallback(async () => {
-    if (!recibo) return;
+    if (!recibo || exportandoRecibo) return;
+    setExportandoRecibo(true);
+    setMensajeRecibo(null);
 
     const titulo =
       recibo.tipo === "pago"
@@ -449,47 +457,48 @@ export default function RecuperadoresPage() {
     );
 
     const texto = lineas.join("\n");
+    const nombreArchivo = `recibo_${recibo.referencia}.png`;
 
-    if (reciboRef.current) {
-      try {
-        const dataUrl = await toPng(reciboRef.current, {
-          backgroundColor: "#09090b",
-          pixelRatio: 2,
-        });
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File(
-          [blob],
-          `recibo_${recibo.referencia}.png`,
-          { type: "image/png" },
+    try {
+      if (reciboRef.current) {
+        const dataUrl = await capturarReciboPng(reciboRef.current);
+        const modo = await compartirReciboWhatsApp(
+          texto,
+          dataUrl,
+          nombreArchivo,
         );
-        if (navigator.share && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: `Recibo ${recibo.referencia}`,
-            text: texto,
-            files: [file],
-          });
-          return;
+        if (modo === "wa_y_descarga") {
+          setMensajeRecibo(
+            "Se abrió WhatsApp y se descargó el recibo. Adjunta la imagen en el chat.",
+          );
         }
-      } catch {
-        // fallback a texto
+        return;
       }
+      abrirWhatsAppConTexto(texto);
+    } catch {
+      setMensajeRecibo("No se pudo generar la imagen. Se abrió WhatsApp solo con texto.");
+      abrirWhatsAppConTexto(texto);
+    } finally {
+      setExportandoRecibo(false);
     }
-
-    const urlWpp = `https://wa.me/?text=${encodeURIComponent(texto)}`;
-    window.open(urlWpp, "_blank", "noopener,noreferrer");
-  }, [recibo]);
+  }, [recibo, exportandoRecibo]);
 
   const descargarRecibo = useCallback(async () => {
-    if (!reciboRef.current || !recibo) return;
-    const dataUrl = await toPng(reciboRef.current, {
-      backgroundColor: "#09090b",
-      pixelRatio: 2,
-    });
-    const link = document.createElement("a");
-    link.download = `recibo_${recibo.referencia}.png`;
-    link.href = dataUrl;
-    link.click();
-  }, [recibo]);
+    if (!reciboRef.current || !recibo || exportandoRecibo) return;
+    setExportandoRecibo(true);
+    setMensajeRecibo(null);
+    try {
+      const dataUrl = await capturarReciboPng(reciboRef.current);
+      descargarBlob(
+        dataUrlToBlob(dataUrl),
+        `recibo_${recibo.referencia}.png`,
+      );
+    } catch {
+      setMensajeRecibo("No se pudo descargar el recibo. Intenta de nuevo.");
+    } finally {
+      setExportandoRecibo(false);
+    }
+  }, [recibo, exportandoRecibo]);
 
   const nombreRecuperador = selectedName || "Selecciona tu nombre";
 
@@ -511,6 +520,15 @@ export default function RecuperadoresPage() {
             className="shrink-0 rounded-xl border border-emerald-900/60 bg-emerald-950/40 px-3.5 py-2.5 text-sm text-emerald-200"
           >
             {mensajeExito}
+          </div>
+        )}
+
+        {mensajeRecibo && (
+          <div
+            role="status"
+            className="shrink-0 rounded-xl border border-blue-900/60 bg-blue-950/40 px-3.5 py-2.5 text-sm text-blue-200"
+          >
+            {mensajeRecibo}
           </div>
         )}
 
@@ -615,8 +633,8 @@ export default function RecuperadoresPage() {
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-zinc-500">
-                        {formatFechaCorta(asig.fecha_asignada)}
+                      <span className="text-[10px] text-zinc-500 tabular-nums text-right">
+                        {formatFechaHora(asig.fecha_asignada)}
                       </span>
                     </div>
 
@@ -682,16 +700,36 @@ export default function RecuperadoresPage() {
                     )}
 
                     {asig.estado === "Abonó" && (
-                      <div className="mt-2 flex gap-3 text-xs text-zinc-400">
-                        <span>Abono: {formatearCOP(asig.pagado)}</span>
-                        <span>Multa: {formatearCOP(asig.multa)}</span>
-                      </div>
+                      <>
+                        <div className="mt-2 flex gap-3 text-xs text-zinc-400">
+                          <span>Abono: {formatearCOP(asig.pagado)}</span>
+                          <span>Multa: {formatearCOP(asig.multa)}</span>
+                        </div>
+                        <DetalleAsignacion
+                          placa={asig.placa}
+                          tipoPago={asig.tipo_pago}
+                          presencial={asig.presencial}
+                          foto={asig.foto}
+                        />
+                      </>
                     )}
 
                     {asig.estado === "recuperada" && (
-                      <div className="mt-2 flex gap-3 text-xs text-zinc-400">
-                        <span>Recuperada el {formatFechaCorta(asig.fecha_recuperada)}</span>
-                      </div>
+                      <>
+                        <div className="mt-2 text-xs text-zinc-400">
+                          <span>
+                            Recuperada el{" "}
+                            {formatFechaHora(asig.fecha_recuperada)}
+                          </span>
+                        </div>
+                        <DetalleAsignacion
+                          placa={asig.placa}
+                          tipoPago={asig.tipo_pago}
+                          presencial={asig.presencial}
+                          fechaAsignada={asig.fecha_asignada}
+                          foto={asig.foto}
+                        />
+                      </>
                     )}
                   </article>
                 ))}
@@ -781,8 +819,9 @@ export default function RecuperadoresPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={compartirReciboWpp}
-                className="flex-1 min-h-[50px] rounded-xl bg-[#25D366] text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation shadow-md shadow-[#25D366]/20 flex items-center justify-center gap-2"
+                onClick={() => void compartirReciboWpp()}
+                disabled={exportandoRecibo}
+                className="flex-1 min-h-[50px] rounded-xl bg-[#25D366] text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-md shadow-[#25D366]/20 flex items-center justify-center gap-2"
               >
                 <svg
                   aria-hidden
@@ -792,12 +831,13 @@ export default function RecuperadoresPage() {
                 >
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                 </svg>
-                Compartir
+                {exportandoRecibo ? "Generando…" : "Compartir"}
               </button>
               <button
                 type="button"
-                onClick={descargarRecibo}
-                className="flex-1 min-h-[50px] rounded-xl border border-zinc-700 bg-zinc-800/50 text-zinc-100 font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation flex items-center justify-center gap-2"
+                onClick={() => void descargarRecibo()}
+                disabled={exportandoRecibo}
+                className="flex-1 min-h-[50px] rounded-xl border border-zinc-700 bg-zinc-800/50 text-zinc-100 font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation flex items-center justify-center gap-2"
               >
                 <svg
                   aria-hidden

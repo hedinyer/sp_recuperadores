@@ -1,12 +1,27 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { toPng } from "html-to-image";
 
 import { NavFooter } from "@/components/NavFooter";
+import {
+  enlaceGoogleMaps,
+  mensajeErrorGps,
+  obtenerGpsUbicacion,
+} from "@/lib/geolocation";
+import {
+  abrirWhatsAppConTexto,
+  capturarReciboPng,
+  compartirReciboWhatsApp,
+  descargarBlob,
+  dataUrlToBlob,
+} from "@/lib/reciboImagen";
 
 type Vehiculo = Record<string, string>;
 type TipoRecibo = "pago" | "recuperada";
+type MetodoPago = "Efectivo" | "Nequi" | "Transferencia";
+type PagoPaso = "montos" | "metodo" | "modalidad" | "foto";
+
+const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia"];
 
 const RECUPERADORES_FIJOS = [
   "John Sáenz",
@@ -93,9 +108,17 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [v, setV] = useState<Vehiculo | null>(null);
 
-  const [showPagoForm, setShowPagoForm] = useState(false);
+  const [pagoPaso, setPagoPaso] = useState<PagoPaso | null>(null);
   const [montoPago, setMontoPago] = useState("");
   const [montoMulta, setMontoMulta] = useState("");
+  const [metodoPago, setMetodoPago] = useState<MetodoPago | "">("");
+  const [esPresencial, setEsPresencial] = useState<boolean | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [gpsCapturado, setGpsCapturado] = useState<string | null>(null);
+  const [solicitandoGps, setSolicitandoGps] = useState(false);
+  const [guardandoPago, setGuardandoPago] = useState(false);
+  const [mensajeInfo, setMensajeInfo] = useState<string | null>(null);
   const [recuperadorRecibo, setRecuperadorRecibo] = useState("");
   const [recibo, setRecibo] = useState<{
     referencia: string;
@@ -108,10 +131,76 @@ export default function Home() {
     montoMulta: number;
     total: number;
     tipo: TipoRecibo;
+    tipoPago?: string;
+    presencial?: boolean;
+    fotoUrl?: string;
+    /** Data URL local para exportar sin CORS */
+    fotoLocal?: string;
+    gpsUbicacion?: string;
   } | null>(null);
+  const [exportandoRecibo, setExportandoRecibo] = useState(false);
   const [confirmandoRecuperada, setConfirmandoRecuperada] = useState(false);
+  const [pasoRecuperada, setPasoRecuperada] = useState<"confirmar" | "recibo" | null>(
+    null,
+  );
 
   const reciboRef = useRef<HTMLDivElement>(null);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+
+  const cerrarWizardPago = useCallback(() => {
+    setPagoPaso(null);
+    setMontoPago("");
+    setMontoMulta("");
+    setMetodoPago("");
+    setEsPresencial(null);
+    setFotoPreview(null);
+    setFotoFile(null);
+    setGpsCapturado(null);
+    setSolicitandoGps(false);
+  }, []);
+
+  const capturarGpsPresencial = useCallback(async (): Promise<boolean> => {
+    setSolicitandoGps(true);
+    setError(null);
+    const resultado = await obtenerGpsUbicacion();
+    setSolicitandoGps(false);
+    if (resultado.ok) {
+      setGpsCapturado(resultado.coords);
+      return true;
+    }
+    setError(mensajeErrorGps(resultado.motivo));
+    return false;
+  }, []);
+
+  const elegirPresencial = useCallback(async () => {
+    setEsPresencial(true);
+    const ok = await capturarGpsPresencial();
+    if (ok) setPagoPaso("foto");
+  }, [capturarGpsPresencial]);
+
+  const totalPasosPago = esPresencial === true ? 4 : 3;
+  const indicePasoPago =
+    pagoPaso === "montos"
+      ? 1
+      : pagoPaso === "metodo"
+        ? 2
+        : pagoPaso === "modalidad"
+          ? 3
+          : pagoPaso === "foto"
+            ? 4
+            : 0;
+
+  const onSeleccionarFoto = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setFotoFile(file);
+      const reader = new FileReader();
+      reader.onload = () => setFotoPreview(String(reader.result));
+      reader.readAsDataURL(file);
+    },
+    [],
+  );
 
   const consultar = useCallback(async () => {
     const p = placa.trim();
@@ -121,8 +210,11 @@ export default function Home() {
     }
     setLoading(true);
     setError(null);
+    setMensajeInfo(null);
     setV(null);
     setRecibo(null);
+    setPasoRecuperada(null);
+    cerrarWizardPago();
     try {
       const res = await fetch(
         `/api/placa?placa=${encodeURIComponent(p)}`,
@@ -139,39 +231,90 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [placa]);
+  }, [placa, cerrarWizardPago]);
 
   const generarRecibo = useCallback(async () => {
-    if (!v || !recuperadorRecibo) return;
+    if (!v || !recuperadorRecibo || !metodoPago || esPresencial == null) return;
+    if (esPresencial && !fotoFile) {
+      setError("Toma la foto del pago presencial");
+      return;
+    }
 
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, "0");
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const yy = String(now.getFullYear()).slice(-2);
-    const rand = String(Math.floor(10000 + Math.random() * 90000));
-    const referencia = `${dd}${mm}${yy}${rand}`;
-
-    const pago = Number(limpiarNumero(montoPago)) || 0;
-    const multa = Number(limpiarNumero(montoMulta)) || 0;
     const placaNormalizada = (v.placa || "—").toUpperCase().replace(/\s/g, "");
+    setGuardandoPago(true);
+    setError(null);
 
-    setRecibo({
-      referencia,
-      fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
-      recuperador: recuperadorRecibo,
-      cliente: v?.nombre || "—",
-      cedula: v?.cedula || "—",
-      placa: placaNormalizada,
-      montoPago: pago,
-      montoMulta: multa,
-      total: pago - multa,
-      tipo: "pago",
-    });
-    setShowPagoForm(false);
-    setMontoPago("");
-    setMontoMulta("");
+    const fotoLocal =
+      esPresencial && fotoPreview ? fotoPreview : undefined;
 
+    let fotoUrl: string | undefined;
     try {
+      const subirFoto =
+        esPresencial && fotoFile
+          ? (async () => {
+              const fd = new FormData();
+              fd.append("file", fotoFile);
+              fd.append("placa", placaNormalizada);
+              const resFoto = await fetch("/api/recuperadores/foto", {
+                method: "POST",
+                body: fd,
+              });
+              const dataFoto = await resFoto.json();
+              if (!resFoto.ok) {
+                throw new Error(dataFoto.error ?? "No se pudo guardar la foto");
+              }
+              return dataFoto.foto as string;
+            })()
+          : Promise.resolve(undefined);
+
+      if (esPresencial && !gpsCapturado) {
+        setError("Activa la ubicación en el paso presencial antes de continuar.");
+        return;
+      }
+
+      const gpsRemoto =
+        !esPresencial
+          ? obtenerGpsUbicacion().then((r) => (r.ok ? r.coords : null))
+          : Promise.resolve(null);
+
+      const [fotoSubida, gpsRemotoCoords] = await Promise.all([
+        subirFoto,
+        gpsRemoto,
+      ]);
+      fotoUrl = fotoSubida;
+      const gpsUbicacion = esPresencial
+        ? gpsCapturado
+        : gpsRemotoCoords;
+
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, "0");
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const yy = String(now.getFullYear()).slice(-2);
+      const rand = String(Math.floor(10000 + Math.random() * 90000));
+      const referencia = `${dd}${mm}${yy}${rand}`;
+
+      const pago = Number(limpiarNumero(montoPago)) || 0;
+      const multa = Number(limpiarNumero(montoMulta)) || 0;
+
+      setRecibo({
+        referencia,
+        fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
+        recuperador: recuperadorRecibo,
+        cliente: v?.nombre || "—",
+        cedula: v?.cedula || "—",
+        placa: placaNormalizada,
+        montoPago: pago,
+        montoMulta: multa,
+        total: pago - multa,
+        tipo: "pago",
+        tipoPago: metodoPago,
+        presencial: esPresencial,
+        fotoUrl,
+        fotoLocal,
+        gpsUbicacion: gpsUbicacion ?? undefined,
+      });
+      cerrarWizardPago();
+
       await fetch("/api/recuperadores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -181,18 +324,45 @@ export default function Home() {
           estado_moto: "Abonó",
           pagado: pago,
           multa,
+          tipo_pago: metodoPago,
+          presencial: esPresencial,
+          foto: fotoUrl ?? null,
+          gps_ubicacion: gpsUbicacion,
         }),
       });
-    } catch {
-      // No bloqueamos la UI del recibo por fallos de red.
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Sin conexión al guardar el pago",
+      );
+    } finally {
+      setGuardandoPago(false);
     }
-  }, [montoPago, montoMulta, v, recuperadorRecibo]);
+  }, [
+    montoPago,
+    montoMulta,
+    v,
+    recuperadorRecibo,
+    metodoPago,
+    esPresencial,
+    fotoFile,
+    fotoPreview,
+    gpsCapturado,
+    cerrarWizardPago,
+  ]);
 
-  const generarReciboRecuperada = useCallback(() => {
+  const iniciarReciboRecuperada = useCallback(() => {
     if (!v || !recuperadorRecibo) {
       setError("Selecciona recuperador para recuperar la moto");
       return;
     }
+    setError(null);
+    setPasoRecuperada("confirmar");
+  }, [v, recuperadorRecibo]);
+
+  const generarReciboRecuperada = useCallback(async () => {
+    if (!v || !recuperadorRecibo) return;
+    const gpsResult = await obtenerGpsUbicacion();
+    const gpsUbicacion = gpsResult.ok ? gpsResult.coords : undefined;
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, "0");
     const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -211,7 +381,9 @@ export default function Home() {
       montoMulta: 0,
       total: 0,
       tipo: "recuperada",
+      gpsUbicacion,
     });
+    setPasoRecuperada(null);
     setError(null);
   }, [v, recuperadorRecibo]);
 
@@ -219,6 +391,11 @@ export default function Home() {
     if (!recibo || recibo.tipo !== "recuperada" || confirmandoRecuperada) return;
     setConfirmandoRecuperada(true);
     try {
+      let gps = recibo.gpsUbicacion;
+      if (!gps) {
+        const r = await obtenerGpsUbicacion();
+        gps = r.ok ? r.coords : undefined;
+      }
       const res = await fetch("/api/recuperadores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -228,6 +405,7 @@ export default function Home() {
           estado_moto: "recuperada",
           pagado: 0,
           multa: 0,
+          gps_ubicacion: gps ?? null,
         }),
       });
       if (!res.ok) {
@@ -241,7 +419,10 @@ export default function Home() {
   }, [recibo, confirmandoRecuperada]);
 
   const compartirReciboWpp = useCallback(async () => {
-    if (!recibo) return;
+    if (!recibo || exportandoRecibo) return;
+    setExportandoRecibo(true);
+    setError(null);
+    setMensajeInfo(null);
 
     const titulo =
       recibo.tipo === "pago"
@@ -261,54 +442,65 @@ export default function Home() {
     if (recibo.tipo === "pago") {
       lineas.push(
         `─────────────────`,
+        `Método: ${recibo.tipoPago ?? "—"}`,
+        `Pago: ${recibo.presencial ? "Presencial" : "Remoto"}`,
         `Abono: ${formatearCOP(String(recibo.montoPago))}`,
         `Multa: ${formatearCOP(String(recibo.montoMulta))}`,
         `*Neto abonado: ${formatearCOP(String(recibo.total))}*`,
       );
     }
 
+    if (recibo.gpsUbicacion) {
+      lineas.push(`Ubicación: ${enlaceGoogleMaps(recibo.gpsUbicacion)}`);
+    }
+
     lineas.push(`─────────────────`, `*Ref: ${recibo.referencia}*`, `─────────────────`);
 
     const texto = lineas.join("\n");
 
-    if (reciboRef.current) {
-      try {
-        const dataUrl = await toPng(reciboRef.current, {
-          backgroundColor: "#09090b",
-          pixelRatio: 2,
-        });
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], `recibo_${recibo.referencia}.png`, {
-          type: "image/png",
-        });
-        if (navigator.share && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: `Recibo ${recibo.referencia}`,
-            text: texto,
-            files: [file],
-          });
-          return;
-        }
-      } catch {
-        // fallback a texto
-      }
-    }
+    const nombreArchivo = `recibo_${recibo.referencia}.png`;
 
-    const urlWpp = `https://wa.me/?text=${encodeURIComponent(texto)}`;
-    window.open(urlWpp, "_blank", "noopener,noreferrer");
-  }, [recibo]);
+    try {
+      if (reciboRef.current) {
+        const dataUrl = await capturarReciboPng(reciboRef.current);
+        const modo = await compartirReciboWhatsApp(
+          texto,
+          dataUrl,
+          nombreArchivo,
+        );
+        if (modo === "wa_y_descarga") {
+          setMensajeInfo(
+            "Se abrió WhatsApp y se descargó el recibo. Adjunta la imagen en el chat.",
+          );
+        }
+        return;
+      }
+      abrirWhatsAppConTexto(texto);
+    } catch {
+      setError("No se pudo generar la imagen del recibo.");
+      abrirWhatsAppConTexto(texto);
+    } finally {
+      setExportandoRecibo(false);
+    }
+  }, [recibo, exportandoRecibo]);
 
   const descargarRecibo = useCallback(async () => {
-    if (!reciboRef.current || !recibo) return;
-    const dataUrl = await toPng(reciboRef.current, {
-      backgroundColor: "#09090b",
-      pixelRatio: 2,
-    });
-    const link = document.createElement("a");
-    link.download = `recibo_${recibo.referencia}.png`;
-    link.href = dataUrl;
-    link.click();
-  }, [recibo]);
+    if (!reciboRef.current || !recibo || exportandoRecibo) return;
+    setExportandoRecibo(true);
+    setError(null);
+    setMensajeInfo(null);
+    try {
+      const dataUrl = await capturarReciboPng(reciboRef.current);
+      descargarBlob(
+        dataUrlToBlob(dataUrl),
+        `recibo_${recibo.referencia}.png`,
+      );
+    } catch {
+      setError("No se pudo descargar el recibo. Intenta de nuevo.");
+    } finally {
+      setExportandoRecibo(false);
+    }
+  }, [recibo, exportandoRecibo]);
 
   const wa = v ? enlaceWhatsApp(v.telefono) : null;
   const diasMora = v ? parseInt(String(v.dias_mora ?? "0"), 10) || 0 : 0;
@@ -363,6 +555,12 @@ export default function Home() {
             className="shrink-0 rounded-xl border border-red-900/60 bg-red-950/40 px-3.5 py-2.5 text-sm text-red-200"
           >
             {error}
+          </div>
+        )}
+
+        {mensajeInfo && (
+          <div className="shrink-0 rounded-xl border border-emerald-800/60 bg-emerald-950/40 px-3.5 py-2.5 text-sm text-emerald-200">
+            {mensajeInfo}
           </div>
         )}
 
@@ -517,14 +715,21 @@ export default function Home() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setShowPagoForm(true)}
+                onClick={() => {
+                  if (!recuperadorRecibo) {
+                    setError("Selecciona recuperador antes de generar pago");
+                    return;
+                  }
+                  setError(null);
+                  setPagoPaso("montos");
+                }}
                 className="flex-1 min-h-[50px] rounded-xl bg-emerald-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-emerald-900/30"
               >
                 Generar Pago
               </button>
               <button
                 type="button"
-                onClick={generarReciboRecuperada}
+                onClick={iniciarReciboRecuperada}
                 className="flex-1 min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
               >
                 Moto Recuperada
@@ -579,6 +784,18 @@ export default function Home() {
               {recibo.tipo === "pago" && (
                 <div className="border-t border-zinc-700 my-3 pt-3 space-y-2 text-sm">
                   <div className="flex justify-between">
+                    <span className="text-zinc-400">Método</span>
+                    <span className="text-zinc-100 font-medium">
+                      {recibo.tipoPago ?? "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Modalidad</span>
+                    <span className="text-zinc-100 font-medium">
+                      {recibo.presencial ? "Presencial" : "Remoto"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-zinc-400">Abono</span>
                     <span className="text-zinc-100 font-medium tabular-nums">
                       {formatearCOP(String(recibo.montoPago))}
@@ -596,8 +813,27 @@ export default function Home() {
                       {formatearCOP(String(recibo.total))}
                     </span>
                   </div>
+                  {(recibo.fotoLocal ?? recibo.fotoUrl) ? (
+                    <div className="pt-2">
+                      <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2 text-center">
+                        Comprobante presencial
+                      </p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={recibo.fotoLocal ?? recibo.fotoUrl}
+                        alt="Foto del pago presencial"
+                        className="w-full rounded-xl border border-zinc-700 object-cover max-h-48"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               )}
+
+              {recibo.gpsUbicacion ? (
+                <p className="text-[10px] text-zinc-500 text-center mt-2 tabular-nums">
+                  GPS: {recibo.gpsUbicacion}
+                </p>
+              ) : null}
 
               <div className="border-t border-zinc-700 pt-3 mt-1 text-center">
                 <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">
@@ -613,8 +849,9 @@ export default function Home() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={compartirReciboWpp}
-                className="flex-1 min-h-[50px] rounded-xl bg-[#25D366] text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation shadow-md shadow-[#25D366]/20 flex items-center justify-center gap-2"
+                onClick={() => void compartirReciboWpp()}
+                disabled={exportandoRecibo}
+                className="flex-1 min-h-[50px] rounded-xl bg-[#25D366] text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-md shadow-[#25D366]/20 flex items-center justify-center gap-2"
               >
                 <svg
                   aria-hidden
@@ -624,12 +861,13 @@ export default function Home() {
                 >
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                 </svg>
-                Compartir
+                {exportandoRecibo ? "Generando…" : "Compartir"}
               </button>
               <button
                 type="button"
-                onClick={descargarRecibo}
-                className="flex-1 min-h-[50px] rounded-xl border border-zinc-700 bg-zinc-800/50 text-zinc-100 font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation flex items-center justify-center gap-2"
+                onClick={() => void descargarRecibo()}
+                disabled={exportandoRecibo}
+                className="flex-1 min-h-[50px] rounded-xl border border-zinc-700 bg-zinc-800/50 text-zinc-100 font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation flex items-center justify-center gap-2"
               >
                 <svg
                   aria-hidden
@@ -663,77 +901,284 @@ export default function Home() {
           </div>
         )}
 
-        {/* Modal formulario de pago */}
-        {showPagoForm && (
+        {/* Wizard procedural: generar pago */}
+        {pagoPaso && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <div className="w-full max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl">
-              <h2 className="text-base font-semibold text-white mb-4">
-                Generar recibo de pago
-              </h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
-                    Recuperador
-                  </label>
-                  <select
-                    value={recuperadorRecibo}
-                    onChange={(e) => setRecuperadorRecibo(e.target.value)}
-                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  >
-                    <option value="">Seleccionar recuperador</option>
-                    {RECUPERADORES_FIJOS.map((nom) => (
-                      <option key={nom} value={nom}>
-                        {nom}
-                      </option>
+              <p className="text-[11px] text-emerald-400 font-medium mb-1">
+                Paso {indicePasoPago} de {totalPasosPago}
+              </p>
+
+              {pagoPaso === "montos" && (
+                <>
+                  <h2 className="text-base font-semibold text-white mb-1">
+                    ¿Cuánto pagó el cliente?
+                  </h2>
+                  <p className="text-xs text-zinc-500 mb-4">
+                    Escribe el abono y la multa si aplica.
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
+                        Valor del abono ($)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={formatearConPuntos(montoPago)}
+                        onChange={(e) =>
+                          setMontoPago(limpiarNumero(e.target.value))
+                        }
+                        className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
+                        Valor de la multa ($)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={formatearConPuntos(montoMulta)}
+                        onChange={(e) =>
+                          setMontoMulta(limpiarNumero(e.target.value))
+                        }
+                        className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      type="button"
+                      onClick={cerrarWizardPago}
+                      className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPagoPaso("metodo")}
+                      disabled={!limpiarNumero(montoPago)}
+                      className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {pagoPaso === "metodo" && (
+                <>
+                  <h2 className="text-base font-semibold text-white mb-1">
+                    ¿Cómo pagó?
+                  </h2>
+                  <p className="text-xs text-zinc-500 mb-4">
+                    Elige una opción.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {METODOS_PAGO.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMetodoPago(m)}
+                        className={`min-h-[52px] rounded-xl border text-base font-semibold touch-manipulation ${
+                          metodoPago === m
+                            ? "border-emerald-500 bg-emerald-950/50 text-emerald-200"
+                            : "border-zinc-600 bg-zinc-800 text-white"
+                        }`}
+                      >
+                        {m}
+                      </button>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
-                    Valor del abono ($)
-                  </label>
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      type="button"
+                      onClick={() => setPagoPaso("montos")}
+                      className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                    >
+                      Atrás
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPagoPaso("modalidad")}
+                      disabled={!metodoPago}
+                      className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {pagoPaso === "modalidad" && (
+                <>
+                  <h2 className="text-base font-semibold text-white mb-1">
+                    ¿El pago fue en persona?
+                  </h2>
+                  <p className="text-xs text-zinc-500 mb-4">
+                    Presencial = estás con el cliente. Remoto = transferencia o
+                    Nequi sin estar juntos.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void elegirPresencial()}
+                      disabled={solicitandoGps || guardandoPago}
+                      className={`min-h-[52px] rounded-xl border text-base font-semibold touch-manipulation disabled:opacity-60 ${
+                        esPresencial === true
+                          ? "border-emerald-500 bg-emerald-950/50 text-emerald-200"
+                          : "border-zinc-600 bg-zinc-800 text-white"
+                      }`}
+                    >
+                      {solicitandoGps
+                        ? "Activando GPS…"
+                        : "Sí, presencial"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEsPresencial(false);
+                        void generarRecibo();
+                      }}
+                      disabled={guardandoPago}
+                      className="min-h-[52px] rounded-xl border border-zinc-600 bg-zinc-800 text-base font-semibold text-white disabled:opacity-50 touch-manipulation"
+                    >
+                      No, remoto
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPagoPaso("metodo")}
+                    className="w-full mt-4 min-h-[44px] rounded-xl border border-zinc-700 text-zinc-400 text-sm touch-manipulation"
+                  >
+                    Atrás
+                  </button>
+                </>
+              )}
+
+              {pagoPaso === "foto" && (
+                <>
+                  <h2 className="text-base font-semibold text-white mb-1">
+                    Toma una foto del pago
+                  </h2>
+                  <p className="text-xs text-zinc-500 mb-4">
+                    Fotografía el comprobante o al cliente entregando el dinero.
+                  </p>
+                  {gpsCapturado ? (
+                    <p className="text-xs text-emerald-400 mb-3 tabular-nums">
+                      ✓ Ubicación GPS guardada: {gpsCapturado}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void capturarGpsPresencial()}
+                      disabled={solicitandoGps}
+                      className="w-full mb-3 min-h-[44px] rounded-xl border border-amber-700/60 bg-amber-950/30 text-amber-200 text-sm font-medium touch-manipulation"
+                    >
+                      {solicitandoGps
+                        ? "Obteniendo GPS…"
+                        : "Activar ubicación GPS"}
+                    </button>
+                  )}
                   <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={formatearConPuntos(montoPago)}
-                    onChange={(e) => setMontoPago(limpiarNumero(e.target.value))}
-                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
+                    ref={inputFotoRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={onSeleccionarFoto}
                   />
-                </div>
-                <div>
-                  <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
-                    Valor de la multa ($)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={formatearConPuntos(montoMulta)}
-                    onChange={(e) => setMontoMulta(limpiarNumero(e.target.value))}
-                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2 mt-5">
+                  {fotoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={fotoPreview}
+                      alt="Vista previa"
+                      className="w-full rounded-xl border border-zinc-600 object-cover max-h-52 mb-3"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => inputFotoRef.current?.click()}
+                      className="w-full min-h-[120px] rounded-xl border-2 border-dashed border-zinc-600 bg-zinc-800/50 text-zinc-300 text-sm font-medium touch-manipulation"
+                    >
+                      Tocar para abrir cámara
+                    </button>
+                  )}
+                  {fotoPreview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFotoPreview(null);
+                        setFotoFile(null);
+                        if (inputFotoRef.current) inputFotoRef.current.value = "";
+                      }}
+                      className="w-full mt-2 text-xs text-zinc-500 underline"
+                    >
+                      Tomar otra foto
+                    </button>
+                  )}
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      type="button"
+                      onClick={() => setPagoPaso("modalidad")}
+                      disabled={guardandoPago}
+                      className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                    >
+                      Atrás
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void generarRecibo()}
+                      disabled={
+                        !fotoFile || guardandoPago || !gpsCapturado
+                      }
+                      className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
+                    >
+                      {guardandoPago ? "Guardando…" : "Generar recibo"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Paso 1: confirmar moto recuperada */}
+        {pasoRecuperada === "confirmar" && v && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="w-full max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl">
+              <p className="text-[11px] text-blue-400 font-medium mb-1">
+                Paso 1 de 2
+              </p>
+              <h2 className="text-base font-semibold text-white mb-2">
+                ¿Recuperaste la moto?
+              </h2>
+              <p className="text-sm text-zinc-400 mb-1">
+                Placa{" "}
+                <span className="text-white font-bold tracking-widest">
+                  {(v.placa || "").toUpperCase().replace(/\s/g, "")}
+                </span>
+              </p>
+              <p className="text-sm text-zinc-500 mb-5">
+                Recuperador: {recuperadorRecibo}
+              </p>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowPagoForm(false);
-                    setMontoPago("");
-                    setMontoMulta("");
-                  }}
-                  className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm active:scale-[0.98] transition-transform touch-manipulation"
+                  onClick={() => setPasoRecuperada(null)}
+                  className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  onClick={generarRecibo}
-                  disabled={!recuperadorRecibo}
-                  className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm active:scale-[0.98] transition-transform touch-manipulation"
+                  onClick={() => void generarReciboRecuperada()}
+                  className="flex-1 min-h-[48px] rounded-xl bg-blue-700 text-white font-semibold text-sm touch-manipulation"
                 >
-                  Generar recibo
+                  Sí, continuar
                 </button>
               </div>
             </div>

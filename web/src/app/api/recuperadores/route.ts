@@ -33,6 +33,19 @@ export async function POST(request: Request) {
       fecha_hora_asignada: new Date().toISOString(),
     };
 
+    if (body.tipo_pago != null && String(body.tipo_pago).trim()) {
+      payload.tipo_pago = String(body.tipo_pago).trim();
+    }
+    if (body.presencial != null) {
+      payload.presencial = Boolean(body.presencial);
+    }
+    if (body.foto != null && String(body.foto).trim()) {
+      payload.foto = String(body.foto).trim();
+    }
+    if (body.gps_ubicacion != null && String(body.gps_ubicacion).trim()) {
+      payload.gps_ubicacion = String(body.gps_ubicacion).trim();
+    }
+
     if (estado_moto === "recuperada") {
       payload.fecha_hora_recuperada = new Date().toISOString();
     }
@@ -86,6 +99,9 @@ export async function GET() {
           gps_moto: string;
           fecha_asignada: string | null;
           fecha_recuperada: string | null;
+          foto: string | null;
+          tipo_pago: string | null;
+          presencial: boolean | null;
         }>;
       }
     > = {};
@@ -113,6 +129,14 @@ export async function GET() {
           gpsPorPlaca.get(placaNormalizada) || "",
         fecha_asignada: row.fecha_hora_asignada,
         fecha_recuperada: row.fecha_hora_recuperada,
+        foto: row.foto ? String(row.foto).trim() || null : null,
+        tipo_pago: row.tipo_pago ? String(row.tipo_pago).trim() || null : null,
+        presencial:
+          row.presencial === true
+            ? true
+            : row.presencial === false
+              ? false
+              : null,
       });
     }
 
@@ -144,6 +168,18 @@ export async function PATCH(request: Request) {
     }
     if (estado === "recuperada") {
       update.fecha_hora_recuperada = new Date().toISOString();
+    }
+    if (body.gps_ubicacion != null && String(body.gps_ubicacion).trim()) {
+      update.gps_ubicacion = String(body.gps_ubicacion).trim();
+    }
+    if (body.tipo_pago != null && String(body.tipo_pago).trim()) {
+      update.tipo_pago = String(body.tipo_pago).trim();
+    }
+    if (body.presencial != null) {
+      update.presencial = Boolean(body.presencial);
+    }
+    if (body.foto != null && String(body.foto).trim()) {
+      update.foto = String(body.foto).trim();
     }
 
     const { data, error } = await supabase

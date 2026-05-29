@@ -24,6 +24,16 @@ import db_defaults
 
 load_dotenv()
 
+DIAS_CREDITO_DEFAULT = 365
+
+
+def parse_dias_credito(fecha_final: str | None = None) -> int:
+    raw = (fecha_final or "").strip()
+    if raw.isdigit():
+        n = int(raw)
+        return n if n > 0 else DIAS_CREDITO_DEFAULT
+    return DIAS_CREDITO_DEFAULT
+
 
 def get_connection():
     return psycopg2.connect(
@@ -42,7 +52,8 @@ SELECT
     c.nombre,
     c.placa,
     c.fecha_inicio::date,
-    c.valor_cuota::numeric
+    c.valor_cuota::numeric,
+    c.fecha_final
 FROM clientes c
 WHERE c.placa IS NOT NULL
   AND TRIM(c.placa) <> ''
@@ -73,7 +84,8 @@ SELECT
     c.telefono,
     c.visitador,
     c.fecha_inicio::date,
-    c.valor_cuota::numeric
+    c.valor_cuota::numeric,
+    c.fecha_final
 FROM clientes c
 WHERE c.estado = 'activo'
   AND c.fecha_inicio IS NOT NULL
@@ -130,6 +142,7 @@ def generar_dataframe_extracto(
     fecha_inicio: date | datetime | str,
     valor_cuota: float,
     registros: Sequence[tuple[date | datetime, Any, str | None, str | None]],
+    dias_credito: int = DIAS_CREDITO_DEFAULT,
 ) -> pd.DataFrame:
     """
     Réplica línea a línea del bloque DataFrame en `mostrar_registros` (func extrac.txt).
@@ -139,7 +152,10 @@ def generar_dataframe_extracto(
         raise ValueError("valor_cuota inválido")
 
     fecha_inicio_dt = _parse_fecha_inicio(fecha_inicio)
+    fecha_fin_credito = fecha_inicio_dt + timedelta(days=dias_credito - 1)
     fecha_actual = datetime.today()
+    if fecha_actual > fecha_fin_credito:
+        fecha_actual = fecha_fin_credito
 
     registros_modificados = _registros_a_tuplas(registros)
 
@@ -149,7 +165,8 @@ def generar_dataframe_extracto(
     dias_rango = (fecha_actual - fecha_inicio_dt).days + 1
     if cuotas_pagadas_ceil > dias_rango:
         diferencia = cuotas_pagadas_ceil - dias_rango
-        fecha_actual += timedelta(days=diferencia)
+        fecha_extendida = fecha_actual + timedelta(days=diferencia)
+        fecha_actual = min(fecha_extendida, fecha_fin_credito)
 
     fechas = pd.date_range(start=fecha_inicio_dt, end=fecha_actual)
     df = pd.DataFrame(
@@ -206,7 +223,12 @@ def generar_dataframe_extracto(
     return df
 
 
-def calcular_resumen_extracto(df: pd.DataFrame, valor_cuota: float) -> ResumenExtracto:
+def calcular_resumen_extracto(
+    df: pd.DataFrame,
+    valor_cuota: float,
+    dias_credito: int = DIAS_CREDITO_DEFAULT,
+    total_registros: float | None = None,
+) -> ResumenExtracto:
     """Métricas posteriores al DataFrame (func extrac.txt)."""
     valor_cuota = float(valor_cuota)
     total = float(df["Valor Pagado"].sum())
@@ -215,8 +237,10 @@ def calcular_resumen_extracto(df: pd.DataFrame, valor_cuota: float) -> ResumenEx
     remanente = (df["Valor Pagado"] % valor_cuota).sum()
     fraccion_cuota = remanente / valor_cuota
     cuotas_pagadas = cuotas_pagadas_completas + fraccion_cuota
-    cuotas_vencidas = len(df)
-    cuotas_pendientes = cuotas_vencidas - cuotas_pagadas
+    if total_registros is not None and total_registros > 0:
+        cuotas_pagadas = max(cuotas_pagadas, total_registros / valor_cuota)
+    cuotas_vencidas = min(len(df), dias_credito)
+    cuotas_pendientes = max(0.0, cuotas_vencidas - cuotas_pagadas)
     valor_pendiente = cuotas_pendientes * valor_cuota
 
     return ResumenExtracto(
@@ -236,11 +260,17 @@ def metricas_cliente_web(
     fecha_inicio: date | datetime | str,
     valor_cuota: float,
     registros: Sequence[tuple[date | datetime, Any, str | None, str | None]],
+    dias_credito: int = DIAS_CREDITO_DEFAULT,
 ) -> dict[str, str | int | float]:
     """Métricas en el shape del CSV / API web."""
     valor_cuota = float(valor_cuota)
-    df = generar_dataframe_extracto(fecha_inicio, valor_cuota, registros)
-    r = calcular_resumen_extracto(df, valor_cuota)
+    df = generar_dataframe_extracto(
+        fecha_inicio, valor_cuota, registros, dias_credito=dias_credito
+    )
+    total_reg = sum(float(x[1]) for x in registros if x[1] is not None)
+    r = calcular_resumen_extracto(
+        df, valor_cuota, dias_credito=dias_credito, total_registros=total_reg
+    )
     regs_validos = [x for x in registros if x[0] is not None and x[1] is not None]
     ultimo_pago = max((x[0] for x in regs_validos), default=None)
     dias_mora = (
@@ -286,10 +316,19 @@ def build_report_rows() -> list[dict[str, str]]:
             registros_por_cedula.setdefault(ced, []).append((fecha, valor, tipo, ref))
 
         filas: list[dict[str, str]] = []
-        for cedula, nombre, placa, telefono, visitador, fecha_inicio, valor_cuota in clientes:
+        for row in clientes:
+            cedula, nombre, placa, telefono, visitador, fecha_inicio, valor_cuota = row[:7]
+            fecha_final = row[7] if len(row) > 7 else None
             valor_cuota = float(valor_cuota)
             regs = registros_por_cedula.get(cedula, [])
-            m = metricas_cliente_web(fecha_inicio, valor_cuota, regs)
+            m = metricas_cliente_web(
+                fecha_inicio,
+                valor_cuota,
+                regs,
+                dias_credito=parse_dias_credito(
+                    str(fecha_final) if fecha_final is not None else None
+                ),
+            )
             filas.append(
                 {
                     "cedula": str(cedula),
@@ -425,7 +464,7 @@ def exportar_extracto_csv(
 
 # 🔹 FUNCIÓN MODIFICADA: CARGAR CLIENTE POR PLACA
 def cargar_cliente_y_registros_por_placa(placa: str) -> tuple[
-    tuple[str, str, str, date, float],
+    tuple[str, str, str, date, float, int],
     list[tuple[date, float, str | None, str | None]],
 ]:
     conn = get_connection()
@@ -436,13 +475,23 @@ def cargar_cliente_y_registros_por_placa(placa: str) -> tuple[
         if not cliente:
             raise LookupError(f"Cliente con placa '{placa}' no encontrado.")
 
-        cedula_db, nombre, placa_db, fecha_inicio, valor_cuota = cliente
+        cedula_db, nombre, placa_db, fecha_inicio, valor_cuota, fecha_final = cliente
         if not fecha_inicio or not valor_cuota:
             raise ValueError("Datos del cliente incompletos.")
 
         cur.execute(SQL_REGISTROS_CLIENTE_PLACA, (placa.strip(),))
         registros = cur.fetchall()
-        return (cedula_db, nombre, placa_db, fecha_inicio, float(valor_cuota)), list(registros)
+        dias_credito = parse_dias_credito(
+            str(fecha_final) if fecha_final is not None else None
+        )
+        return (
+            cedula_db,
+            nombre,
+            placa_db,
+            fecha_inicio,
+            float(valor_cuota),
+            dias_credito,
+        ), list(registros)
     finally:
         cur.close()
         conn.close()
@@ -450,14 +499,19 @@ def cargar_cliente_y_registros_por_placa(placa: str) -> tuple[
 
 # 🔹 FUNCIÓN MODIFICADA: EXTRACTO POR PLACA
 def extracto_cliente_por_placa(placa: str) -> tuple[
-    tuple[str, str, str, date, float],
+    tuple[str, str, str, date, float, int],
     pd.DataFrame,
     ResumenExtracto,
 ]:
     cliente, registros = cargar_cliente_y_registros_por_placa(placa)
-    _, _, _, fecha_inicio, valor_cuota = cliente
-    df = generar_dataframe_extracto(fecha_inicio, valor_cuota, registros)
-    resumen = calcular_resumen_extracto(df, valor_cuota)
+    _, _, _, fecha_inicio, valor_cuota, dias_credito = cliente
+    df = generar_dataframe_extracto(
+        fecha_inicio, valor_cuota, registros, dias_credito=dias_credito
+    )
+    total_reg = sum(float(x[1]) for x in registros if x[1] is not None)
+    resumen = calcular_resumen_extracto(
+        df, valor_cuota, dias_credito=dias_credito, total_registros=total_reg
+    )
     return cliente, df, resumen
 
 
@@ -561,10 +615,19 @@ def ejecutar_reporte_general() -> list[tuple]:
             registros_por_cedula.setdefault(ced, []).append((fecha, valor, tipo, ref))
 
         resultados = []
-        for cedula, nombre, placa, telefono, visitador, fecha_inicio, valor_cuota in clientes:
+        for row in clientes:
+            cedula, nombre, placa, telefono, visitador, fecha_inicio, valor_cuota = row[:7]
+            fecha_final = row[7] if len(row) > 7 else None
             valor_cuota = float(valor_cuota)
             regs = registros_por_cedula.get(cedula, [])
-            m = metricas_cliente_web(fecha_inicio, valor_cuota, regs)
+            m = metricas_cliente_web(
+                fecha_inicio,
+                valor_cuota,
+                regs,
+                dias_credito=parse_dias_credito(
+                    str(fecha_final) if fecha_final is not None else None
+                ),
+            )
             resultados.append(
                 (
                     cedula,

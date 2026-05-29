@@ -9,6 +9,16 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Sequence
 
+DIAS_CREDITO_DEFAULT = 365
+
+
+def parse_dias_credito(fecha_final: str | None = None) -> int:
+    raw = (fecha_final or "").strip()
+    if raw.isdigit():
+        n = int(raw)
+        return n if n > 0 else DIAS_CREDITO_DEFAULT
+    return DIAS_CREDITO_DEFAULT
+
 
 @dataclass(frozen=True)
 class RegistroExtracto:
@@ -45,20 +55,25 @@ def calcular_metricas_extracto(
     fecha_inicio: date | datetime,
     valor_cuota: float,
     registros: Sequence[RegistroExtracto],
+    dias_credito: int = DIAS_CREDITO_DEFAULT,
 ) -> MetricasExtracto:
     """Replica el reparto de pagos por día del DataFrame en `func extrac.txt`."""
     if valor_cuota <= 0:
         raise ValueError("valor_cuota inválido")
 
     inicio = _as_date(fecha_inicio)
+    fecha_fin_credito = inicio + timedelta(days=dias_credito - 1)
     fin = date.today()
+    if fin > fecha_fin_credito:
+        fin = fecha_fin_credito
 
     total = sum(r.valor for r in registros)
     cuotas_pagadas_ceil = math.ceil(total / valor_cuota) if total else 0
 
     dias_rango = _days_between(inicio, fin) + 1
     if cuotas_pagadas_ceil > dias_rango:
-        fin = fin + timedelta(days=cuotas_pagadas_ceil - dias_rango)
+        fin_extendido = fin + timedelta(days=cuotas_pagadas_ceil - dias_rango)
+        fin = min(fin_extendido, fecha_fin_credito)
 
     n = _days_between(inicio, fin) + 1
     valor_pagado = [0.0] * n
@@ -108,8 +123,10 @@ def calcular_metricas_extracto(
 
     fraccion_cuota = remanente / valor_cuota
     cuotas_pagadas = cuotas_pagadas_completas + fraccion_cuota
-    cuotas_vencidas = n
-    cuotas_pendientes = cuotas_vencidas - cuotas_pagadas
+    if total > 0:
+        cuotas_pagadas = max(cuotas_pagadas, total / valor_cuota)
+    cuotas_vencidas = min(n, dias_credito)
+    cuotas_pendientes = max(0.0, cuotas_vencidas - cuotas_pagadas)
     valor_pendiente = cuotas_pendientes * valor_cuota
 
     ultimo_pago = ""

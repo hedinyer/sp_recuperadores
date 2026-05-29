@@ -6,7 +6,11 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 import db_defaults
-from extracto_cliente import RegistroExtracto, calcular_metricas_extracto
+from extracto_cliente import (
+    RegistroExtracto,
+    calcular_metricas_extracto,
+    parse_dias_credito,
+)
 
 load_dotenv()
 
@@ -35,7 +39,8 @@ SELECT
     c.telefono,
     c.visitador,
     c.fecha_inicio::date AS fecha_inicio,
-    c.valor_cuota::numeric AS valor_cuota
+    c.valor_cuota::numeric AS valor_cuota,
+    c.fecha_final
 FROM clientes c
 WHERE c.estado = 'activo'
   AND c.fecha_inicio IS NOT NULL
@@ -102,18 +107,21 @@ def ejecutar_consulta_reporte():
             )
 
         filas = []
-        for (
-            cedula,
-            nombre,
-            placa,
-            telefono,
-            visitador,
-            fecha_inicio,
-            valor_cuota,
-        ) in clientes:
+        for row in clientes:
+            cedula, nombre, placa, telefono, visitador, fecha_inicio, valor_cuota = row[
+                :7
+            ]
+            fecha_final = row[7] if len(row) > 7 else None
             valor_cuota = float(valor_cuota)
             regs = registros_por_cedula.get(cedula, [])
-            m = calcular_metricas_extracto(fecha_inicio, valor_cuota, regs)
+            m = calcular_metricas_extracto(
+                fecha_inicio,
+                valor_cuota,
+                regs,
+                dias_credito=parse_dias_credito(
+                    str(fecha_final) if fecha_final is not None else None
+                ),
+            )
             filas.append(
                 (
                     cedula,

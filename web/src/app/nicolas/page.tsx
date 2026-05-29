@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { DetalleAsignacion } from "@/components/DetalleAsignacion";
 import { NavFooter } from "@/components/NavFooter";
+import { formatFechaHora } from "@/lib/fechas";
 
 type PlacaDelDia = {
   id: number;
@@ -22,6 +24,9 @@ type RecuperadorGroup = {
     multa: number;
     fecha_asignada: string | null;
     fecha_recuperada: string | null;
+    foto: string | null;
+    tipo_pago: string | null;
+    presencial: boolean | null;
   }>;
 };
 
@@ -121,13 +126,6 @@ function formatearCOP(val: string | number | undefined): string {
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(n);
-}
-
-function formatFechaCorta(iso: string | undefined | null): string {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("T")[0].split("-");
-  if (!d) return iso;
-  return `${d}/${m}/${y?.slice(2) ?? y}`;
 }
 
 function calcularMetricas(grupos: RecuperadorGroup[]): Metricas[] {
@@ -593,32 +591,50 @@ function NicolasAdminPanel() {
                   asignacionesHoy.map((a) => (
                     <div
                       key={a.id}
-                      className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 flex items-center justify-between"
+                      className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3"
                     >
-                      <div>
-                        <span className="text-base font-bold tracking-wider text-white">
-                          {a.placa}
-                        </span>
-                        <span
-                          className={`ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full ${
-                            a.estado === "recuperada"
-                              ? "bg-emerald-900/60 text-emerald-300"
-                              : a.estado === "Abonó"
-                                ? "bg-blue-900/60 text-blue-300"
-                                : "bg-amber-900/60 text-amber-300"
-                          }`}
-                        >
-                          {a.estado}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-base font-bold tracking-wider text-white">
+                            {a.placa}
+                          </span>
+                          <span
+                            className={`ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded-full ${
+                              a.estado === "recuperada"
+                                ? "bg-emerald-900/60 text-emerald-300"
+                                : a.estado === "Abonó"
+                                  ? "bg-blue-900/60 text-blue-300"
+                                  : "bg-amber-900/60 text-amber-300"
+                            }`}
+                          >
+                            {a.estado}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-zinc-300 font-medium">
+                            {a.recuperador}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 tabular-nums">
+                            {formatFechaHora(a.fecha_asignada)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-zinc-300 font-medium">
-                          {a.recuperador}
-                        </p>
-                        <p className="text-[10px] text-zinc-500">
-                          {formatFechaCorta(a.fecha_asignada)}
-                        </p>
-                      </div>
+                      {(a.estado === "Abonó" || a.foto || a.tipo_pago) && (
+                        <>
+                          {a.estado === "Abonó" && (
+                            <div className="mt-2 flex gap-3 text-xs text-zinc-400">
+                              <span>Abono: {formatearCOP(a.pagado)}</span>
+                              <span>Multa: {formatearCOP(a.multa)}</span>
+                            </div>
+                          )}
+                          <DetalleAsignacion
+                            placa={a.placa}
+                            tipoPago={a.tipo_pago}
+                            presencial={a.presencial}
+                            foto={a.foto}
+                          />
+                        </>
+                      )}
                     </div>
                   ))
                 )}
@@ -647,8 +663,8 @@ function NicolasAdminPanel() {
                         <span className="text-base font-bold tracking-wider text-white">
                           {a.placa}
                         </span>
-                        <span className="text-[10px] text-zinc-500">
-                          {formatFechaCorta(a.fecha_recuperada)}
+                        <span className="text-[10px] text-zinc-500 tabular-nums">
+                          {formatFechaHora(a.fecha_recuperada)}
                         </span>
                       </div>
                       <div className="mt-1 flex justify-between text-xs text-zinc-400">
@@ -670,6 +686,13 @@ function NicolasAdminPanel() {
                           <span>Debía: —</span>
                         )}
                       </div>
+                      <DetalleAsignacion
+                        placa={a.placa}
+                        tipoPago={a.tipo_pago}
+                        presencial={a.presencial}
+                        fechaAsignada={a.fecha_asignada}
+                        foto={a.foto}
+                      />
                     </div>
                   ))
                 )}

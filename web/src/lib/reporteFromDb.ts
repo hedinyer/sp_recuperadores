@@ -2,6 +2,7 @@ import { Pool } from "pg";
 
 import {
   calcularMetricasExtracto,
+  parseDiasCredito,
   type RegistroExtracto,
 } from "@/lib/extractoCliente";
 
@@ -14,7 +15,8 @@ SELECT
     c.telefono,
     c.visitador,
     c.fecha_inicio::date AS fecha_inicio,
-    c.valor_cuota::numeric AS valor_cuota
+    c.valor_cuota::numeric AS valor_cuota,
+    c.fecha_final
 FROM clientes c
 WHERE c.estado = 'activo'
   AND c.fecha_inicio IS NOT NULL
@@ -97,6 +99,7 @@ async function queryDb(
     visitador: string | null;
     fecha_inicio: Date;
     valor_cuota: string | number;
+    fecha_final: string | null;
   }>;
   registros: Array<{
     cedula: string;
@@ -122,6 +125,7 @@ async function queryDb(
       visitador: string | null;
       fecha_inicio: Date;
       valor_cuota: string | number;
+      fecha_final: string | null;
     }>(SQL_CLIENTES_EXTRACTO);
 
     if (!clientes.length) return { clientes: [], registros: [] };
@@ -149,6 +153,7 @@ type ClienteRow = {
   visitador: string | null;
   fecha_inicio: Date;
   valor_cuota: string | number;
+  fecha_final: string | null;
 };
 
 /** Consulta múltiples bases de datos (varios puntos de venta) y fusiona resultados. */
@@ -199,10 +204,12 @@ export async function fetchReporteFilasDesdeDb(
     if (!c.fecha_inicio || valorCuota <= 0) continue;
 
     const regs = registrosMap.get(c.cedula) ?? [];
+    const diasCredito = parseDiasCredito(c.fecha_final);
     const m = calcularMetricasExtracto(
       new Date(c.fecha_inicio),
       valorCuota,
       regs,
+      diasCredito,
     );
 
     const out: Record<string, string> = {

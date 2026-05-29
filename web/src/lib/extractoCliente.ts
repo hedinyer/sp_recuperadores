@@ -4,6 +4,24 @@
  * `calcularResumenExtracto` ≡ `calcular_resumen_extracto`
  */
 
+/** Días de crédito por defecto; la deuda deja de generarse al cumplirse. */
+export const DIAS_CREDITO_DEFAULT = 365;
+
+export function parseDiasCredito(fechaFinal?: string | null): number {
+  const raw = fechaFinal?.trim();
+  if (raw && /^\d+$/.test(raw)) {
+    const n = parseInt(raw, 10);
+    return n > 0 ? n : DIAS_CREDITO_DEFAULT;
+  }
+  return DIAS_CREDITO_DEFAULT;
+}
+
+function addDays(d: Date, days: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
 export type RegistroExtracto = {
   fecha: Date;
   valor: number;
@@ -72,13 +90,18 @@ export function generarFilasExtracto(
   fechaInicio: Date,
   valorCuota: number,
   registros: RegistroExtracto[],
+  diasCredito: number = DIAS_CREDITO_DEFAULT,
 ): FilaExtracto[] {
   if (valorCuota <= 0) {
     throw new Error("valor_cuota inválido");
   }
 
   const inicio = startOfDay(fechaInicio);
+  const fechaFinCredito = addDays(inicio, diasCredito - 1);
   let fin = startOfDay(new Date());
+  if (fin.getTime() > fechaFinCredito.getTime()) {
+    fin = fechaFinCredito;
+  }
 
   const registrosModificados: RegistroModificado[] = registros
     .filter((r) => r.valor != null && !Number.isNaN(Number(r.valor)))
@@ -94,8 +117,11 @@ export function generarFilasExtracto(
 
   const diasRango = daysBetween(inicio, fin) + 1;
   if (cuotasPagadasCeil > diasRango) {
-    fin = new Date(fin);
-    fin.setDate(fin.getDate() + (cuotasPagadasCeil - diasRango));
+    const finExtendido = addDays(fin, cuotasPagadasCeil - diasRango);
+    fin =
+      finExtendido.getTime() > fechaFinCredito.getTime()
+        ? fechaFinCredito
+        : finExtendido;
   }
 
   const filas: FilaExtracto[] = dateRange(inicio, fin).map((d) => ({
@@ -150,6 +176,8 @@ export function generarFilasExtracto(
 export function calcularResumenExtracto(
   filas: FilaExtracto[],
   valorCuota: number,
+  diasCredito: number = DIAS_CREDITO_DEFAULT,
+  totalRegistros?: number,
 ): Pick<
   MetricasExtracto,
   | "cuotas_generadas"
@@ -167,9 +195,12 @@ export function calcularResumenExtracto(
     remanente += f.valorPagado % valorCuota;
   }
   const fraccionCuota = remanente / valorCuota;
-  const cuotasPagadas = cuotasPagadasCompletas + fraccionCuota;
-  const cuotasVencidas = filas.length;
-  const cuotasPendientes = cuotasVencidas - cuotasPagadas;
+  let cuotasPagadas = cuotasPagadasCompletas + fraccionCuota;
+  const cuotasVencidas = Math.min(filas.length, diasCredito);
+  if (totalRegistros != null && totalRegistros > 0) {
+    cuotasPagadas = Math.max(cuotasPagadas, totalRegistros / valorCuota);
+  }
+  const cuotasPendientes = Math.max(0, cuotasVencidas - cuotasPagadas);
   const valorPendiente = cuotasPendientes * valorCuota;
 
   return {
@@ -187,9 +218,21 @@ export function calcularMetricasExtracto(
   fechaInicio: Date,
   valorCuota: number,
   registros: RegistroExtracto[],
+  diasCredito: number = DIAS_CREDITO_DEFAULT,
 ): MetricasExtracto {
-  const filas = generarFilasExtracto(fechaInicio, valorCuota, registros);
-  const resumen = calcularResumenExtracto(filas, valorCuota);
+  const filas = generarFilasExtracto(
+    fechaInicio,
+    valorCuota,
+    registros,
+    diasCredito,
+  );
+  const totalRegistros = registros.reduce((s, r) => s + Number(r.valor), 0);
+  const resumen = calcularResumenExtracto(
+    filas,
+    valorCuota,
+    diasCredito,
+    totalRegistros,
+  );
 
   let ultimoPago = "";
   if (registros.length > 0) {
