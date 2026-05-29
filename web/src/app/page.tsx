@@ -490,9 +490,13 @@ export default function Home() {
           dataUrl,
           nombreArchivo,
         );
-        if (modo === "wa_y_descarga") {
+        if (modo === "share") {
           setMensajeInfo(
-            "Se abrió WhatsApp y se descargó el recibo. Adjunta la imagen en el chat.",
+            "Elige WhatsApp en el menú y envía la imagen del recibo (ya incluye el comprobante).",
+          );
+        } else if (modo === "wa_y_descarga") {
+          setMensajeInfo(
+            "Se descargó el recibo y se abrió WhatsApp. Toca 📎 y adjunta la imagen descargada.",
           );
         }
         return;

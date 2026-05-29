@@ -57,6 +57,10 @@ async function urlImagenADataUrl(
   return dataUrl;
 }
 
+function esperar(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function esperarImagenLista(img: HTMLImageElement): Promise<void> {
   if (typeof img.decode === "function") {
     try {
@@ -71,6 +75,25 @@ async function esperarImagenLista(img: HTMLImageElement): Promise<void> {
     img.onload = () => resolve();
     img.onerror = () => resolve();
   });
+}
+
+/** Asegura que el comprobante (y demás fotos) estén cargados antes de capturar. */
+async function esperarImagenesRecibo(element: HTMLElement): Promise<void> {
+  const images = Array.from(element.querySelectorAll("img"));
+
+  for (const img of images) {
+    const placa = img.dataset.placa;
+    if (placa) {
+      const enCache = await leerFotoDeCache(placa);
+      if (enCache) {
+        img.src = enCache;
+        img.removeAttribute("crossorigin");
+      }
+    }
+  }
+
+  await Promise.all(images.map((img) => esperarImagenLista(img)));
+  await new Promise<void>((r) => requestAnimationFrame(() => r()));
 }
 
 /**
@@ -105,8 +128,39 @@ async function inlineImagenesParaCaptura(
   return originals;
 }
 
+/** JPEG para WhatsApp (mejor compatibilidad que PNG en Web Share). */
+async function dataUrlAArchivoCompartir(
+  dataUrl: string,
+  nombreArchivo: string,
+): Promise<File> {
+  try {
+    const blob = dataUrlToBlob(dataUrl);
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas");
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const jpeg = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("jpeg"))),
+        "image/jpeg",
+        0.88,
+      );
+    });
+    const nombre = nombreArchivo.replace(/\.png$/i, ".jpg");
+    return new File([jpeg], nombre, { type: "image/jpeg" });
+  } catch {
+    const blob = dataUrlToBlob(dataUrl);
+    return new File([blob], nombreArchivo, { type: "image/png" });
+  }
+}
+
 /** Espera imágenes del recibo y genera PNG (evita fallos por carga pendiente o CORS). */
 export async function capturarReciboPng(element: HTMLElement): Promise<string> {
+  await esperarImagenesRecibo(element);
   const originals = await inlineImagenesParaCaptura(element);
 
   const opciones = {
@@ -141,20 +195,22 @@ export function abrirWhatsAppConTexto(texto: string): void {
   window.location.assign(url);
 }
 
-/** Comparte imagen + texto; si no puede, abre WhatsApp y descarga el PNG. */
+/**
+ * Comparte el recibo como imagen en WhatsApp.
+ * No mezcla texto + archivo en navigator.share (WhatsApp suele ignorar la imagen).
+ */
 export async function compartirReciboWhatsApp(
   texto: string,
   dataUrl: string,
   nombreArchivo: string,
 ): Promise<"share" | "wa_y_descarga" | "solo_texto"> {
-  const blob = dataUrlToBlob(dataUrl);
-  const file = new File([blob], nombreArchivo, { type: "image/png" });
+  const archivo = await dataUrlAArchivoCompartir(dataUrl, nombreArchivo);
 
   if (typeof navigator.share === "function") {
+    const soloImagen: ShareData = { files: [archivo] };
     try {
-      const payload: ShareData = { text: texto, files: [file] };
-      if (!navigator.canShare || navigator.canShare(payload)) {
-        await navigator.share(payload);
+      if (!navigator.canShare || navigator.canShare(soloImagen)) {
+        await navigator.share(soloImagen);
         return "share";
       }
     } catch (err) {
@@ -162,7 +218,9 @@ export async function compartirReciboWhatsApp(
     }
   }
 
+  // Fallback: guardar imagen y abrir WhatsApp con el texto (adjuntar imagen manualmente)
+  descargarBlob(archivo, archivo.name);
+  await esperar(800);
   abrirWhatsAppConTexto(texto);
-  descargarBlob(blob, nombreArchivo);
   return "wa_y_descarga";
 }

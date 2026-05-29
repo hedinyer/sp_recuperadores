@@ -467,9 +467,13 @@ export default function RecuperadoresPage() {
           dataUrl,
           nombreArchivo,
         );
-        if (modo === "wa_y_descarga") {
+        if (modo === "share") {
           setMensajeRecibo(
-            "Se abrió WhatsApp y se descargó el recibo. Adjunta la imagen en el chat.",
+            "Elige WhatsApp y envía la imagen del recibo.",
+          );
+        } else if (modo === "wa_y_descarga") {
+          setMensajeRecibo(
+            "Se descargó el recibo y se abrió WhatsApp. Toca 📎 y adjunta la imagen descargada.",
           );
         }
         return;
