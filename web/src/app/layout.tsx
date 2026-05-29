@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Consulta placa — Recuperadores",
   description: "Consulta datos del vehículo desde el reporte CSV actualizado.",
+  icons: {
+    icon: [{ url: "/icon.jpeg", type: "image/jpeg" }],
+    shortcut: "/icon.jpeg",
+    apple: [{ url: "/icon.jpeg", type: "image/jpeg" }],
+  },
 };
 
 export const viewport: Viewport = {
