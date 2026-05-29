@@ -1,0 +1,96 @@
+import { supabase } from "@/lib/supabase";
+
+export function normalizarPlaca(placa: string): string {
+  return placa.trim().toUpperCase().replace(/\s/g, "");
+}
+
+/** Mapea estado_moto de recuperadores al status de la tabla placas. */
+export function statusPlacaDesdeEstadoMoto(estado_moto: string): string | null {
+  const e = estado_moto.trim().toLowerCase();
+  if (e === "abonó" || e === "abono") return "abonada";
+  if (e === "recuperada") return "recuperada";
+  return null;
+}
+
+/** Actualiza status en placas para la placa indicada (todas las filas de esa placa). */
+export async function actualizarStatusPlaca(
+  placa: string,
+  estado_moto: string,
+): Promise<void> {
+  const status = statusPlacaDesdeEstadoMoto(estado_moto);
+  if (!status) return;
+
+  const placaNorm = normalizarPlaca(placa);
+  const { error } = await supabase
+    .from("placas")
+    .update({ status })
+    .eq("placa", placaNorm);
+
+  if (error) throw error;
+}
+
+export type FilaRecuperadorSync = {
+  placa_asignada: string;
+  estado_moto: string;
+  nombre_recuperador?: string;
+  pagado?: number;
+  multa?: number;
+  tipo_pago?: string | null;
+  presencial?: boolean | null;
+  foto?: string | null;
+  gps_ubicacion?: string | null;
+};
+
+/** Sincroniza placas y devuelve cuántas filas de placas se actualizaron. */
+export async function sincronizarPagosHistoricos(): Promise<{
+  placas_actualizadas: number;
+  recuperadores_revisados: number;
+}> {
+  const { data: filas, error } = await supabase
+    .from("recuperadores")
+    .select(
+      "placa_asignada, estado_moto, Pagado, nombre_recuperador, fecha_hora_asignada",
+    )
+    .order("fecha_hora_asignada", { ascending: false });
+
+  if (error) throw error;
+
+  const ultimoPorPlaca = new Map<string, { estado_moto: string; pagado: number }>();
+
+  for (const row of filas ?? []) {
+    const placa = normalizarPlaca(String(row.placa_asignada ?? ""));
+    if (!placa || ultimoPorPlaca.has(placa)) continue;
+
+    const estado = String(row.estado_moto ?? "").trim() || "pendiente";
+    const pagado = Number(row.Pagado) || 0;
+    const esPago =
+      estado.toLowerCase() === "abonó" ||
+      estado.toLowerCase() === "abono" ||
+      estado.toLowerCase() === "recuperada" ||
+      pagado > 0;
+
+    if (esPago) {
+      ultimoPorPlaca.set(placa, { estado_moto: estado, pagado });
+    }
+  }
+
+  let placas_actualizadas = 0;
+  for (const [placa, { estado_moto }] of ultimoPorPlaca) {
+    const status = statusPlacaDesdeEstadoMoto(estado_moto);
+    if (!status) continue;
+
+    const { data, error: upErr } = await supabase
+      .from("placas")
+      .update({ status })
+      .eq("placa", placa)
+      .select("id");
+
+    if (upErr) throw upErr;
+    placas_actualizadas += data?.length ?? 0;
+  }
+
+  return {
+    placas_actualizadas,
+    recuperadores_revisados: filas?.length ?? 0,
+  };
+}

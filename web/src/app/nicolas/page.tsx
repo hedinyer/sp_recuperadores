@@ -284,6 +284,29 @@ function NicolasAdminPanel() {
     cargarDatos();
   }, [cargarDatos]);
 
+  useEffect(() => {
+    const key = "sp-sync-pagos-v1";
+    if (typeof window === "undefined" || sessionStorage.getItem(key)) return;
+
+    fetch("/api/admin/sync-pagos", { method: "POST" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        sessionStorage.setItem(key, "1");
+        const data = await res.json();
+        if (data.placas_actualizadas > 0) {
+          setMensaje(
+            `Sincronización: ${data.placas_actualizadas} placa(s) actualizada(s) según pagos en recuperadores.`,
+          );
+          cargarDatos();
+        } else {
+          sessionStorage.setItem(key, "1");
+        }
+      })
+      .catch(() => {
+        /* reintenta en próxima visita si falló */
+      });
+  }, [cargarDatos]);
+
   const agregarPlaca = useCallback(async () => {
     const p = nuevaPlaca.trim().toUpperCase().replace(/\s/g, "");
     if (!/^[A-Z0-9]{6}$/.test(p)) {
@@ -336,7 +359,10 @@ function NicolasAdminPanel() {
     PERIODOS_METRICA.find((p) => p.key === periodoMetrica)?.label ?? "";
 
   const placasPendientes = useMemo(
-    () => placas.filter((p) => p.status === "pendiente"),
+    () =>
+      placas.filter(
+        (p) => p.status === "pendiente" || p.status == null || p.status === "",
+      ),
     [placas],
   );
   const asignacionesHoy = useMemo(
@@ -508,26 +534,41 @@ function NicolasAdminPanel() {
                       Placas del día ({placas.length})
                     </h2>
                     <div className="flex flex-wrap gap-1.5">
-                      {placas.map((p) => (
-                        <span
-                          key={p.id}
-                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tracking-wider ${
-                            p.status === "asignada"
-                              ? "bg-zinc-800 text-zinc-500 line-through"
-                              : "bg-zinc-900 text-white border border-zinc-700"
-                          }`}
-                        >
-                          {p.placa}
-                          <span className="text-[9px] uppercase tracking-normal text-zinc-400 font-medium">
-                            {p.gps_moto || "sin gps"}
-                          </span>
-                          {p.status === "asignada" && (
-                            <span className="text-[9px] font-medium text-zinc-600 uppercase tracking-normal">
-                              asig
+                      {placas.map((p) => {
+                        const st = (p.status || "pendiente").toLowerCase();
+                        const cerrada =
+                          st === "asignada" ||
+                          st === "abonada" ||
+                          st === "recuperada";
+                        return (
+                          <span
+                            key={p.id}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tracking-wider ${
+                              st === "recuperada"
+                                ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/60"
+                                : st === "abonada"
+                                  ? "bg-blue-950/60 text-blue-300 border border-blue-800/60"
+                                  : st === "asignada"
+                                    ? "bg-zinc-800 text-zinc-500 line-through"
+                                    : "bg-zinc-900 text-white border border-zinc-700"
+                            }`}
+                          >
+                            {p.placa}
+                            <span className="text-[9px] uppercase tracking-normal text-zinc-400 font-medium">
+                              {p.gps_moto || "sin gps"}
                             </span>
-                          )}
-                        </span>
-                      ))}
+                            {cerrada && (
+                              <span className="text-[9px] font-medium text-zinc-500 uppercase tracking-normal">
+                                {st === "abonada"
+                                  ? "abonó"
+                                  : st === "recuperada"
+                                    ? "recup"
+                                    : "asig"}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
                   </section>
                 )}

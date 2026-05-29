@@ -1,17 +1,54 @@
 import { NextResponse } from "next/server";
 
 import { supabase } from "@/lib/supabase";
+import {
+  actualizarStatusPlaca,
+  normalizarPlaca,
+} from "@/lib/syncPlacaEstado";
 
 export const runtime = "nodejs";
+
+function buildPayload(body: Record<string, unknown>) {
+  const nombre_recuperador = String(body.nombre_recuperador ?? "").trim();
+  const placa_asignada = normalizarPlaca(String(body.placa_asignada ?? ""));
+
+  const estado_moto = String(body.estado_moto ?? "Abonó").trim() || "Abonó";
+  const pagado = Number(body.pagado ?? 0) || 0;
+  const multa = Number(body.multa ?? 0) || 0;
+
+  const payload: Record<string, unknown> = {
+    nombre_recuperador,
+    placa_asignada,
+    estado_moto,
+    Pagado: pagado,
+    multa,
+  };
+
+  if (body.tipo_pago != null && String(body.tipo_pago).trim()) {
+    payload.tipo_pago = String(body.tipo_pago).trim();
+  }
+  if (body.presencial != null) {
+    payload.presencial = Boolean(body.presencial);
+  }
+  if (body.foto != null && String(body.foto).trim()) {
+    payload.foto = String(body.foto).trim();
+  }
+  if (body.gps_ubicacion != null && String(body.gps_ubicacion).trim()) {
+    payload.gps_ubicacion = String(body.gps_ubicacion).trim();
+  }
+
+  if (estado_moto === "recuperada") {
+    payload.fecha_hora_recuperada = new Date().toISOString();
+  }
+
+  return { nombre_recuperador, placa_asignada, estado_moto, payload };
+}
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const nombre_recuperador = String(body.nombre_recuperador ?? "").trim();
-    const placa_asignada = String(body.placa_asignada ?? "")
-      .trim()
-      .toUpperCase()
-      .replace(/\s/g, "");
+    const { nombre_recuperador, placa_asignada, estado_moto, payload } =
+      buildPayload(body);
 
     if (!nombre_recuperador || !placa_asignada) {
       return NextResponse.json(
@@ -20,45 +57,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const estado_moto = String(body.estado_moto ?? "Abonó").trim() || "Abonó";
-    const pagado = Number(body.pagado ?? 0) || 0;
-    const multa = Number(body.multa ?? 0) || 0;
-
-    const payload: Record<string, unknown> = {
-      nombre_recuperador,
-      placa_asignada,
-      estado_moto,
-      Pagado: pagado,
-      multa,
-      fecha_hora_asignada: new Date().toISOString(),
-    };
-
-    if (body.tipo_pago != null && String(body.tipo_pago).trim()) {
-      payload.tipo_pago = String(body.tipo_pago).trim();
-    }
-    if (body.presencial != null) {
-      payload.presencial = Boolean(body.presencial);
-    }
-    if (body.foto != null && String(body.foto).trim()) {
-      payload.foto = String(body.foto).trim();
-    }
-    if (body.gps_ubicacion != null && String(body.gps_ubicacion).trim()) {
-      payload.gps_ubicacion = String(body.gps_ubicacion).trim();
-    }
-
-    if (estado_moto === "recuperada") {
-      payload.fecha_hora_recuperada = new Date().toISOString();
-    }
-
-    const { data, error } = await supabase
+    const { data: existente } = await supabase
       .from("recuperadores")
-      .insert(payload)
-      .select()
-      .single();
+      .select("id")
+      .eq("placa_asignada", placa_asignada)
+      .eq("nombre_recuperador", nombre_recuperador)
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (error) throw error;
+    let asignacion;
 
-    return NextResponse.json({ asignacion: data }, { status: 201 });
+    if (existente?.id) {
+      const updatePayload = { ...payload };
+      if (!updatePayload.fecha_hora_asignada) {
+        delete updatePayload.fecha_hora_asignada;
+      }
+      const { data, error } = await supabase
+        .from("recuperadores")
+        .update(updatePayload)
+        .eq("id", existente.id)
+        .select()
+        .single();
+      if (error) throw error;
+      asignacion = data;
+    } else {
+      const insertPayload = {
+        ...payload,
+        fecha_hora_asignada: new Date().toISOString(),
+      };
+      const { data, error } = await supabase
+        .from("recuperadores")
+        .insert(insertPayload)
+        .select()
+        .single();
+      if (error) throw error;
+      asignacion = data;
+    }
+
+    await actualizarStatusPlaca(placa_asignada, estado_moto);
+
+    return NextResponse.json({ asignacion }, { status: 201 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al crear registro";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -81,7 +120,7 @@ export async function GET() {
 
     const gpsPorPlaca = new Map<string, string>();
     for (const row of placasData ?? []) {
-      const placa = String(row.placa ?? "").toUpperCase().replace(/\s/g, "");
+      const placa = normalizarPlaca(String(row.placa ?? ""));
       if (!placa) continue;
       gpsPorPlaca.set(placa, String(row.gps_moto ?? "").trim());
     }
@@ -102,6 +141,7 @@ export async function GET() {
           foto: string | null;
           tipo_pago: string | null;
           presencial: boolean | null;
+          gps_ubicacion: string | null;
         }>;
       }
     > = {};
@@ -109,9 +149,7 @@ export async function GET() {
     const vistos = new Set<string>();
     for (const row of data) {
       const nom = row.nombre_recuperador || "Sin nombre";
-      const placaNormalizada = (row.placa_asignada || "")
-        .toUpperCase()
-        .replace(/\s/g, "");
+      const placaNormalizada = normalizarPlaca(row.placa_asignada || "");
       const dedupeKey = `${nom}::${placaNormalizada}`;
       if (vistos.has(dedupeKey)) continue;
       vistos.add(dedupeKey);
@@ -125,8 +163,7 @@ export async function GET() {
         estado: row.estado_moto || "pendiente",
         pagado: Number(row.Pagado) || 0,
         multa: Number(row.multa) || 0,
-        gps_moto:
-          gpsPorPlaca.get(placaNormalizada) || "",
+        gps_moto: gpsPorPlaca.get(placaNormalizada) || "",
         fecha_asignada: row.fecha_hora_asignada,
         fecha_recuperada: row.fecha_hora_recuperada,
         foto: row.foto ? String(row.foto).trim() || null : null,
@@ -137,6 +174,9 @@ export async function GET() {
             : row.presencial === false
               ? false
               : null,
+        gps_ubicacion: row.gps_ubicacion
+          ? String(row.gps_ubicacion).trim() || null
+          : null,
       });
     }
 
@@ -195,6 +235,11 @@ export async function PATCH(request: Request) {
         { error: "No se encontró la asignación" },
         { status: 404 },
       );
+    }
+
+    const placa = normalizarPlaca(String(data.placa_asignada ?? ""));
+    if (placa) {
+      await actualizarStatusPlaca(placa, estado);
     }
 
     return NextResponse.json({ asignacion: data });

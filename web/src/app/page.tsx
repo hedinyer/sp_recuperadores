@@ -166,7 +166,7 @@ export default function Home() {
     setSolicitandoGps(false);
   }, []);
 
-  const capturarGpsPresencial = useCallback(async (): Promise<boolean> => {
+  const capturarGps = useCallback(async (): Promise<boolean> => {
     setSolicitandoGps(true);
     setError(null);
     const resultado = await obtenerGpsUbicacion();
@@ -179,11 +179,26 @@ export default function Home() {
     return false;
   }, []);
 
+  const requiereGpsPago =
+    metodoPago === "Efectivo" || esPresencial === true;
+
   const elegirPresencial = useCallback(async () => {
     setEsPresencial(true);
-    const ok = await capturarGpsPresencial();
+    if (gpsCapturado) {
+      setPagoPaso("foto");
+      return;
+    }
+    const ok = await capturarGps();
     if (ok) setPagoPaso("foto");
-  }, [capturarGpsPresencial]);
+  }, [capturarGps, gpsCapturado]);
+
+  const avanzarAModalidad = useCallback(async () => {
+    if (metodoPago === "Efectivo" && !gpsCapturado) {
+      const ok = await capturarGps();
+      if (!ok) return;
+    }
+    setPagoPaso("modalidad");
+  }, [metodoPago, gpsCapturado, capturarGps]);
 
   const totalPasosPago = esPresencial === true ? 4 : 3;
   const indicePasoPago =
@@ -284,24 +299,18 @@ export default function Home() {
             })()
           : Promise.resolve(undefined);
 
-      if (esPresencial && !gpsCapturado) {
-        setError("Activa la ubicación en el paso presencial antes de continuar.");
+      if (requiereGpsPago && !gpsCapturado) {
+        setError(
+          metodoPago === "Efectivo"
+            ? "Activa la ubicación GPS (pago en efectivo)."
+            : "Activa la ubicación en el paso presencial antes de continuar.",
+        );
         return;
       }
 
-      const gpsRemoto =
-        !esPresencial
-          ? obtenerGpsUbicacion().then((r) => (r.ok ? r.coords : null))
-          : Promise.resolve(null);
-
-      const [fotoSubida, gpsRemotoCoords] = await Promise.all([
-        subirFoto,
-        gpsRemoto,
-      ]);
+      const [fotoSubida] = await Promise.all([subirFoto]);
       fotoUrl = fotoSubida;
-      const gpsUbicacion = esPresencial
-        ? gpsCapturado
-        : gpsRemotoCoords;
+      const gpsUbicacion = gpsCapturado;
 
       const now = new Date();
       const dd = String(now.getDate()).padStart(2, "0");
@@ -369,6 +378,8 @@ export default function Home() {
     fotoFile,
     fotoPreview,
     gpsCapturado,
+    metodoPago,
+    requiereGpsPago,
     cerrarWizardPago,
   ]);
 
@@ -383,8 +394,15 @@ export default function Home() {
 
   const generarReciboRecuperada = useCallback(async () => {
     if (!v || !recuperadorRecibo) return;
+    setError(null);
+    setSolicitandoGps(true);
     const gpsResult = await obtenerGpsUbicacion();
-    const gpsUbicacion = gpsResult.ok ? gpsResult.coords : undefined;
+    setSolicitandoGps(false);
+    if (!gpsResult.ok) {
+      setError(mensajeErrorGps(gpsResult.motivo));
+      return;
+    }
+    const gpsUbicacion = gpsResult.coords;
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, "0");
     const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -412,11 +430,16 @@ export default function Home() {
   const confirmarMotoRecuperada = useCallback(async () => {
     if (!recibo || recibo.tipo !== "recuperada" || confirmandoRecuperada) return;
     setConfirmandoRecuperada(true);
+    setError(null);
     try {
       let gps = recibo.gpsUbicacion;
       if (!gps) {
         const r = await obtenerGpsUbicacion();
-        gps = r.ok ? r.coords : undefined;
+        if (!r.ok) {
+          setError(mensajeErrorGps(r.motivo));
+          return;
+        }
+        gps = r.coords;
       }
       const res = await fetch("/api/recuperadores", {
         method: "POST",
@@ -1030,11 +1053,11 @@ export default function Home() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPagoPaso("modalidad")}
-                      disabled={!metodoPago}
+                      onClick={() => void avanzarAModalidad()}
+                      disabled={!metodoPago || solicitandoGps}
                       className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
                     >
-                      Siguiente
+                      {solicitandoGps ? "GPS…" : "Siguiente"}
                     </button>
                   </div>
                 </>
@@ -1049,6 +1072,11 @@ export default function Home() {
                     Presencial = estás con el cliente. Remoto = transferencia o
                     Nequi sin estar juntos.
                   </p>
+                  {metodoPago === "Efectivo" && gpsCapturado ? (
+                    <p className="text-xs text-emerald-400 mb-3 tabular-nums">
+                      ✓ Ubicación GPS: {gpsCapturado}
+                    </p>
+                  ) : null}
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
@@ -1070,7 +1098,10 @@ export default function Home() {
                         setEsPresencial(false);
                         void generarRecibo();
                       }}
-                      disabled={guardandoPago}
+                      disabled={
+                        guardandoPago ||
+                        (metodoPago === "Efectivo" && !gpsCapturado)
+                      }
                       className="min-h-[52px] rounded-xl border border-zinc-600 bg-zinc-800 text-base font-semibold text-white disabled:opacity-50 touch-manipulation"
                     >
                       No, remoto
@@ -1101,7 +1132,7 @@ export default function Home() {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => void capturarGpsPresencial()}
+                      onClick={() => void capturarGps()}
                       disabled={solicitandoGps}
                       className="w-full mb-3 min-h-[44px] rounded-xl border border-amber-700/60 bg-amber-950/30 text-amber-200 text-sm font-medium touch-manipulation"
                     >
@@ -1208,9 +1239,10 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => void generarReciboRecuperada()}
-                  className="flex-1 min-h-[48px] rounded-xl bg-blue-700 text-white font-semibold text-sm touch-manipulation"
+                  disabled={solicitandoGps}
+                  className="flex-1 min-h-[48px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
                 >
-                  Sí, continuar
+                  {solicitandoGps ? "Obteniendo GPS…" : "Sí, continuar"}
                 </button>
               </div>
             </div>
