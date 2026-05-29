@@ -14,6 +14,7 @@ import {
   compartirReciboWhatsApp,
   descargarBlob,
   dataUrlToBlob,
+  fileToDataUrl,
 } from "@/lib/reciboImagen";
 
 type Vehiculo = Record<string, string>;
@@ -244,9 +245,6 @@ export default function Home() {
     setGuardandoPago(true);
     setError(null);
 
-    const fotoLocal =
-      esPresencial && fotoPreview ? fotoPreview : undefined;
-
     let fotoUrl: string | undefined;
     try {
       const subirFoto =
@@ -295,6 +293,9 @@ export default function Home() {
 
       const pago = Number(limpiarNumero(montoPago)) || 0;
       const multa = Number(limpiarNumero(montoMulta)) || 0;
+
+      const fotoLocal =
+        esPresencial && fotoFile ? await fileToDataUrl(fotoFile) : undefined;
 
       setRecibo({
         referencia,
@@ -822,7 +823,12 @@ export default function Home() {
                       <img
                         src={recibo.fotoLocal ?? recibo.fotoUrl}
                         alt="Foto del pago presencial"
-                        className="w-full rounded-xl border border-zinc-700 object-cover max-h-48"
+                        className="w-full rounded-xl border border-zinc-700 object-cover max-h-48 bg-zinc-800"
+                        crossOrigin={
+                          !recibo.fotoLocal && recibo.fotoUrl
+                            ? "anonymous"
+                            : undefined
+                        }
                       />
                     </div>
                   ) : null}

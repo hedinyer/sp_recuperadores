@@ -9,32 +9,102 @@ export function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([buffer], { type: mime });
 }
 
-/** Espera imágenes del recibo y genera PNG (evita fallos por carga pendiente). */
-export async function capturarReciboPng(element: HTMLElement): Promise<string> {
-  const images = element.querySelectorAll("img");
-  await Promise.all(
-    Array.from(images).map(
-      (img) =>
-        new Promise<void>((resolve) => {
-          if (img.complete) {
-            resolve();
-            return;
-          }
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        }),
-    ),
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("No se pudo leer la foto"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("No se pudo convertir la imagen"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Convierte URL remota (Supabase) a data URL vía proxy same-origin (evita CORS en canvas). */
+async function urlImagenADataUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url;
+
+  const res = await fetch(
+    `/api/imagen-proxy?url=${encodeURIComponent(url)}`,
+    { cache: "no-store" },
   );
+  if (!res.ok) throw new Error("No se pudo cargar la imagen del comprobante");
+  return blobToDataUrl(await res.blob());
+}
+
+async function esperarImagenLista(img: HTMLImageElement): Promise<void> {
+  if (typeof img.decode === "function") {
+    try {
+      await img.decode();
+      return;
+    } catch {
+      // continuar con onload
+    }
+  }
+  if (img.complete && img.naturalWidth > 0) return;
+  await new Promise<void>((resolve) => {
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+  });
+}
+
+/**
+ * Sustituye temporalmente las &lt;img&gt; por data URLs para que html-to-image
+ * no dibuje cuadros negros (CORS / canvas tainted).
+ */
+async function inlineImagenesParaCaptura(
+  element: HTMLElement,
+): Promise<Map<HTMLImageElement, string>> {
+  const originals = new Map<HTMLImageElement, string>();
+  const images = Array.from(element.querySelectorAll("img"));
+
+  for (const img of images) {
+    const original = img.currentSrc || img.src;
+    if (!original) continue;
+    originals.set(img, original);
+
+    try {
+      const dataUrl = await urlImagenADataUrl(original);
+      img.src = dataUrl;
+      img.removeAttribute("crossorigin");
+      await esperarImagenLista(img);
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    } catch {
+      // Si falla, se deja la URL original
+    }
+  }
+
+  return originals;
+}
+
+/** Espera imágenes del recibo y genera PNG (evita fallos por carga pendiente o CORS). */
+export async function capturarReciboPng(element: HTMLElement): Promise<string> {
+  const originals = await inlineImagenesParaCaptura(element);
 
   const opciones = {
     backgroundColor: "#09090b",
-    cacheBust: true,
+    cacheBust: false as const,
   };
 
   try {
-    return await toPng(element, { ...opciones, pixelRatio: 2 });
-  } catch {
-    return await toPng(element, { ...opciones, pixelRatio: 1 });
+    try {
+      return await toPng(element, { ...opciones, pixelRatio: 2 });
+    } catch {
+      return await toPng(element, { ...opciones, pixelRatio: 1 });
+    }
+  } finally {
+    for (const [img, src] of originals) {
+      img.src = src;
+    }
   }
 }
 
