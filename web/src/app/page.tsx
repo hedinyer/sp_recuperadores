@@ -2,7 +2,9 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { HistorialPlaca } from "@/components/HistorialPlaca";
 import { NavFooter } from "@/components/NavFooter";
+import type { ItemHistorialPlaca } from "@/lib/historialPlaca";
 import {
   enlaceGoogleMaps,
   mensajeErrorGps,
@@ -150,6 +152,10 @@ export default function Home() {
   const [pasoRecuperada, setPasoRecuperada] = useState<"confirmar" | "recibo" | null>(
     null,
   );
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [historialItems, setHistorialItems] = useState<ItemHistorialPlaca[]>([]);
+  const [historialLoading, setHistorialLoading] = useState(false);
+  const [historialError, setHistorialError] = useState<string | null>(null);
 
   const reciboRef = useRef<HTMLDivElement>(null);
   const inputFotoRef = useRef<HTMLInputElement>(null);
@@ -249,6 +255,9 @@ export default function Home() {
     setV(null);
     setRecibo(null);
     setPasoRecuperada(null);
+    setMostrarHistorial(false);
+    setHistorialItems([]);
+    setHistorialError(null);
     cerrarWizardPago();
     try {
       const res = await fetch(
@@ -267,6 +276,38 @@ export default function Home() {
       setLoading(false);
     }
   }, [placa, cerrarWizardPago]);
+
+  const cargarHistorial = useCallback(async (placaConsulta: string) => {
+    setHistorialLoading(true);
+    setHistorialError(null);
+    try {
+      const res = await fetch(
+        `/api/placa/historial?placa=${encodeURIComponent(placaConsulta)}`,
+        { cache: "no-store" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setHistorialError(data.error ?? "No se pudo cargar el historial");
+        setHistorialItems([]);
+        return;
+      }
+      setHistorialItems(data.items ?? []);
+    } catch {
+      setHistorialError("Sin conexión al cargar historial");
+      setHistorialItems([]);
+    } finally {
+      setHistorialLoading(false);
+    }
+  }, []);
+
+  const alternarHistorial = useCallback(() => {
+    if (!v?.placa) return;
+    setMostrarHistorial((prev) => {
+      const abrir = !prev;
+      if (abrir) void cargarHistorial(v.placa);
+      return abrir;
+    });
+  }, [v?.placa, cargarHistorial]);
 
   const generarRecibo = useCallback(async () => {
     if (!v || !recuperadorRecibo || !metodoPago || esPresencial == null) return;
@@ -645,9 +686,38 @@ export default function Home() {
 
               {/* Deuda */}
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
-                  Valor para estar al día
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
+                    Valor para estar al día
+                  </p>
+                  <button
+                    type="button"
+                    onClick={alternarHistorial}
+                    aria-expanded={mostrarHistorial}
+                    aria-label={
+                      mostrarHistorial
+                        ? "Ocultar historial de cobros y recogidas"
+                        : "Ver historial de cobros y recogidas"
+                    }
+                    className={`shrink-0 -mt-0.5 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
+                      mostrarHistorial
+                        ? "border-rose-600/60 bg-rose-950/50 text-rose-200"
+                        : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
+                    }`}
+                  >
+                    <svg
+                      aria-hidden
+                      className="w-5 h-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    >
+                      <path d="M4 7h16M4 12h16M4 17h16" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="mt-1 text-[clamp(1.75rem,8vw,2.25rem)] font-bold text-rose-400 tabular-nums leading-none tracking-tight">
                   {formatearCOP(v.deuda_total)}
                 </p>
@@ -760,6 +830,14 @@ export default function Home() {
                 </div>
               </footer>
             </article>
+
+            {mostrarHistorial ? (
+              <HistorialPlaca
+                items={historialItems}
+                loading={historialLoading}
+                error={historialError}
+              />
+            ) : null}
 
             <div className="flex gap-2">
               <button
