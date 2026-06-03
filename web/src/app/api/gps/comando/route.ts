@@ -1,0 +1,61 @@
+import { NextResponse } from "next/server";
+
+import { getFilasReporte } from "@/lib/cargarReporte";
+import { buscarPorPlaca } from "@/lib/csvPlaca";
+import {
+  enviarComandoMotor,
+  type AccionMotorGps,
+} from "@/lib/systemTrackGps";
+
+export const runtime = "nodejs";
+
+function parseAccion(raw: unknown): AccionMotorGps | null {
+  const accion = String(raw ?? "").trim().toLowerCase();
+  if (accion === "bloquear" || accion === "apagar") return "bloquear";
+  if (accion === "desbloquear" || accion === "prender" || accion === "encender") {
+    return "desbloquear";
+  }
+  return null;
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const placa = String(body.placa ?? "").trim();
+    const accion = parseAccion(body.accion);
+
+    if (!placa) {
+      return NextResponse.json({ error: "Falta la placa" }, { status: 400 });
+    }
+    if (!accion) {
+      return NextResponse.json(
+        { error: "Acción inválida. Usa bloquear o desbloquear." },
+        { status: 400 },
+      );
+    }
+
+    const rows = await getFilasReporte();
+    if (!rows.length) {
+      return NextResponse.json(
+        { error: "El reporte está vacío o no es válido" },
+        { status: 503 },
+      );
+    }
+    if (!buscarPorPlaca(rows, placa)) {
+      return NextResponse.json(
+        { error: "No se encontró la placa" },
+        { status: 404 },
+      );
+    }
+
+    const resultado = await enviarComandoMotor(placa, accion);
+    if (!resultado.ok) {
+      return NextResponse.json({ error: resultado.error }, { status: 502 });
+    }
+
+    return NextResponse.json({ ok: true, mensaje: resultado.mensaje });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error al enviar comando";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

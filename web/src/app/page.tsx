@@ -277,6 +277,24 @@ export default function Home() {
     }
   }, [placa, cerrarWizardPago]);
 
+  const actualizarGps = useCallback(async () => {
+    const p = (v?.placa || placa).trim();
+    if (!p) return;
+    try {
+      const res = await fetch(
+        `/api/placa?placa=${encodeURIComponent(p)}`,
+        { cache: "no-store" },
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setGpsMoto(data.gps ?? null);
+        setGpsMensaje(data.gps_mensaje ?? null);
+      }
+    } catch {
+      // ignore
+    }
+  }, [v?.placa, placa]);
+
   const cargarHistorial = useCallback(async (placaConsulta: string) => {
     setHistorialLoading(true);
     setHistorialError(null);
@@ -684,7 +702,13 @@ export default function Home() {
                 </span>
               </div>
 
-              {gpsMoto ? <UbicacionGpsMoto gps={gpsMoto} /> : null}
+              {gpsMoto ? (
+                <UbicacionGpsMoto
+                  placa={(v.placa || placa).toUpperCase().replace(/\s/g, "")}
+                  gps={gpsMoto}
+                  onActualizar={actualizarGps}
+                />
+              ) : null}
               {!gpsMoto && gpsMensaje ? (
                 <AvisoGpsPendiente mensaje={gpsMensaje} />
               ) : null}

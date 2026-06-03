@@ -15,6 +15,7 @@ const CACHE_TTL_MS = 45_000;
 const AUTH_TTL_MS = 25 * 60_000;
 
 export type UbicacionGpsMoto = {
+  deviceId: number;
   lat: number;
   lng: number;
   speed: number;
@@ -22,9 +23,21 @@ export type UbicacionGpsMoto = {
   time: string;
   online: string;
   coords: string;
+  bloqueado: boolean;
+  nombreDispositivo: string;
+};
+
+export type AccionMotorGps = "bloquear" | "desbloquear";
+
+type GpsSensor = {
+  tag_name?: string;
+  name?: string;
+  val?: boolean;
+  value?: string;
 };
 
 type GpsDeviceItem = {
+  id?: number;
   lat?: number;
   lng?: number;
   speed?: number;
@@ -32,6 +45,7 @@ type GpsDeviceItem = {
   time?: string;
   online?: string;
   name?: string;
+  sensors?: GpsSensor[];
   device_data?: { plate_number?: string };
 };
 
@@ -44,13 +58,19 @@ type LoginResponse = {
   user_api_hash?: string;
 };
 
-let cacheDispositivos: { fetchedAt: number; porPlaca: Map<string, UbicacionGpsMoto> } | null =
-  null;
+type SendCommandResponse = {
+  status?: number;
+  message?: string;
+  error?: string;
+};
+
+let cacheDispositivos: {
+  fetchedAt: number;
+  porPlaca: Map<string, UbicacionGpsMoto>;
+} | null = null;
 let cacheAuth: { hash: string; fetchedAt: number } | null = null;
 
-/** Placas moto: MCR33H, MCR-33H, MCY-94H */
 const PATRON_PLACA_MOTO = /[A-Z]{3}-?\d{2}H?\b/gi;
-/** Placas antiguas en System Track: SQF242, LKN307 */
 const PATRON_PLACA_LEGACY = /[A-Z]{3}\d{3}\b/gi;
 
 function variantesPlaca(placa: string): string[] {
@@ -104,13 +124,47 @@ function clavesPlacaDispositivo(item: GpsDeviceItem): string[] {
   return [...claves];
 }
 
+function leerBloqueo(item: GpsDeviceItem): boolean {
+  const sensor = item.sensors?.find(
+    (s) => s.tag_name === "blocked" || s.name === "Bloqueo",
+  );
+  if (!sensor) return false;
+  if (typeof sensor.val === "boolean") return sensor.val;
+  return String(sensor.value ?? "").trim().toLowerCase() === "on";
+}
+
+function prioridadConexion(online: string): number {
+  switch (online.toLowerCase()) {
+    case "online":
+      return 3;
+    case "ack":
+      return 2;
+    case "offline":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function preferirDispositivo(
+  actual: UbicacionGpsMoto,
+  candidato: UbicacionGpsMoto,
+): UbicacionGpsMoto {
+  const diff = prioridadConexion(candidato.online) - prioridadConexion(actual.online);
+  if (diff !== 0) return diff > 0 ? candidato : actual;
+  return candidato.time >= actual.time ? candidato : actual;
+}
+
 function mapearDispositivo(item: GpsDeviceItem): UbicacionGpsMoto | null {
+  const deviceId = Number(item.id);
   const lat = Number(item.lat);
   const lng = Number(item.lng);
+  if (!Number.isFinite(deviceId) || deviceId <= 0) return null;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   if (lat === 0 && lng === 0) return null;
 
   return {
+    deviceId,
     lat,
     lng,
     speed: Number(item.speed) || 0,
@@ -118,6 +172,8 @@ function mapearDispositivo(item: GpsDeviceItem): UbicacionGpsMoto | null {
     time: String(item.time ?? "").trim() || "—",
     online: String(item.online ?? "").trim() || "offline",
     coords: `${lat.toFixed(6)},${lng.toFixed(6)}`,
+    bloqueado: leerBloqueo(item),
+    nombreDispositivo: String(item.name ?? "").trim() || "—",
   };
 }
 
@@ -127,11 +183,7 @@ function invalidarCachesDispositivos(): void {
 
 async function obtenerUserApiHash(force = false): Promise<string> {
   const ahora = Date.now();
-  if (
-    !force &&
-    cacheAuth &&
-    ahora - cacheAuth.fetchedAt < AUTH_TTL_MS
-  ) {
+  if (!force && cacheAuth && ahora - cacheAuth.fetchedAt < AUTH_TTL_MS) {
     return cacheAuth.hash;
   }
 
@@ -202,16 +254,21 @@ async function cargarDispositivosPorPlaca(): Promise<Map<string, UbicacionGpsMot
     invalidarCachesDispositivos();
     apiHash = await obtenerUserApiHash(true);
     data = await fetchDispositivos(apiHash);
-    totalItems = data.reduce((n, g) => n + (g.items?.length ?? 0), 0);
   }
 
   const porPlaca = new Map<string, UbicacionGpsMoto>();
   for (const grupo of data) {
     for (const item of grupo.items ?? []) {
-      const ubicacion = mapearDispositivo(item);
-      if (!ubicacion) continue;
+      const dispositivo = mapearDispositivo(item);
+      if (!dispositivo) continue;
       for (const clave of clavesPlacaDispositivo(item)) {
-        porPlaca.set(clave, ubicacion);
+        const existente = porPlaca.get(clave);
+        porPlaca.set(
+          clave,
+          existente
+            ? preferirDispositivo(existente, dispositivo)
+            : dispositivo,
+        );
       }
     }
   }
@@ -220,29 +277,94 @@ async function cargarDispositivosPorPlaca(): Promise<Map<string, UbicacionGpsMot
   return porPlaca;
 }
 
+async function buscarDispositivoPorPlaca(
+  placa: string,
+): Promise<UbicacionGpsMoto | null> {
+  const claves = variantesPlaca(placa);
+  if (!claves.length) return null;
+
+  const dispositivos = await cargarDispositivosPorPlaca();
+  for (const clave of claves) {
+    const dispositivo = dispositivos.get(clave);
+    if (dispositivo) return dispositivo;
+  }
+  return null;
+}
+
 export type ResultadoBusquedaGps =
   | { ok: true; gps: UbicacionGpsMoto }
   | { ok: false; motivo: "sin_dispositivo" | "error_proveedor" };
 
-/** Busca la ubicación GPS en System Track por placa (plate_number). */
 export async function buscarUbicacionGps(
   placa: string,
 ): Promise<ResultadoBusquedaGps> {
-  const claves = variantesPlaca(placa);
-  if (!claves.length) return { ok: false, motivo: "sin_dispositivo" };
-
   try {
-    const dispositivos = await cargarDispositivosPorPlaca();
-    for (const clave of claves) {
-      const gps = dispositivos.get(clave);
-      if (gps) return { ok: true, gps };
-    }
+    const dispositivo = await buscarDispositivoPorPlaca(placa);
+    if (dispositivo) return { ok: true, gps: dispositivo };
     return { ok: false, motivo: "sin_dispositivo" };
   } catch (e) {
     console.warn("[systemTrackGps]", e instanceof Error ? e.message : e);
     invalidarCachesDispositivos();
     cacheAuth = null;
     return { ok: false, motivo: "error_proveedor" };
+  }
+}
+
+export type ResultadoComandoMotor =
+  | { ok: true; mensaje: string }
+  | { ok: false; error: string };
+
+export async function enviarComandoMotor(
+  placa: string,
+  accion: AccionMotorGps,
+): Promise<ResultadoComandoMotor> {
+  try {
+    const dispositivo = await buscarDispositivoPorPlaca(placa);
+    if (!dispositivo) {
+      return { ok: false, error: "No se encontró el dispositivo GPS de esa placa." };
+    }
+
+    const type = accion === "bloquear" ? "engineStop" : "engineResume";
+    const apiHash = await obtenerUserApiHash();
+
+    const res = await fetch(`${SYSTEMTRACK_BASE_URL}/api/send_gprs_command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        user_api_hash: apiHash,
+        device_id: dispositivo.deviceId,
+        type,
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+
+    const data = (await res.json()) as SendCommandResponse;
+    if (data.status === 1) {
+      invalidarCachesDispositivos();
+      return {
+        ok: true,
+        mensaje:
+          data.message?.trim() ||
+          (accion === "bloquear"
+            ? "Comando de apagado enviado al GPS."
+            : "Comando de encendido enviado al GPS."),
+      };
+    }
+
+    return {
+      ok: false,
+      error:
+        data.error?.trim() ||
+        data.message?.trim() ||
+        "System Track no pudo enviar el comando.",
+    };
+  } catch (e) {
+    console.warn("[systemTrackGps] comando:", e instanceof Error ? e.message : e);
+    return {
+      ok: false,
+      error: "No se pudo contactar System Track. Intenta de nuevo.",
+    };
   }
 }
 
@@ -257,13 +379,6 @@ export function etiquetaEstadoGps(online: string): string {
     default:
       return online || "Desconocido";
   }
-}
-
-export function esProveedorSystemTrack(gpsMoto: string | null | undefined): boolean {
-  return String(gpsMoto ?? "")
-    .trim()
-    .toLowerCase()
-    .includes("system track");
 }
 
 export function mensajeGpsNoDisponible(
