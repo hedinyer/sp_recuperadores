@@ -28,6 +28,7 @@ type RecuperadorGroup = {
     multa: number;
     fecha_asignada: string | null;
     fecha_recuperada: string | null;
+    fecha_abono: string | null;
     foto: string | null;
     tipo_pago: string | null;
     presencial: boolean | null;
@@ -95,16 +96,32 @@ function enPeriodo(
   return fecha >= inicioPeriodo(periodo, ahora) && fecha <= finPeriodo(ahora);
 }
 
-function filtrarGruposPorPeriodo(
-  grupos: RecuperadorGroup[],
-  periodo: PeriodoMetrica,
-): RecuperadorGroup[] {
-  return grupos.map((g) => ({
-    ...g,
-    asignaciones: g.asignaciones.filter((a) =>
-      enPeriodo(a.fecha_asignada, periodo),
-    ),
-  }));
+function esAbono(estado: string): boolean {
+  const e = estado.trim().toLowerCase();
+  return e === "abonó" || e === "abono";
+}
+
+function esRecuperada(estado: string): boolean {
+  return estado.trim().toLowerCase() === "recuperada";
+}
+
+function esPendiente(estado: string | null | undefined): boolean {
+  const e = String(estado ?? "pendiente").trim().toLowerCase();
+  return !e || e === "pendiente";
+}
+
+function fechaAbono(asig: {
+  fecha_abono: string | null;
+  fecha_asignada: string | null;
+}): string | null {
+  return asig.fecha_abono ?? asig.fecha_asignada;
+}
+
+function fechaRecuperacion(asig: {
+  fecha_recuperada: string | null;
+  fecha_asignada: string | null;
+}): string | null {
+  return asig.fecha_recuperada ?? asig.fecha_asignada;
 }
 
 const OPCIONES_GPS_MOTO = ["iop gps", "system track"] as const;
@@ -120,19 +137,35 @@ function formatearCOP(val: string | number | undefined): string {
   }).format(n);
 }
 
-function calcularMetricas(grupos: RecuperadorGroup[]): Metricas[] {
+function calcularMetricas(
+  grupos: RecuperadorGroup[],
+  periodo: PeriodoMetrica,
+): Metricas[] {
   return RECUPERADORES_FIJOS.map((nombre) => {
-    const grupo = grupos.find((g) => g.nombre === nombre);
-    const asigs = grupo?.asignaciones || [];
+    const asigs = grupos.find((g) => g.nombre === nombre)?.asignaciones || [];
+    const asignadasEnPeriodo = asigs.filter((a) =>
+      enPeriodo(a.fecha_asignada, periodo),
+    );
+    const abonadasEnPeriodo = asigs.filter(
+      (a) => esAbono(a.estado) && enPeriodo(fechaAbono(a), periodo),
+    );
+    const recuperadasEnPeriodo = asigs.filter(
+      (a) =>
+        esRecuperada(a.estado) && enPeriodo(fechaRecuperacion(a), periodo),
+    );
     return {
       nombre,
-      total_asignadas: asigs.length,
-      abonadas: asigs.filter((a) => a.estado === "Abonó").length,
-      recuperadas: asigs.filter((a) => a.estado === "recuperada").length,
-      total_pagado: asigs.reduce((s, a) => s + a.pagado, 0),
-      total_multa: asigs.reduce((s, a) => s + a.multa, 0),
+      total_asignadas: asignadasEnPeriodo.length,
+      abonadas: abonadasEnPeriodo.length,
+      recuperadas: recuperadasEnPeriodo.length,
+      total_pagado: abonadasEnPeriodo.reduce((s, a) => s + a.pagado, 0),
+      total_multa:
+        abonadasEnPeriodo.reduce((s, a) => s + a.multa, 0) +
+        recuperadasEnPeriodo.reduce((s, a) => s + a.multa, 0),
     };
-  }).filter((m) => m.total_asignadas > 0);
+  }).filter(
+    (m) => m.total_asignadas > 0 || m.abonadas > 0 || m.recuperadas > 0,
+  );
 }
 
 export default function NicolasPage() {
@@ -248,7 +281,13 @@ function NicolasAdminPanel() {
   const [nuevoGpsMoto, setNuevoGpsMoto] = useState<(typeof OPCIONES_GPS_MOTO)[number]>("iop gps");
   const [asignarPlaca, setAsignarPlaca] = useState("");
   const [asignarRecup, setAsignarRecup] = useState("");
-  const [tab, setTab] = useState<"placas" | "asignadas" | "recuperadas" | "metricas">("placas");
+  const [tab, setTab] = useState<
+    "placas" | "asignadas" | "recuperadas" | "metricas" | "reasignar"
+  >("placas");
+  const [reasignarDesde, setReasignarDesde] = useState("");
+  const [reasignarHacia, setReasignarHacia] = useState("");
+  const [reasignarIds, setReasignarIds] = useState<Set<number>>(() => new Set());
+  const [reasignando, setReasignando] = useState(false);
   const [periodoMetrica, setPeriodoMetrica] = useState<PeriodoMetrica>("hoy");
   const [deudasRecuperadas, setDeudasRecuperadas] = useState<
     Record<string, DeudaPlaca | null>
@@ -372,9 +411,91 @@ function NicolasAdminPanel() {
     }
   }, [asignarPlaca, asignarRecup, cargarDatos]);
 
-  const metricas = calcularMetricas(
-    filtrarGruposPorPeriodo(grupos, periodoMetrica),
+  const asignacionesReasignables = useMemo(
+    () =>
+      grupos.flatMap((g) =>
+        g.asignaciones
+          .filter((a) => esPendiente(a.estado))
+          .map((a) => ({ ...a, recuperador: g.nombre })),
+      ),
+    [grupos],
   );
+
+  const recuperadoresConPendientes = useMemo(() => {
+    const conteo = new Map<string, number>();
+    for (const a of asignacionesReasignables) {
+      conteo.set(a.recuperador, (conteo.get(a.recuperador) ?? 0) + 1);
+    }
+    const lista: { nombre: string; total: number }[] = RECUPERADORES_FIJOS.filter(
+      (nom) => conteo.has(nom),
+    ).map((nom) => ({ nombre: nom, total: conteo.get(nom) ?? 0 }));
+    for (const [nom, total] of conteo) {
+      if (!RECUPERADORES_FIJOS.includes(nom)) {
+        lista.push({ nombre: nom, total });
+      }
+    }
+    return lista;
+  }, [asignacionesReasignables]);
+
+  const listaReasignar = useMemo(
+    () =>
+      reasignarDesde
+        ? asignacionesReasignables.filter((a) => a.recuperador === reasignarDesde)
+        : [],
+    [asignacionesReasignables, reasignarDesde],
+  );
+
+  useEffect(() => {
+    setReasignarIds(new Set());
+  }, [reasignarDesde]);
+
+  const toggleReasignarId = useCallback((id: number) => {
+    setReasignarIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const ejecutarReasignar = useCallback(
+    async (ids: number[]) => {
+      if (!reasignarHacia || ids.length === 0) return;
+      if (reasignarHacia === reasignarDesde) {
+        setMensaje("Elige un recuperador distinto al actual");
+        return;
+      }
+      setMensaje(null);
+      setReasignando(true);
+      try {
+        const res = await fetch("/api/asignaciones/reasignar", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ids,
+            nombre_recuperador: reasignarHacia,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setReasignarIds(new Set());
+          setMensaje(
+            `${data.reasignadas} placa(s) reasignada(s) a ${etiquetaRecuperador(reasignarHacia)}`,
+          );
+          await cargarDatos();
+        } else {
+          setMensaje(data.error || "Error al reasignar");
+        }
+      } catch {
+        setMensaje("Error de conexión al reasignar");
+      } finally {
+        setReasignando(false);
+      }
+    },
+    [reasignarHacia, reasignarDesde, cargarDatos],
+  );
+
+  const metricas = calcularMetricas(grupos, periodoMetrica);
   const etiquetaPeriodo =
     PERIODOS_METRICA.find((p) => p.key === periodoMetrica)?.label ?? "";
 
@@ -534,18 +655,19 @@ function NicolasAdminPanel() {
         </section>
 
         {/* Tabs */}
-        <div className="shrink-0 flex gap-1 overflow-x-auto pb-0.5">
+        <div className="shrink-0 grid grid-cols-5 gap-1">
           {[
             { key: "placas", label: "Placas" },
             { key: "asignadas", label: "Asignadas" },
             { key: "recuperadas", label: "Recuperadas" },
             { key: "metricas", label: "Métricas" },
+            { key: "reasignar", label: "Reasignar" },
           ].map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => setTab(t.key as typeof tab)}
-              className={`shrink-0 min-h-[36px] rounded-lg px-3 text-xs font-medium transition-all touch-manipulation ${
+              className={`min-h-[36px] rounded-lg px-0.5 text-[9px] sm:text-[10px] font-medium text-center leading-tight transition-all touch-manipulation ${
                 tab === t.key
                   ? "bg-blue-700 text-white"
                   : "bg-zinc-900 text-zinc-400 border border-zinc-700 active:bg-zinc-800"
@@ -790,7 +912,7 @@ function NicolasAdminPanel() {
                 {metricas.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
                     <p className="text-sm text-zinc-500">
-                      Sin asignaciones en este periodo
+                      Sin actividad en este periodo
                     </p>
                   </div>
                 ) : (
@@ -836,6 +958,172 @@ function NicolasAdminPanel() {
                       </div>
                     </div>
                   ))
+                )}
+              </section>
+            )}
+
+            {/* Tab: Reasignar */}
+            {tab === "reasignar" && (
+              <section className="flex flex-col gap-3">
+                <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 pl-0.5">
+                  Placas pendientes por recuperador
+                </h2>
+
+                {asignacionesReasignables.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
+                    <p className="text-sm text-zinc-500">
+                      No hay placas pendientes para reasignar
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-2">
+                      <label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Recuperador actual
+                      </label>
+                      <select
+                        value={reasignarDesde}
+                        onChange={(e) => setReasignarDesde(e.target.value)}
+                        className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      >
+                        <option value="">Seleccionar recuperador</option>
+                        {recuperadoresConPendientes.map((r) => (
+                          <option key={r.nombre} value={r.nombre}>
+                            {etiquetaRecuperador(r.nombre)} ({r.total})
+                          </option>
+                        ))}
+                      </select>
+
+                      {!reasignarDesde ? (
+                        <ul className="mt-1 flex flex-col gap-1.5">
+                          {recuperadoresConPendientes.map((r) => (
+                            <li
+                              key={r.nombre}
+                              className="flex justify-between text-xs text-zinc-400 px-1"
+                            >
+                              <span>{etiquetaRecuperador(r.nombre)}</span>
+                              <span className="tabular-nums text-zinc-500">
+                                {r.total} pendiente{r.total !== 1 ? "s" : ""}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+
+                    {reasignarDesde && listaReasignar.length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-between gap-2 px-0.5">
+                          <p className="text-xs text-zinc-400">
+                            {reasignarIds.size} de {listaReasignar.length}{" "}
+                            seleccionada
+                            {reasignarIds.size !== 1 ? "s" : ""}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReasignarIds(
+                                new Set(listaReasignar.map((a) => a.id)),
+                              )
+                            }
+                            className="text-xs font-medium text-blue-400 active:text-blue-300 touch-manipulation"
+                          >
+                            Seleccionar todas
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          {listaReasignar.map((a) => {
+                            const marcada = reasignarIds.has(a.id);
+                            return (
+                              <label
+                                key={a.id}
+                                className={`flex items-center gap-3 rounded-2xl border px-4 py-3 touch-manipulation cursor-pointer transition-colors ${
+                                  marcada
+                                    ? "border-blue-600/60 bg-blue-950/30"
+                                    : "border-zinc-800 bg-zinc-900/60 active:bg-zinc-800/80"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={marcada}
+                                  onChange={() => toggleReasignarId(a.id)}
+                                  className="h-5 w-5 shrink-0 rounded border-zinc-600 bg-zinc-800 text-blue-600 focus:ring-blue-500/50"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-base font-bold tracking-wider text-white">
+                                    {a.placa}
+                                  </span>
+                                  <p className="text-[10px] text-zinc-500 tabular-nums mt-0.5">
+                                    Asignada{" "}
+                                    {formatFechaHora(a.fecha_asignada)}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-2">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                            Reasignar a
+                          </label>
+                          <select
+                            value={reasignarHacia}
+                            onChange={(e) => setReasignarHacia(e.target.value)}
+                            className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                          >
+                            <option value="">Seleccionar recuperador</option>
+                            {RECUPERADORES_FIJOS.filter(
+                              (nom) => nom !== reasignarDesde,
+                            ).map((nom) => (
+                              <option key={nom} value={nom}>
+                                {etiquetaRecuperador(nom)}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={
+                              reasignando ||
+                              reasignarIds.size === 0 ||
+                              !reasignarHacia
+                            }
+                            onClick={() =>
+                              ejecutarReasignar([...reasignarIds])
+                            }
+                            className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-40 active:scale-[0.98] transition-transform touch-manipulation"
+                          >
+                            {reasignando
+                              ? "Reasignando…"
+                              : `Reasignar seleccionadas (${reasignarIds.size})`}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={reasignando || !reasignarHacia}
+                            onClick={() =>
+                              ejecutarReasignar(
+                                listaReasignar.map((a) => a.id),
+                              )
+                            }
+                            className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 text-zinc-200 font-medium text-sm disabled:opacity-40 active:scale-[0.98] transition-transform touch-manipulation"
+                          >
+                            {reasignando
+                              ? "Reasignando…"
+                              : `Reasignar todas (${listaReasignar.length}) a ${reasignarHacia ? etiquetaRecuperador(reasignarHacia) : "…"}`}
+                          </button>
+                        </div>
+                      </>
+                    ) : reasignarDesde ? (
+                      <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-6 text-center">
+                        <p className="text-sm text-zinc-500">
+                          Este recuperador no tiene placas pendientes
+                        </p>
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </section>
             )}

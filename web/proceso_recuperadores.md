@@ -19,6 +19,7 @@ create table public.recuperadores (
   "Pagado" bigint null,
   multa bigint null,
   fecha_hora_recuperada timestamp without time zone null,
+  fecha_hora_abono timestamp without time zone null,
   foto text null,
   tipo_pago text null,
   presencial boolean null,

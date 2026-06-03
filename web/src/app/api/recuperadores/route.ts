@@ -37,8 +37,12 @@ function buildPayload(body: Record<string, unknown>) {
     payload.gps_ubicacion = String(body.gps_ubicacion).trim();
   }
 
-  if (estado_moto === "recuperada") {
+  const estadoNorm = estado_moto.toLowerCase();
+  if (estadoNorm === "recuperada") {
     payload.fecha_hora_recuperada = new Date().toISOString();
+  }
+  if (estadoNorm === "abonó" || estadoNorm === "abono") {
+    payload.fecha_hora_abono = new Date().toISOString();
   }
 
   return { nombre_recuperador, placa_asignada, estado_moto, payload };
@@ -138,6 +142,7 @@ export async function GET() {
           gps_moto: string;
           fecha_asignada: string | null;
           fecha_recuperada: string | null;
+          fecha_abono: string | null;
           foto: string | null;
           tipo_pago: string | null;
           presencial: boolean | null;
@@ -166,6 +171,7 @@ export async function GET() {
         gps_moto: gpsPorPlaca.get(placaNormalizada) || "",
         fecha_asignada: row.fecha_hora_asignada,
         fecha_recuperada: row.fecha_hora_recuperada,
+        fecha_abono: row.fecha_hora_abono ?? null,
         foto: row.foto ? String(row.foto).trim() || null : null,
         tipo_pago: row.tipo_pago ? String(row.tipo_pago).trim() || null : null,
         presencial:
@@ -206,8 +212,12 @@ export async function PATCH(request: Request) {
     if (body.nombre_recuperador) {
       update.nombre_recuperador = String(body.nombre_recuperador).trim();
     }
-    if (estado === "recuperada") {
+    const estadoNorm = estado.trim().toLowerCase();
+    if (estadoNorm === "recuperada") {
       update.fecha_hora_recuperada = new Date().toISOString();
+    }
+    if (estadoNorm === "abonó" || estadoNorm === "abono") {
+      update.fecha_hora_abono = new Date().toISOString();
     }
     if (body.gps_ubicacion != null && String(body.gps_ubicacion).trim()) {
       update.gps_ubicacion = String(body.gps_ubicacion).trim();

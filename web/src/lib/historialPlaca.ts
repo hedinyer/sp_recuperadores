@@ -97,7 +97,7 @@ async function eventosRecuperadores(
   const { data, error } = await supabase
     .from("recuperadores")
     .select(
-      "id, placa_asignada, estado_moto, Pagado, multa, nombre_recuperador, tipo_pago, presencial, fecha_hora_asignada, fecha_hora_recuperada",
+      "id, placa_asignada, estado_moto, Pagado, multa, nombre_recuperador, tipo_pago, presencial, fecha_hora_asignada, fecha_hora_recuperada, fecha_hora_abono",
     )
     .order("fecha_hora_asignada", { ascending: false })
     .limit(40);
@@ -146,7 +146,7 @@ async function eventosRecuperadores(
       pagado > 0;
     if (!esAbono) continue;
 
-    const fecha = row.fecha_hora_asignada;
+    const fecha = row.fecha_hora_abono || row.fecha_hora_asignada;
     if (!fecha) continue;
 
     const partes: string[] = [];

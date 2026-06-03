@@ -14,8 +14,12 @@ create table public.recuperadores (
   "Pagado" bigint null,
   multa bigint null,
   fecha_hora_recuperada timestamp without time zone null,
+  fecha_hora_abono timestamp without time zone null,
   constraint recuperadores_pkey primary key (id)
 ) TABLESPACE pg_default;
+
+-- Si la tabla ya existe:
+-- alter table public.recuperadores add column if not exists fecha_hora_abono timestamp without time zone null;
 
 
 nombre recuperadores (etiqueta UI):

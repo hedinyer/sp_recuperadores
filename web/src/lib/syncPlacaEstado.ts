@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 export function normalizarPlaca(placa: string): string {
-  return placa.trim().toUpperCase().replace(/\s/g, "");
+  return placa.trim().toUpperCase().replace(/[\s-]/g, "");
 }
 
 /** Mapea estado_moto de recuperadores al status de la tabla placas. */

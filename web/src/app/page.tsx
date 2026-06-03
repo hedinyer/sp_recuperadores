@@ -15,6 +15,7 @@ import {
   obtenerGpsUbicacion,
 } from "@/lib/geolocation";
 import { FotoComprobante } from "@/components/FotoComprobante";
+import { AvisoGpsPendiente, UbicacionGpsMoto } from "@/components/UbicacionGpsMoto";
 import {
   leerFotoDeCache,
   normalizarPlaca,
@@ -27,6 +28,7 @@ import {
   descargarBlob,
   dataUrlToBlob,
 } from "@/lib/reciboImagen";
+import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/systemTrackGps";
 
 type Vehiculo = Record<string, string>;
 type TipoRecibo = "pago" | "recuperada";
@@ -107,6 +109,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [v, setV] = useState<Vehiculo | null>(null);
+  const [gpsMoto, setGpsMoto] = useState<UbicacionGps | null>(null);
+  const [gpsMensaje, setGpsMensaje] = useState<string | null>(null);
 
   const [pagoPaso, setPagoPaso] = useState<PagoPaso | null>(null);
   const [montoPago, setMontoPago] = useState("");
@@ -245,6 +249,8 @@ export default function Home() {
     setError(null);
     setMensajeInfo(null);
     setV(null);
+    setGpsMoto(null);
+    setGpsMensaje(null);
     setRecibo(null);
     setPasoRecuperada(null);
     setMostrarHistorial(false);
@@ -262,6 +268,8 @@ export default function Home() {
         return;
       }
       setV(data.vehiculo as Vehiculo);
+      setGpsMoto(data.gps ?? null);
+      setGpsMensaje(data.gps_mensaje ?? null);
     } catch {
       setError("Sin conexión o error de red");
     } finally {
@@ -675,6 +683,11 @@ export default function Home() {
                   {(v.placa || "—").toUpperCase().replace(/\s/g, "")}
                 </span>
               </div>
+
+              {gpsMoto ? <UbicacionGpsMoto gps={gpsMoto} /> : null}
+              {!gpsMoto && gpsMensaje ? (
+                <AvisoGpsPendiente mensaje={gpsMensaje} />
+              ) : null}
 
               {/* Deuda */}
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
