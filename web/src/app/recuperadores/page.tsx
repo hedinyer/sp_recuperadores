@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { NavFooter } from "@/components/NavFooter";
+import { RecuperadorFifaCard } from "@/components/RecuperadorFifaCard";
 import {
   etiquetaRecuperador,
+  RECUPERADORES,
   RECUPERADORES_FIJOS,
 } from "@/lib/recuperadores";
 import { formatFechaHora } from "@/lib/fechas";
@@ -550,46 +552,38 @@ export default function RecuperadoresPage() {
         {/* Selector de recuperador */}
         <section className="shrink-0 flex flex-col gap-1.5">
           <label className="text-xs text-zinc-400 pl-0.5">
-            ¿Quién eres?
+            Equipo de rescate
           </label>
-          <div className="flex flex-wrap gap-1.5">
-            {RECUPERADORES_FIJOS.map((nom) => {
-              const activo = selectedName === nom;
-              const tieneAsig = recuperadores
-                .find((r) => r.nombre === nom)
-                ?.asignaciones.filter((a) => esAsignacionPendiente(a.estado))
-                .length;
+          <div className="grid grid-cols-4 gap-2 items-start">
+            {RECUPERADORES.map((rec) => {
+              const activo = selectedName === rec.nombre;
+              const pendientes =
+                recuperadores
+                  .find((r) => r.nombre === rec.nombre)
+                  ?.asignaciones.filter((a) => esAsignacionPendiente(a.estado))
+                  .length ?? 0;
               return (
-                <button
-                  key={nom}
-                  type="button"
+                <RecuperadorFifaCard
+                  key={rec.nombre}
+                  etiqueta={rec.etiqueta}
+                  foto={rec.foto}
+                  pendientes={pendientes}
+                  activo={activo}
                   onClick={() => {
-                    setSelectedName(nom);
-                    setRecuperadorRecibo(nom);
+                    setSelectedName(rec.nombre);
+                    setRecuperadorRecibo(rec.nombre);
                     setVehiculo(null);
                     setRecibo(null);
                     setSelectedPlaca(null);
                     setMensajeExito(null);
-                    if (!recuperadores.find((r) => r.nombre === nom)) {
+                    if (!recuperadores.find((r) => r.nombre === rec.nombre)) {
                       setRecuperadores((prev) => [
                         ...prev,
-                        { nombre: nom, asignaciones: [] },
+                        { nombre: rec.nombre, asignaciones: [] },
                       ]);
                     }
                   }}
-                  className={`min-h-[44px] rounded-xl px-3.5 text-sm font-medium transition-all touch-manipulation ${
-                    activo
-                      ? "bg-emerald-700 text-white border border-emerald-500 shadow-sm shadow-emerald-900/30"
-                      : "bg-zinc-900 text-zinc-300 border border-zinc-700 active:bg-zinc-800"
-                  }`}
-                >
-                  {etiquetaRecuperador(nom)}
-                  {tieneAsig ? (
-                    <span className="ml-1.5 text-[10px] opacity-60">
-                      ({tieneAsig})
-                    </span>
-                  ) : null}
-                </button>
+                />
               );
             })}
           </div>

@@ -2,17 +2,22 @@
 export type RecuperadorOption = {
   nombre: string;
   etiqueta: string;
+  /** Archivo en `public/` (ej. jhon.jpeg). Vacío = solo inicial en la carta. */
+  foto: string;
 };
 
 export const RECUPERADORES: RecuperadorOption[] = [
-  { nombre: "John Sáenz", etiqueta: "Jhon" },
-  { nombre: "Diego Rodríguez", etiqueta: "Diego" },
-  { nombre: "Moisés Ojeda", etiqueta: "Chipiri" },
-  { nombre: "David Berastegui", etiqueta: "Berastegui" },
-  { nombre: "Fabián Garzón", etiqueta: "Fabian" },
-  { nombre: "Nicolás Garrido", etiqueta: "Nicolas" },
-  { nombre: "Everth baptista", etiqueta: "Everth" },
+  { nombre: "John Sáenz", etiqueta: "Jhon", foto: "jhon.jpeg" },
+  { nombre: "Moisés Ojeda", etiqueta: "Chipiri", foto: "berasthegui.jpeg" },
+  { nombre: "David Berastegui", etiqueta: "Berastegui", foto: "chipiri.jpeg" },
+  { nombre: "Fabián Garzón", etiqueta: "Fabian", foto: "" },
+  { nombre: "Nicolás Garrido", etiqueta: "Nicolas", foto: "" },
+  { nombre: "Everth baptista", etiqueta: "Everth", foto: "everth.jpeg" },
 ];
+
+export function fotoRecuperadorUrl(foto: string): string {
+  return `/${foto}`;
+}
 
 /** Nombres canónicos para selects y API (sin Jean Pier ni Josué). */
 export const RECUPERADORES_FIJOS = RECUPERADORES.map((r) => r.nombre);

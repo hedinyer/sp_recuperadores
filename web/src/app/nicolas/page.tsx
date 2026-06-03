@@ -403,7 +403,12 @@ function NicolasAdminPanel() {
     [todasAsignaciones],
   );
   const recuperadas = useMemo(
-    () => todasAsignaciones.filter((a) => a.estado === "recuperada"),
+    () =>
+      todasAsignaciones.filter(
+        (a) =>
+          a.estado === "recuperada" &&
+          enPeriodo(a.fecha_recuperada, "hoy"),
+      ),
     [todasAsignaciones],
   );
 
@@ -704,12 +709,12 @@ function NicolasAdminPanel() {
             {tab === "recuperadas" && (
               <section className="flex flex-col gap-2">
                 <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 pl-0.5">
-                  Motos recuperadas ({recuperadas.length})
+                  Motos recuperadas hoy ({recuperadas.length})
                 </h2>
                 {recuperadas.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
                     <p className="text-sm text-zinc-500">
-                      No hay motos recuperadas aún
+                      No hay motos recuperadas hoy
                     </p>
                   </div>
                 ) : (
