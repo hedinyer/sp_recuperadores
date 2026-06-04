@@ -28,7 +28,7 @@ WHERE ct.estado = 'Activo'
   AND TRIM(v.placa) <> ''
 `;
 
-/** Pagos solo de contratos activos, desde fecha_inicio del contrato. */
+/** Pagos del contrato activo (sin filtrar por fecha_inicio; el extracto oficial los incluye). */
 export const SQL_REGISTROS_EXTRACTO = `
 SELECT
     ct.id AS contrato_id,
@@ -43,7 +43,6 @@ LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
 LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
 WHERE ct.estado = 'Activo'
   AND ct.fecha_inicio IS NOT NULL
-  AND pf.fecha_pago >= ct.fecha_inicio
 ORDER BY ct.id, pf.fecha_pago
 `;
 

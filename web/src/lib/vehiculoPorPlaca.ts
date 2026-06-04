@@ -60,7 +60,6 @@ JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
 LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
 LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
 WHERE ct.id = $1
-  AND pf.fecha_pago >= ct.fecha_inicio
 ORDER BY pf.fecha_pago
 `;
 

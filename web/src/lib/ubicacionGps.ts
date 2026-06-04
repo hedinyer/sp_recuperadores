@@ -35,3 +35,33 @@ export function deviceIdDesdeImei(imei: string): number {
   const n = parseInt(digits.slice(-9) || "0", 10);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
+
+export function prioridadConexionGps(online: string): number {
+  switch (online.toLowerCase()) {
+    case "online":
+      return 3;
+    case "ack":
+      return 2;
+    case "offline":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+/** GPS reportando señal reciente (en línea o conectado, no offline). */
+export function gpsConectadoFuncional(online: string): boolean {
+  const o = online.toLowerCase();
+  return o === "online" || o === "ack";
+}
+
+export function preferirDispositivoGps(
+  actual: UbicacionGpsMoto,
+  candidato: UbicacionGpsMoto,
+): UbicacionGpsMoto {
+  const diff =
+    prioridadConexionGps(candidato.online) -
+    prioridadConexionGps(actual.online);
+  if (diff !== 0) return diff > 0 ? candidato : actual;
+  return candidato.time >= actual.time ? candidato : actual;
+}

@@ -4,12 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminGate, useAdminSession } from "@/components/AdminGate";
 import { NavFooter } from "@/components/NavFooter";
-import { formatearCOP } from "@/lib/formatoDinero";
+import { formatearCOP, minimoCobroDeuda } from "@/lib/formatoDinero";
 import type { ResultadoMoroso, RiesgoMora } from "@/lib/analisisMorosidad";
 import type { ResultadoAtraso } from "@/lib/atrasosFromDb";
+import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
 
 type VistaTab = "morosos" | "atrasos";
 type FiltroVista = "todos" | "sin_pago_hoy" | "criticos";
+type FiltroGps = "con_gps" | "todos";
+
+type MorosoConGps = ResultadoMoroso & { gps: EstadoGpsPlaca };
+type AtrasoConGps = ResultadoAtraso & { gps: EstadoGpsPlaca };
 
 /** Mínimo de placas visibles en cola de prioridad cobro. */
 const COLA_MIN_VISIBLE = 12;
@@ -23,6 +28,7 @@ type ResumenMorososApi = {
   sin_pago_hoy: number;
   criticos: number;
   deuda_total: number;
+  con_gps_funcional?: number;
   generado_en: string;
 };
 
@@ -30,6 +36,7 @@ type ResumenAtrasosApi = {
   total: number;
   sin_pago_hoy: number;
   deuda_total: number;
+  con_gps_funcional?: number;
   generado_en: string;
 };
 
@@ -70,14 +77,16 @@ function hoyIso(): string {
 }
 
 function filtrarMorosos(
-  lista: ResultadoMoroso[],
+  lista: MorosoConGps[],
   busqueda: string,
   validados: Set<string>,
   filtro: FiltroVista,
-): ResultadoMoroso[] {
+  filtroGps: FiltroGps,
+): MorosoConGps[] {
   const q = busqueda.trim().toUpperCase();
   return lista.filter((m) => {
     if (validados.has(m.placa)) return false;
+    if (filtroGps === "con_gps" && !m.gps?.funcional) return false;
     if (filtro === "sin_pago_hoy" && m.pago_hoy) return false;
     if (filtro === "criticos" && m.riesgo_mora !== "critico") return false;
     if (!q) return true;
@@ -91,24 +100,49 @@ function filtrarMorosos(
 
 /** Reporte de atrasos: solo búsqueda; no oculta por pago hoy ni validados. */
 function filtrarAtrasos(
-  lista: ResultadoAtraso[],
+  lista: AtrasoConGps[],
   busqueda: string,
-): ResultadoAtraso[] {
+  filtroGps: FiltroGps,
+): AtrasoConGps[] {
   const q = busqueda.trim().toUpperCase();
-  if (!q) return lista;
-  return lista.filter(
-    (a) =>
+  return lista.filter((a) => {
+    if (filtroGps === "con_gps" && !a.gps?.funcional) return false;
+    if (!q) return true;
+    return (
       a.placa.toUpperCase().includes(q) ||
       a.nombre.toUpperCase().includes(q) ||
-      a.cedula.includes(q),
+      a.cedula.includes(q)
+    );
+  });
+}
+
+function BadgeGps({ gps }: { gps: EstadoGpsPlaca }) {
+  if (gps.funcional) {
+    return (
+      <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded">
+        GPS {gps.proveedor_etiqueta} · {gps.estado_etiqueta}
+      </span>
+    );
+  }
+  if (gps.proveedor) {
+    return (
+      <span className="text-[10px] font-semibold text-red-300 bg-red-950/50 px-1.5 py-0.5 rounded">
+        GPS {gps.proveedor_etiqueta} · {gps.estado_etiqueta}
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-semibold text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+      Sin GPS
+    </span>
   );
 }
 
 export default function PlacasMorososPage() {
   const { adminOk, refresh: refreshAdmin } = useAdminSession();
   const [vista, setVista] = useState<VistaTab>("atrasos");
-  const [morosos, setMorosos] = useState<ResultadoMoroso[]>([]);
-  const [atrasos, setAtrasos] = useState<ResultadoAtraso[]>([]);
+  const [morosos, setMorosos] = useState<MorosoConGps[]>([]);
+  const [atrasos, setAtrasos] = useState<AtrasoConGps[]>([]);
   const [resumenMorosos, setResumenMorosos] = useState<ResumenMorososApi | null>(
     null,
   );
@@ -118,6 +152,7 @@ export default function PlacasMorososPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<FiltroVista>("sin_pago_hoy");
+  const [filtroGps, setFiltroGps] = useState<FiltroGps>("con_gps");
   const [busqueda, setBusqueda] = useState("");
   const [validados, setValidados] = useState<Set<string>>(() => new Set());
   const [asignadasSesion, setAsignadasSesion] = useState<Set<string>>(
@@ -206,8 +241,8 @@ export default function PlacasMorososPage() {
   );
 
   const listaMorosos = useMemo(
-    () => filtrarMorosos(colaPrioridad, busqueda, new Set(), filtro),
-    [colaPrioridad, filtro, busqueda],
+    () => filtrarMorosos(colaPrioridad, busqueda, new Set(), filtro, filtroGps),
+    [colaPrioridad, filtro, filtroGps, busqueda],
   );
 
   const siguienteEnCola = useMemo(() => {
@@ -220,8 +255,8 @@ export default function PlacasMorososPage() {
   }, [colaPrioridad, listaMorosos]);
 
   const listaAtrasos = useMemo(
-    () => filtrarAtrasos(atrasos, busqueda),
-    [atrasos, busqueda],
+    () => filtrarAtrasos(atrasos, busqueda, filtroGps),
+    [atrasos, busqueda, filtroGps],
   );
 
   const marcarValidado = (placa: string) => {
@@ -229,15 +264,16 @@ export default function PlacasMorososPage() {
     setMensaje(`Placa ${placa}: validada (pagó o revisada en WhatsApp).`);
   };
 
-  const enviarARecuperadores = async (m: ResultadoMoroso) => {
+  const enviarARecuperadores = async (m: MorosoConGps) => {
     const placaKey = normalizarPlacaKey(m.placa);
     setEnviando(m.placa);
     setMensaje(null);
     try {
+      const gpsMoto = m.gps?.gps_moto || "iop gps";
       const res = await fetch("/api/placas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ placa: m.placa, gps_moto: "iop gps" }),
+        body: JSON.stringify({ placa: m.placa, gps_moto: gpsMoto }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo publicar");
@@ -316,12 +352,13 @@ export default function PlacasMorososPage() {
           {vista === "morosos" ? (
             <>
               Recoger moto: más de 5 cuotas en mora y deuda mayor a $250.000, o pago
-              diario sin abonar deuda. Al asignar se repone la cola automáticamente.
+              diario sin abonar deuda. Solo placas con GPS activo para asignar.
             </>
           ) : (
             <>
               Todos los clientes con deuda pendiente (extracto), hayan pagado
-              hoy o no. Lista completa sin ocultar por pago del día.
+              hoy o no. Por defecto solo placas con GPS activo (System Track o
+              IOP GPS en línea).
             </>
           )}
         </p>
@@ -365,6 +402,12 @@ export default function PlacasMorososPage() {
         {resumen && !loading && (
           <p className="mt-2 text-[11px] text-zinc-600 text-center tabular-nums">
             Deuda total: {formatearCOP(resumen.deuda_total)}
+            {resumen.con_gps_funcional != null && (
+              <>
+                {" "}
+                · GPS activo: {resumen.con_gps_funcional} de {resumen.total}
+              </>
+            )}
           </p>
         )}
       </header>
@@ -377,11 +420,33 @@ export default function PlacasMorososPage() {
           onChange={(e) => setBusqueda(e.target.value)}
           className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2.5 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-700"
         />
+        <div className="flex gap-1.5">
+          {(
+            [
+              ["con_gps", "GPS activo"],
+              ["todos", "Todas las placas"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFiltroGps(key)}
+              className={`flex-1 min-h-[40px] rounded-xl text-[11px] font-semibold touch-manipulation ${
+                filtroGps === key
+                  ? "bg-sky-800 text-white border border-sky-600"
+                  : "bg-zinc-900 text-zinc-400 border border-zinc-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {vista === "morosos" ? (
           <div className="flex flex-col gap-1.5">
             <p className="text-[11px] text-zinc-500 leading-snug">
               Cola: {listaMorosos.length} visibles · {colaPrioridad.length}{" "}
               disponibles · {placasEnColaAdmin.size} pendientes en gestión
+              {filtroGps === "con_gps" && " · filtro GPS activo"}
               {colaPrioridad.length < COLA_MIN_VISIBLE &&
                 colaPrioridad.length > 0 &&
                 " (pocas en cola, recarga ↻)"}
@@ -425,6 +490,7 @@ export default function PlacasMorososPage() {
           <div className="flex gap-1.5 items-center">
             <p className="flex-1 text-[11px] text-zinc-500 leading-snug">
               Mostrando {listaAtrasos.length} de {atrasos.length} con deuda
+              {filtroGps === "con_gps" && " (solo GPS activo)"}
             </p>
             <button
               type="button"
@@ -468,6 +534,7 @@ export default function PlacasMorososPage() {
             <ul className="space-y-3 max-w-[414px] mx-auto">
             {listaMorosos.map((m) => {
               const rs = RIESGO_STYLES[m.riesgo_mora];
+              const minimoRecibir = minimoCobroDeuda(m.deuda_total);
               const wa = enlaceWhatsApp(
                 m.telefono,
                 textoWhatsApp(m.nombre, m.placa, m.deuda_total),
@@ -502,6 +569,7 @@ export default function PlacasMorososPage() {
                             Sin pago hoy
                           </span>
                         )}
+                        {m.gps && <BadgeGps gps={m.gps} />}
                       </div>
                       <p className="text-sm text-zinc-300 truncate">{m.nombre}</p>
                       <p className="text-[11px] text-zinc-500 mt-0.5">{m.motivo}</p>
@@ -543,6 +611,21 @@ export default function PlacasMorososPage() {
                     </span>
                   </div>
 
+                  {minimoRecibir != null && (
+                    <div className="px-3 py-2 bg-amber-950/35 border-t border-amber-900/40">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-amber-400/80">
+                        Mínimo a recibir (40%)
+                      </p>
+                      <p className="text-sm font-bold text-amber-300 tabular-nums">
+                        {formatearCOP(minimoRecibir)}
+                        <span className="text-xs font-semibold text-amber-400/75">
+                          {" "}
+                          o más
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex gap-1.5 p-2 border-t border-zinc-800/80">
                     {wa ? (
                       <a
@@ -567,9 +650,14 @@ export default function PlacasMorososPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={enviando === m.placa}
+                      disabled={enviando === m.placa || !m.gps?.funcional}
                       onClick={() => void enviarARecuperadores(m)}
                       className="flex-1 min-h-[44px] rounded-xl bg-emerald-800 border border-emerald-600 text-xs font-semibold text-white touch-manipulation disabled:opacity-50"
+                      title={
+                        m.gps?.funcional
+                          ? undefined
+                          : "Solo se puede asignar con GPS activo (System Track o IOP GPS)"
+                      }
                     >
                       {enviando === m.placa ? "…" : "Asignar"}
                     </button>
@@ -628,6 +716,7 @@ export default function PlacasMorososPage() {
                             Sin pago hoy
                           </span>
                         )}
+                        {a.gps && <BadgeGps gps={a.gps} />}
                       </div>
                       <p className="text-sm text-zinc-300 truncate">{a.nombre}</p>
                       {a.visitador && (

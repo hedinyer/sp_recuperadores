@@ -21,3 +21,16 @@ export function formatearCOP(val: string | number | undefined): string {
     maximumFractionDigits: 0,
   }).format(n);
 }
+
+/** Mínimo aceptado en cobro/recuperación: 40% de la deuda. */
+export const PORCENTAJE_MINIMO_COBRO = 0.4;
+
+export function minimoCobroDeuda(
+  deuda: string | number | undefined | null,
+): number | null {
+  if (deuda == null || deuda === "") return null;
+  const n =
+    typeof deuda === "string" ? Number(deuda.replace(/,/g, "")) : Number(deuda);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * PORCENTAJE_MINIMO_COBRO);
+}

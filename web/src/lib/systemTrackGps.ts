@@ -314,6 +314,13 @@ export type ResultadoBusquedaGps =
   | { ok: true; gps: UbicacionGpsMoto }
   | { ok: false; motivo: "sin_dispositivo" | "error_proveedor" };
 
+export async function mapaDispositivosPorPlaca(): Promise<
+  Map<string, UbicacionGpsMoto>
+> {
+  const { porPlaca } = await cargarDispositivos();
+  return porPlaca;
+}
+
 export async function buscarUbicacionGps(
   placa: string,
 ): Promise<ResultadoBusquedaGps> {

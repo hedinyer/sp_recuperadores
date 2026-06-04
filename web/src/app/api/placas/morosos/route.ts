@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { hasAdminSession } from "@/lib/adminAuth";
+import { enriquecerConEstadoGps } from "@/lib/gpsEstadoPlacas";
 import { fetchMorososDesdeDb } from "@/lib/morososFromDb";
 import { fetchPlacasPendientes } from "@/lib/placasPendientes";
 
@@ -22,7 +23,13 @@ export async function GET(request: Request) {
       fetchMorososDesdeDb(refresh),
       fetchPlacasPendientes(),
     ]);
-    return NextResponse.json({ morosos, resumen, pendientes });
+    const morososConGps = await enriquecerConEstadoGps(morosos);
+    const conGpsFuncional = morososConGps.filter((m) => m.gps.funcional).length;
+    return NextResponse.json({
+      morosos: morososConGps,
+      resumen: { ...resumen, con_gps_funcional: conGpsFuncional },
+      pendientes,
+    });
   } catch (e) {
     const msg =
       e instanceof Error ? e.message : "Error al analizar morosos";
