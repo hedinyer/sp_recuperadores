@@ -622,7 +622,6 @@ export default function Home() {
   }, [recibo, exportandoRecibo]);
 
   const wa = v ? enlaceWhatsApp(v.telefono) : null;
-  const diasMora = v ? parseInt(String(v.dias_mora ?? "0"), 10) || 0 : 0;
   const cuotasPendRaw =
     v?.cuotas_pendientes != null && String(v.cuotas_pendientes).trim() !== ""
       ? parseFloat(String(v.cuotas_pendientes))
@@ -784,18 +783,6 @@ export default function Home() {
                 <p className="mt-1 text-[clamp(1.75rem,8vw,2.25rem)] font-bold text-rose-400 tabular-nums leading-none tracking-tight">
                   {formatearCOP(v.deuda_total)}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {diasMora > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-amber-950/80 border border-amber-800/60 px-2.5 py-1 text-xs font-medium text-amber-200">
-                      {diasMora} {diasMora === 1 ? "día" : "días"} en mora
-                    </span>
-                  )}
-                  {cuotasPend != null && cuotasPend > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-zinc-800/90 border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300">
-                      {formatCuotasMora(cuotasPend)} cuotas en mora
-                    </span>
-                  )}
-                </div>
               </section>
 
               {mostrarGps ? (
