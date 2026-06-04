@@ -323,7 +323,7 @@ async function cargarDispositivos(
     data = await fetchDispositivos(apiHash);
   }
 
-  let totalItems = data.reduce((n, g) => n + (g.items?.length ?? 0), 0);
+  const totalItems = data.reduce((n, g) => n + (g.items?.length ?? 0), 0);
   if (totalItems <= 10) {
     invalidarCachesDispositivos();
     apiHash = await obtenerUserApiHash(true);

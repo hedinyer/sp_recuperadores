@@ -443,7 +443,6 @@ export default function Home() {
     fotoFile,
     fotoPreview,
     gpsCapturado,
-    metodoPago,
     requiereGpsPago,
     cerrarWizardPago,
   ]);

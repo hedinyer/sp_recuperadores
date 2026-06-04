@@ -22,7 +22,7 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 function lerpAngulo(desde: number, hacia: number, t: number): number {
-  let diff = ((hacia - desde + 540) % 360) - 180;
+  const diff = ((hacia - desde + 540) % 360) - 180;
   return desde + diff * t;
 }
 
