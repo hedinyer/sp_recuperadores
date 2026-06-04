@@ -176,6 +176,41 @@ export default function RecuperadoresPage() {
     [asignacionesPendientes],
   );
 
+  const [busquedaPlaca, setBusquedaPlaca] = useState("");
+
+  const resultadosBusquedaPlaca = useMemo(() => {
+    const q = normalizarPlaca(busquedaPlaca);
+    if (q.length < 2) return [];
+
+    const vistos = new Set<string>();
+    const hits: Array<{
+      placa: string;
+      recuperador: string;
+      asignacion: Asignacion;
+    }> = [];
+
+    for (const r of recuperadores) {
+      for (const a of r.asignaciones) {
+        if (!a.placa.includes(q)) continue;
+        const key = `${r.nombre}::${a.placa}::${a.id}`;
+        if (vistos.has(key)) continue;
+        vistos.add(key);
+        hits.push({
+          placa: a.placa,
+          recuperador: r.nombre,
+          asignacion: a,
+        });
+      }
+    }
+
+    return hits.sort((a, b) => {
+      const pa = esAsignacionPendiente(a.asignacion.estado) ? 0 : 1;
+      const pb = esAsignacionPendiente(b.asignacion.estado) ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return a.placa.localeCompare(b.placa);
+    });
+  }, [busquedaPlaca, recuperadores]);
+
   const placaReciboYaRecuperada = useMemo(() => {
     if (!recibo) return false;
     const asig = asignacionesActuales.find((a) => a.placa === recibo.placa);
@@ -256,6 +291,21 @@ export default function RecuperadoresPage() {
     cerrarWizardPago();
     setPasoRecuperada(null);
   }, [cerrarWizardPago]);
+
+  const seleccionarRecuperador = useCallback(
+    (nombre: string) => {
+      setSelectedName(nombre);
+      setRecuperadorRecibo(nombre);
+      limpiarFlujoActivo();
+      setRecibo(null);
+      setMensajeInfo(null);
+      setError(null);
+      if (!recuperadores.find((r) => r.nombre === nombre)) {
+        setRecuperadores((prev) => [...prev, { nombre, asignaciones: [] }]);
+      }
+    },
+    [recuperadores, limpiarFlujoActivo],
+  );
 
   const capturarGps = useCallback(async (): Promise<boolean> => {
     setSolicitandoGps(true);
@@ -748,6 +798,85 @@ export default function RecuperadoresPage() {
           </div>
         )}
 
+        <section className="shrink-0 flex flex-col gap-2">
+          <label
+            htmlFor="buscar-placa-recup"
+            className="text-xs text-zinc-400 pl-0.5"
+          >
+            Buscar placa
+          </label>
+          <input
+            id="buscar-placa-recup"
+            type="search"
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Ej. DUJ46I — ¿quién la tiene?"
+            value={busquedaPlaca}
+            onChange={(e) => setBusquedaPlaca(e.target.value.toUpperCase())}
+            className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600/40"
+          />
+          {normalizarPlaca(busquedaPlaca).length >= 2 ? (
+            <div className="flex flex-col gap-1.5">
+              {loading ? (
+                <p className="text-xs text-zinc-500 px-0.5">Buscando…</p>
+              ) : resultadosBusquedaPlaca.length === 0 ? (
+                <p className="text-xs text-zinc-500 px-0.5 leading-snug">
+                  No hay asignación con esa placa en el equipo.
+                </p>
+              ) : (
+                resultadosBusquedaPlaca.map((hit) => {
+                  const pendiente = esAsignacionPendiente(hit.asignacion.estado);
+                  return (
+                    <button
+                      key={`${hit.recuperador}-${hit.asignacion.id}`}
+                      type="button"
+                      onClick={() => {
+                        seleccionarRecuperador(hit.recuperador);
+                        requestAnimationFrame(() => {
+                          asignacionesRef.current?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
+                        });
+                      }}
+                      className="w-full text-left rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-3.5 py-2.5 active:scale-[0.99] transition-transform touch-manipulation hover:border-sky-700/60"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-base font-bold tracking-[0.12em] text-white">
+                          {hit.placa}
+                        </span>
+                        <span
+                          className={`text-[10px] uppercase px-1.5 py-0.5 rounded-full shrink-0 ${
+                            pendiente
+                              ? "bg-amber-900/60 text-amber-300"
+                              : "bg-zinc-800 text-zinc-400"
+                          }`}
+                        >
+                          {hit.asignacion.estado}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-sky-200/90">
+                        {etiquetaRecuperador(hit.recuperador)}
+                        <span className="text-zinc-500 font-normal">
+                          {" "}
+                          · {hit.recuperador}
+                        </span>
+                      </p>
+                      {hit.asignacion.fecha_asignada ? (
+                        <p className="mt-0.5 text-[10px] text-zinc-500 tabular-nums">
+                          Asignada {formatFechaHora(hit.asignacion.fecha_asignada)}
+                        </p>
+                      ) : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </section>
+
         <section className="shrink-0 flex flex-col gap-1.5">
           <label className="text-xs text-zinc-400 pl-0.5">
             Equipo de rescate
@@ -767,20 +896,7 @@ export default function RecuperadoresPage() {
                   foto={rec.foto}
                   pendientes={pendientes}
                   activo={activo}
-                  onClick={() => {
-                    setSelectedName(rec.nombre);
-                    setRecuperadorRecibo(rec.nombre);
-                    limpiarFlujoActivo();
-                    setRecibo(null);
-                    setMensajeInfo(null);
-                    setError(null);
-                    if (!recuperadores.find((r) => r.nombre === rec.nombre)) {
-                      setRecuperadores((prev) => [
-                        ...prev,
-                        { nombre: rec.nombre, asignaciones: [] },
-                      ]);
-                    }
-                  }}
+                  onClick={() => seleccionarRecuperador(rec.nombre)}
                 />
               );
             })}

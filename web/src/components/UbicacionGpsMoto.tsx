@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MapaGpsEnVivo, type PuntoRutaGps } from "@/components/MapaGpsEnVivo";
 import { enlaceGoogleMaps } from "@/lib/geolocation";
 import { etiquetaEstadoGps, etiquetaProveedorGps } from "@/lib/gpsMoto";
-import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/ubicacionGps";
-
-/** Polling al mínimo práctico (API + red); animación del mapa en el mismo ritmo. */
-const INTERVALO_EN_VIVO_MS = 250;
+import {
+  etiquetaIntervaloPollGps,
+  intervaloPollGpsEnVivo,
+  type UbicacionGpsMoto as UbicacionGps,
+} from "@/lib/ubicacionGps";
 
 type UbicacionGpsMotoProps = {
   placa: string;
@@ -53,6 +54,7 @@ export function UbicacionGpsMoto({
   const deviceIdRef = useRef(gpsInicial.deviceId);
   const fetchEnCursoRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const intervaloPollMs = intervaloPollGpsEnVivo(gps.proveedor);
 
   useEffect(() => {
     deviceIdRef.current = gpsInicial.deviceId;
@@ -112,7 +114,7 @@ export function UbicacionGpsMoto({
 
     abortRef.current = new AbortController();
     void refrescarPosicion();
-    const id = window.setInterval(() => void refrescarPosicion(), INTERVALO_EN_VIVO_MS);
+    const id = window.setInterval(() => void refrescarPosicion(), intervaloPollMs);
 
     return () => {
       window.clearInterval(id);
@@ -120,7 +122,7 @@ export function UbicacionGpsMoto({
       abortRef.current = null;
       fetchEnCursoRef.current = false;
     };
-  }, [activo, enVivo, refrescarPosicion]);
+  }, [activo, enVivo, refrescarPosicion, intervaloPollMs]);
 
   const mapsUrl = enlaceGoogleMaps(gps.coords);
 
@@ -191,7 +193,7 @@ export function UbicacionGpsMoto({
           gps={gps}
           ruta={ruta}
           seguimientoActivo={activo && enVivo}
-          duracionSeguimientoMs={INTERVALO_EN_VIVO_MS}
+          proveedor={gps.proveedor}
         />
       </div>
 
@@ -232,7 +234,10 @@ export function UbicacionGpsMoto({
         Última actualización:{" "}
         <span className="text-zinc-300 tabular-nums">{gps.time}</span>
         {enVivo ? (
-          <span className="text-zinc-600"> · cada 0,25 s</span>
+          <span className="text-zinc-600">
+            {" "}
+            · cada {etiquetaIntervaloPollGps(gps.proveedor)}
+          </span>
         ) : null}
       </p>
       <p className="mt-1 text-xs text-zinc-500 tabular-nums">

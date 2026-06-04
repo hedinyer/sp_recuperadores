@@ -30,6 +30,21 @@ export function etiquetaProveedorGps(proveedor: ProveedorGps): string {
   return proveedor === "iopgps" ? "IOP GPS" : "System Track";
 }
 
+/** Intervalo de consulta en vivo (ms). System Track suele refrescar más rápido que IOP. */
+export function intervaloPollGpsEnVivo(proveedor: ProveedorGps): number {
+  return proveedor === "iopgps" ? 3000 : 2000;
+}
+
+/** Duración inicial de interpolación entre fixes GPS (ms), antes de medir intervalos reales. */
+export function duracionAnimacionGpsInicial(proveedor: ProveedorGps): number {
+  return proveedor === "iopgps" ? 9000 : 6000;
+}
+
+export function etiquetaIntervaloPollGps(proveedor: ProveedorGps): string {
+  const s = intervaloPollGpsEnVivo(proveedor) / 1000;
+  return s % 1 === 0 ? `${s} s` : `${s.toFixed(1).replace(".", ",")} s`;
+}
+
 export function deviceIdDesdeImei(imei: string): number {
   const digits = imei.replace(/\D/g, "");
   const n = parseInt(digits.slice(-9) || "0", 10);

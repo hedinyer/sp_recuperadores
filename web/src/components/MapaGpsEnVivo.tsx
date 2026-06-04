@@ -2,22 +2,28 @@
 
 import "leaflet/dist/leaflet.css";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { UbicacionGpsMoto } from "@/lib/ubicacionGps";
+import {
+  duracionAnimacionGpsInicial,
+  type ProveedorGps,
+  type UbicacionGpsMoto,
+} from "@/lib/ubicacionGps";
 
 export type PuntoRutaGps = { lat: number; lng: number };
 
 type MapaGpsEnVivoProps = {
   gps: UbicacionGpsMoto;
   ruta: PuntoRutaGps[];
-  /** Si false, detiene la animación de seguimiento. */
   seguimientoActivo?: boolean;
-  /** Duración de la interpolación entre posiciones (ms). */
-  duracionSeguimientoMs?: number;
+  proveedor?: ProveedorGps;
 };
 
 type PosAnimada = { lat: number; lng: number; course: number };
+
+const DURACION_ANIM_MIN_MS = 2000;
+const DURACION_ANIM_MAX_MS = 30_000;
+const UMBRAL_MOVIMIENTO = 1e-7;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -28,8 +34,8 @@ function lerpAngulo(desde: number, hacia: number, t: number): number {
   return desde + diff * t;
 }
 
-function easeOutQuad(t: number): number {
-  return t * (2 - t);
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
 }
 
 function htmlIcono(course: number): string {
@@ -40,19 +46,42 @@ function htmlIcono(course: number): string {
   </div>`;
 }
 
+function deltaMetros(
+  speedKmh: number,
+  courseDeg: number,
+  lat: number,
+  segundos: number,
+): { dLat: number; dLng: number } {
+  if (speedKmh < 0.5 || segundos <= 0) return { dLat: 0, dLng: 0 };
+  const metros = (speedKmh / 3.6) * segundos * 0.55;
+  const rad = (courseDeg * Math.PI) / 180;
+  const dLat = (metros * Math.cos(rad)) / 111_320;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const dLng =
+    metros !== 0
+      ? (metros * Math.sin(rad)) / (111_320 * Math.max(0.2, Math.abs(cosLat)))
+      : 0;
+  return { dLat, dLng };
+}
+
 export function MapaGpsEnVivo({
   gps,
   ruta,
   seguimientoActivo = true,
-  duracionSeguimientoMs = 240,
+  proveedor = gps.proveedor,
 }: MapaGpsEnVivoProps) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<import("leaflet").Map | null>(null);
   const marcadorRef = useRef<import("leaflet").Marker | null>(null);
   const rutaRef = useRef<import("leaflet").Polyline | null>(null);
-  const listoRef = useRef(false);
+  const [mapaListo, setMapaListo] = useState(false);
 
   const mostradoRef = useRef<PosAnimada>({
+    lat: gps.lat,
+    lng: gps.lng,
+    course: gps.course,
+  });
+  const origenRef = useRef<PosAnimada>({
     lat: gps.lat,
     lng: gps.lng,
     course: gps.course,
@@ -62,13 +91,20 @@ export function MapaGpsEnVivo({
     lng: gps.lng,
     course: gps.course,
   });
-  const animInicioRef = useRef(0);
+  const velocidadRef = useRef(gps.speed);
+  const animInicioRef = useRef(performance.now());
+  const duracionRef = useRef(duracionAnimacionGpsInicial(proveedor));
+  const ultimoFixMsRef = useRef(performance.now());
+  const ultimoFrameMsRef = useRef(performance.now());
   const frameRef = useRef(0);
-  const duracionRef = useRef(duracionSeguimientoMs);
 
   useEffect(() => {
-    duracionRef.current = duracionSeguimientoMs;
-  }, [duracionSeguimientoMs]);
+    velocidadRef.current = gps.speed;
+  }, [gps.speed]);
+
+  useEffect(() => {
+    duracionRef.current = duracionAnimacionGpsInicial(proveedor);
+  }, [proveedor]);
 
   useEffect(() => {
     let cancelado = false;
@@ -76,7 +112,7 @@ export function MapaGpsEnVivo({
     (async () => {
       const L = (await import("leaflet")).default;
 
-      if (cancelado || !contenedorRef.current || listoRef.current) return;
+      if (cancelado || !contenedorRef.current) return;
 
       const mapa = L.map(contenedorRef.current, {
         zoomControl: true,
@@ -112,27 +148,70 @@ export function MapaGpsEnVivo({
       mapaRef.current = mapa;
       marcadorRef.current = marcador;
       rutaRef.current = linea;
-      listoRef.current = true;
-      mostradoRef.current = { lat: gps.lat, lng: gps.lng, course: gps.course };
-      destinoRef.current = { lat: gps.lat, lng: gps.lng, course: gps.course };
+
+      const pos = { lat: gps.lat, lng: gps.lng, course: gps.course };
+      mostradoRef.current = { ...pos };
+      origenRef.current = { ...pos };
+      destinoRef.current = { ...pos };
+      const ahora = performance.now();
+      animInicioRef.current = ahora;
+      ultimoFixMsRef.current = ahora;
+      ultimoFrameMsRef.current = ahora;
+
+      mapa.invalidateSize();
+      if (!cancelado) setMapaListo(true);
     })();
 
     return () => {
       cancelado = true;
+      setMapaListo(false);
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
       if (mapaRef.current) {
         mapaRef.current.remove();
         mapaRef.current = null;
         marcadorRef.current = null;
         rutaRef.current = null;
-        listoRef.current = false;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const registrarNuevoFix = useCallback((lat: number, lng: number, course: number, speed: number) => {
+    const cambio =
+      Math.abs(destinoRef.current.lat - lat) > UMBRAL_MOVIMIENTO ||
+      Math.abs(destinoRef.current.lng - lng) > UMBRAL_MOVIMIENTO ||
+      Math.abs(destinoRef.current.course - course) > 0.5;
+
+    if (!cambio) {
+      velocidadRef.current = speed;
+      return;
+    }
+
+    const ahora = performance.now();
+    const medido = ahora - ultimoFixMsRef.current;
+    if (medido >= DURACION_ANIM_MIN_MS) {
+      duracionRef.current = clamp(
+        duracionRef.current * 0.35 + medido * 0.65,
+        DURACION_ANIM_MIN_MS,
+        DURACION_ANIM_MAX_MS,
+      );
+    }
+    ultimoFixMsRef.current = ahora;
+
+    origenRef.current = { ...mostradoRef.current };
+    destinoRef.current = { lat, lng, course };
+    velocidadRef.current = speed;
+    animInicioRef.current = ahora;
+  }, []);
+
   useEffect(() => {
-    if (!seguimientoActivo) {
+    if (!mapaListo) return;
+    registrarNuevoFix(gps.lat, gps.lng, gps.course, gps.speed);
+  }, [mapaListo, gps.lat, gps.lng, gps.course, gps.speed, registrarNuevoFix]);
+
+  useEffect(() => {
+    if (!mapaListo || !seguimientoActivo) {
       if (frameRef.current) {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = 0;
@@ -140,63 +219,67 @@ export function MapaGpsEnVivo({
       return;
     }
 
-    if (!listoRef.current) return;
-
-    const cambio =
-      Math.abs(destinoRef.current.lat - gps.lat) > 1e-7 ||
-      Math.abs(destinoRef.current.lng - gps.lng) > 1e-7 ||
-      Math.abs(destinoRef.current.course - gps.course) > 0.5;
-
-    if (!cambio) return;
-
-    destinoRef.current = {
-      lat: gps.lat,
-      lng: gps.lng,
-      course: gps.course,
-    };
-    animInicioRef.current = performance.now();
-
-    const tick = () => {
+    const aplicarPosicion = (lat: number, lng: number, course: number) => {
       const mapa = mapaRef.current;
       const marcador = marcadorRef.current;
       if (!mapa || !marcador) return;
 
-      const dur = Math.max(duracionRef.current, 80);
-      const raw = Math.min(
-        (performance.now() - animInicioRef.current) / dur,
-        1,
-      );
-      const t = easeOutQuad(raw);
-      const desde = mostradoRef.current;
-      const hacia = destinoRef.current;
-
-      const lat = lerp(desde.lat, hacia.lat, t);
-      const lng = lerp(desde.lng, hacia.lng, t);
-      const course = lerpAngulo(desde.course, hacia.course, t);
       mostradoRef.current = { lat, lng, course };
-
       marcador.setLatLng([lat, lng]);
       const flecha = marcador.getElement()?.querySelector(".gps-moto-flecha");
       if (flecha instanceof HTMLElement) {
         flecha.style.transform = `rotate(${course}deg)`;
       }
-
-      const zoom = mapa.getZoom();
-      mapa.setView([lat, lng], zoom, { animate: false });
-
-      if (raw < 1) {
-        frameRef.current = requestAnimationFrame(tick);
-      } else {
-        mostradoRef.current = { ...hacia };
-      }
+      mapa.setView([lat, lng], mapa.getZoom(), { animate: false });
     };
 
-    if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    const tick = (now: number) => {
+      const prevFrame = ultimoFrameMsRef.current || now;
+      ultimoFrameMsRef.current = now;
+      const dtSeg = Math.min((now - prevFrame) / 1000, 0.12);
+
+      const dur = Math.max(duracionRef.current, DURACION_ANIM_MIN_MS);
+      const raw = Math.min((now - animInicioRef.current) / dur, 1);
+      const desde = origenRef.current;
+      const hacia = destinoRef.current;
+
+      let lat: number;
+      let lng: number;
+      let course: number;
+
+      if (raw < 1) {
+        lat = lerp(desde.lat, hacia.lat, raw);
+        lng = lerp(desde.lng, hacia.lng, raw);
+        course = lerpAngulo(desde.course, hacia.course, raw);
+      } else {
+        const prev = mostradoRef.current;
+        const vel = velocidadRef.current;
+        if (vel >= 0.5) {
+          const { dLat, dLng } = deltaMetros(vel, prev.course, prev.lat, dtSeg);
+          lat = prev.lat + dLat;
+          lng = prev.lng + dLng;
+          course = prev.course;
+        } else {
+          lat = hacia.lat;
+          lng = hacia.lng;
+          course = hacia.course;
+        }
+      }
+
+      aplicarPosicion(lat, lng, course);
+      frameRef.current = requestAnimationFrame(tick);
+    };
+
     frameRef.current = requestAnimationFrame(tick);
-  }, [gps.lat, gps.lng, gps.course, seguimientoActivo]);
+
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+    };
+  }, [mapaListo, seguimientoActivo]);
 
   useEffect(() => {
-    if (!listoRef.current || !mapaRef.current) return;
+    if (!mapaListo || !mapaRef.current) return;
 
     void (async () => {
       const L = (await import("leaflet")).default;
@@ -219,13 +302,7 @@ export function MapaGpsEnVivo({
         rutaRef.current = null;
       }
     })();
-  }, [ruta]);
-
-  useEffect(() => {
-    return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-  }, []);
+  }, [mapaListo, ruta]);
 
   return (
     <div

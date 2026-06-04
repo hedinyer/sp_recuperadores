@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
   buscarUbicacionGps,
+  gpsMotoDesdeProveedor,
   mensajeGpsNoDisponible,
   resolverProveedorGps,
 } from "@/lib/gpsMoto";
@@ -47,23 +48,27 @@ export async function GET(request: Request) {
       );
     }
 
-    const gps_moto = await obtenerGpsMotoPlaca(placa);
-    const proveedor = resolverProveedorGps(gps_moto);
-    const resultadoGps = await buscarUbicacionGps(placa, gps_moto);
+    const gps_motoDb = await obtenerGpsMotoPlaca(placa);
+    const resultadoGps = await buscarUbicacionGps(placa, gps_motoDb);
 
     const gps = resultadoGps.ok ? resultadoGps.gps : null;
+    const proveedor = gps?.proveedor ?? resolverProveedorGps(gps_motoDb);
+    const gps_moto =
+      gps_motoDb.trim() ||
+      (gps ? gpsMotoDesdeProveedor(gps.proveedor) : gpsMotoDesdeProveedor(proveedor));
+
     const gps_mensaje = gps
       ? null
       : mensajeGpsNoDisponible(
           placa,
           resultadoGps.ok ? "sin_dispositivo" : resultadoGps.motivo,
-          gps_moto,
+          gps_motoDb,
         );
 
     return NextResponse.json({
       vehiculo,
       gps,
-      gps_moto: gps_moto || proveedor,
+      gps_moto,
       gps_proveedor: proveedor,
       gps_mensaje,
     });
