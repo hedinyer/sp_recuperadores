@@ -8,6 +8,7 @@ import { formatearCOP, minimoCobroDeuda } from "@/lib/formatoDinero";
 import type { ResultadoMoroso, RiesgoMora } from "@/lib/analisisMorosidad";
 import type { ResultadoAtraso } from "@/lib/atrasosFromDb";
 import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
+import { formatFechaCorta } from "@/lib/fechas";
 
 type VistaTab = "morosos" | "atrasos";
 type FiltroVista = "todos" | "sin_pago_hoy" | "criticos";
@@ -59,13 +60,6 @@ function enlaceWhatsApp(telefono: string, texto: string): string | null {
       ? `57${digits.slice(1)}`
       : `57${digits}`;
   return `https://wa.me/${conPais}?text=${encodeURIComponent(texto)}`;
-}
-
-function formatFechaCorta(iso: string): string {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  if (!d) return iso;
-  return `${d}/${m}/${y?.slice(2) ?? y}`;
 }
 
 function hoyIso(): string {

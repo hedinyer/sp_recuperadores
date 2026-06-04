@@ -52,7 +52,7 @@ export function DeudaResumenSection({
           <div className="mt-3 flex flex-wrap gap-2">
             {diasMora > 0 && (
               <span className="inline-flex items-center rounded-full bg-amber-950/80 border border-amber-800/60 px-2.5 py-1 text-xs font-medium text-amber-200">
-                {diasMora} {diasMora === 1 ? "día" : "días"} sin pagar
+                {diasMora} {diasMora === 1 ? "día" : "días"} en mora
               </span>
             )}
             {cuotasPend != null && cuotasPend > 0 && (
@@ -60,7 +60,7 @@ export function DeudaResumenSection({
                 {cuotasPend % 1 === 0
                   ? cuotasPend.toFixed(0)
                   : cuotasPend.toFixed(1)}{" "}
-                cuotas pend.
+                cuotas en mora
               </span>
             )}
           </div>

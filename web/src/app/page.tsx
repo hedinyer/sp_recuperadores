@@ -14,6 +14,7 @@ import {
   mensajeErrorGps,
   obtenerGpsUbicacion,
 } from "@/lib/geolocation";
+import { formatFechaCorta } from "@/lib/fechas";
 import { FotoComprobante } from "@/components/FotoComprobante";
 import { AvisoGpsPendiente, UbicacionGpsMoto } from "@/components/UbicacionGpsMoto";
 import {
@@ -60,13 +61,6 @@ function enlaceWhatsApp(telefono: string | undefined): string | null {
   return `https://wa.me/${conPais}`;
 }
 
-function formatFechaCorta(iso: string | undefined): string {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  if (!d) return iso;
-  return `${d}/${m}/${y?.slice(2) ?? y}`;
-}
-
 function limpiarNumero(valor: string): string {
   return valor.replace(/\D/g, "");
 }
@@ -102,6 +96,15 @@ function StatMini({
       </span>
     </div>
   );
+}
+
+function formatCuotasMora(cuotasPend: number | null): string {
+  if (cuotasPend == null || Number.isNaN(cuotasPend) || cuotasPend <= 0) {
+    return "0";
+  }
+  return cuotasPend % 1 === 0
+    ? String(Math.round(cuotasPend))
+    : cuotasPend.toFixed(1);
 }
 
 export default function Home() {
@@ -620,9 +623,12 @@ export default function Home() {
 
   const wa = v ? enlaceWhatsApp(v.telefono) : null;
   const diasMora = v ? parseInt(String(v.dias_mora ?? "0"), 10) || 0 : 0;
-  const cuotasPend = v?.cuotas_pendientes
-    ? parseFloat(v.cuotas_pendientes)
-    : null;
+  const cuotasPendRaw =
+    v?.cuotas_pendientes != null && String(v.cuotas_pendientes).trim() !== ""
+      ? parseFloat(String(v.cuotas_pendientes))
+      : null;
+  const cuotasPend =
+    cuotasPendRaw != null && !Number.isNaN(cuotasPendRaw) ? cuotasPendRaw : null;
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -781,15 +787,12 @@ export default function Home() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {diasMora > 0 && (
                     <span className="inline-flex items-center rounded-full bg-amber-950/80 border border-amber-800/60 px-2.5 py-1 text-xs font-medium text-amber-200">
-                      {diasMora} {diasMora === 1 ? "día" : "días"} sin pagar
+                      {diasMora} {diasMora === 1 ? "día" : "días"} en mora
                     </span>
                   )}
                   {cuotasPend != null && cuotasPend > 0 && (
                     <span className="inline-flex items-center rounded-full bg-zinc-800/90 border border-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-300">
-                      {cuotasPend % 1 === 0
-                        ? cuotasPend.toFixed(0)
-                        : cuotasPend.toFixed(1)}{" "}
-                      cuotas pend.
+                      {formatCuotasMora(cuotasPend)} cuotas en mora
                     </span>
                   )}
                 </div>
@@ -816,12 +819,11 @@ export default function Home() {
                 )
               ) : null}
 
-              {/* Resumen rápido */}
               <section className="grid grid-cols-3 divide-x divide-zinc-800 border-b border-zinc-800 bg-zinc-900/40">
                 <StatMini
-                  label="Mora"
-                  value={diasMora > 0 ? `${diasMora} d` : "0"}
-                  accent={diasMora > 7}
+                  label="Cuotas en mora"
+                  value={formatCuotasMora(cuotasPend)}
+                  accent={(cuotasPend ?? 0) >= 5}
                 />
                 <StatMini
                   label="Últ. pago"
