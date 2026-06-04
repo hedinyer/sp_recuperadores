@@ -1,0 +1,55 @@
+1.Authentication
+Get the Access Token
+Request Body schema: application/json
+appid
+required
+string
+appid is your account name
+
+time
+required
+integer
+Current Unix format timestamp in seconds
+
+signature
+required
+string
+Signature using generation method: md5(md5(secret key)+time), where md5 uses 32-bit lowercase md5 algorithm, secret key is your secret key. Please contact technical support to obtain it. time is your request timestamp.
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code
+required
+integer
+0: Success, others: Failure
+
+result	
+string
+Error message. If code is not equal to 0, an error message will be returned.
+
+accessToken	
+string
+Credentials used to access other interfaces
+
+expiresIn	
+integer
+The remaining validity time of the voucher, in milliseconds, default 2H
+
+
+post
+/api/auth
+https://open.iopgps.com/api/auth
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"appid": "string",
+"time": 0,
+"signature": "string"
+}

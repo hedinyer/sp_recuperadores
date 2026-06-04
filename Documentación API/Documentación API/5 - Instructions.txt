@@ -1,0 +1,140 @@
+Send oil and electricity cutoff command (wired equipment)
+Request Body schema: application/json
+code	
+integer
+message	
+string
+parameter	
+string
+"1": Turn on oil and electricity, "2": Turn off oil and electricity, "3": Check the status of oil and electricity
+
+imeis	
+Array of strings
+Device number array
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+Error code, 0: success, others: failure
+
+result	
+string
+Reason for failure
+
+details	
+Array of objects
+
+post
+/api/instruction/relay
+https://open.iopgps.com/api/instruction/relay
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"code": 0,
+"message": "string",
+"parameter": "string",
+"imeis": [
+"string"
+]
+}
+-------------
+View command execution results
+query Parameters
+uuid	
+string
+Instruction execution number, multiple can be separated by commas
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+details	
+Array of objects
+Datasheets
+
+
+get
+/api/instruction/relay
+https://open.iopgps.com/api/instruction/relay
+----------
+Set positioning frequency (wireless device)
+Request Body schema: application/json
+imeis	
+Array of strings
+Device number array
+
+timePoint	
+string
+Daily online time range: [00:00, 23:59]
+
+rate	
+integer
+Online frequency range [1, 60] minutes, timePoint and rate are two options.
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+details	
+Array of objects
+Command response result list
+
+
+post
+/api/instruction/rate
+https://open.iopgps.com/api/instruction/rate
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"imeis": [
+"string"
+],
+"timePoint": "string",
+"rate": 0
+}
+--------
+Send a command to change the device positioning mode
+query Parameters
+imei
+required
+string
+Device No
+
+mode
+required
+string
+Positioning mode, 1: tracking mode 30s, 2: normal mode 600s, 3: power saving mode 3600s, 4: standby mode 86400s
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+resultBean	
+object
+historyId	
+number
+
+get
+/api/instruction/positioning/mode
+https://open.iopgps.com/api/instruction/positioning/mode

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
+import { supabase } from "@/lib/supabase";
+import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
   enviarComandoMotor,
   type AccionMotorGps,
-} from "@/lib/systemTrackGps";
+} from "@/lib/gpsMoto";
 
 export const runtime = "nodejs";
 
@@ -40,7 +42,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const resultado = await enviarComandoMotor(placa, accion);
+    const placaNorm = normalizarPlaca(placa);
+    const { data: filaPlaca } = await supabase
+      .from("placas")
+      .select("gps_moto")
+      .eq("placa", placaNorm)
+      .order("fecha", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const gpsMoto = String(
+      body.gps_moto ?? filaPlaca?.gps_moto ?? "",
+    ).trim();
+
+    const resultado = await enviarComandoMotor(placa, accion, gpsMoto);
     if (!resultado.ok) {
       return NextResponse.json({ error: resultado.error }, { status: 502 });
     }

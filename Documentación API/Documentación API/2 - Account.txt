@@ -1,0 +1,325 @@
+2.Account
+Modify the user password of the subordinate account
+Request Body schema: application/json
+password
+required
+string
+User password, plain text
+
+userName
+required
+string
+Login Name
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code
+required
+string
+message
+required
+string
+data	
+string
+
+put
+/api/user/password
+https://open.iopgps.com/api/user/password
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"password": "string",
+"userName": "string"
+}
+-----------
+Modify basic account information
+Request Body schema: application/json
+accountId	
+number
+Account ID
+
+userName	
+string
+Account Name
+
+contactUser	
+string
+Contact person
+
+contactTel	
+string
+contact number
+
+email	
+string
+Mail
+
+address	
+string
+address
+
+renewalContact	
+string
+Renewal Contact
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+resultBean	
+object
+success	
+boolean
+resultStatusBean	
+object
+
+put
+/api/account/detail
+https://open.iopgps.com/api/account/detail
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"accountId": 0,
+"userName": "string",
+"contactUser": "string",
+"contactTel": "string",
+"email": "string",
+"address": "string",
+"renewalContact": "string"
+}
+----------------
+Get account tree
+query Parameters
+id	
+string
+The account ID of this level or a lower level. If it is empty, it defaults to the account ID of this level.
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code
+required
+integer
+Status code, 0: success, others: failure
+
+result	
+string
+error message
+
+accountId
+required
+integer
+account id
+
+account
+required
+string
+account
+
+userName
+required
+string
+Nick name
+
+parentAccountId	
+integer
+parent id
+
+childAccounts	
+Array of objects
+subset list
+
+
+get
+/api/account/tree
+https://open.iopgps.com/api/account/tree
+------------------
+Create Account
+Request Body schema: application/json
+account
+required
+string
+Unique user identification code, cannot be repeated
+
+userName
+required
+string
+username
+
+parentAccountId
+required
+integer
+The parent node ID of the user tree
+
+password
+required
+string
+Default account password, format: 6 to 16 letters and numbers
+
+contactUser	
+string
+Contact person
+
+contactTel	
+string
+contact number
+
+address	
+string
+contact address
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+result	
+string
+accountId	
+integer
+account id
+
+account	
+string
+account
+
+userName	
+string
+username
+
+
+post
+/api/account/tree
+https://open.iopgps.com/api/account/tree
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"account": "string",
+"userName": "string",
+"parentAccountId": 0,
+"password": "string",
+"contactUser": "string",
+"contactTel": "string",
+"address": "string"
+}
+----------
+Create login user
+Request Body schema: application/json
+account
+required
+string
+Login name, unique
+
+name
+required
+string
+Login account display name
+
+password
+required
+string
+Login account password, format: 6 to 16 letters or numbers
+
+contactUser	
+string
+Contact person
+
+contactTel	
+string
+contact number
+
+organizationId
+required
+integer
+accountId in user tree interface
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+result	
+string
+
+post
+/api/user
+https://open.iopgps.com/api/user
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"account": "string",
+"name": "string",
+"password": "string",
+"contactUser": "string",
+"contactTel": "string",
+"organizationId": 0
+}
+--------------------
+Query device list paginated by account
+query Parameters
+id	
+string
+Account ID. If empty, the account ID of this level will be used by default.
+
+currentPage
+required
+string
+Current page number, default: 1
+
+pageSize
+required
+string
+Number of data items per page, default: 20, maximum: 100
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+status code
+
+result	
+string
+error message
+
+data	
+Array of objects
+Device collection
+
+page	
+object
+
+get
+/api/device
+https://open.iopgps.com/api/device
+------------------

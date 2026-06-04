@@ -1,4 +1,10 @@
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
+import type {
+  AccionMotorGps,
+  UbicacionGpsMoto,
+} from "@/lib/ubicacionGps";
+
+export type { AccionMotorGps, UbicacionGpsMoto };
 
 const SYSTEMTRACK_BASE_URL =
   process.env.SYSTEMTRACK_API_URL?.trim() ||
@@ -15,21 +21,6 @@ const CACHE_TTL_MS = 45_000;
 /** Sin caché en vivo: cada poll pide datos frescos a GPSWOX. */
 const CACHE_TTL_EN_VIVO_MS = 0;
 const AUTH_TTL_MS = 25 * 60_000;
-
-export type UbicacionGpsMoto = {
-  deviceId: number;
-  lat: number;
-  lng: number;
-  speed: number;
-  course: number;
-  time: string;
-  online: string;
-  coords: string;
-  bloqueado: boolean;
-  nombreDispositivo: string;
-};
-
-export type AccionMotorGps = "bloquear" | "desbloquear";
 
 type GpsSensor = {
   tag_name?: string;
@@ -167,7 +158,9 @@ function mapearDispositivo(item: GpsDeviceItem): UbicacionGpsMoto | null {
   if (lat === 0 && lng === 0) return null;
 
   return {
+    proveedor: "system_track",
     deviceId,
+    imei: "",
     lat,
     lng,
     speed: Number(item.speed) || 0,

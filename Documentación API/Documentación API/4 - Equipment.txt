@@ -1,0 +1,846 @@
+4.Equipment
+Create or modify vehicles in batches
+When creating, vin is required
+
+Request Body schema: application/json
+data
+required
+Array of objects
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+failImeis	
+Array of objects
+Failed to create or modify device number list
+
+
+post
+/api/device
+https://open.iopgps.com/api/device
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"data": [
+{}
+]
+}
+-------
+Batch paging query device detailed information
+Request Body schema: application/json
+accountId	
+string
+Only one store ID (accountId, imei, licenseNumber, vin) can be filled in. Please fill in the following priority order: accountId first, followed by imei, then licenseNumber, and finally vin. If you fill in multiple fields, they will take effect in this order.
+
+imei	
+Array of strings
+Device No
+
+licenseNumber	
+Array of strings
+number plate
+
+vin	
+Array of strings
+Frame number
+
+pageSize	
+string
+Default 20, maximum value 100
+
+currentPage	
+string
+Default 1
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+data	
+object
+resultBean	
+object
+success	
+boolean
+resultStatusBean	
+object
+
+post
+/api/device/detail/page
+https://open.iopgps.com/api/device/detail/page
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"accountId": "string",
+"imei": [
+"string"
+],
+"licenseNumber": [
+"string"
+],
+"vin": [
+"string"
+],
+"pageSize": "string",
+"currentPage": "string"
+}
+--------
+Query device detailed information
+query Parameters
+imei
+required
+string
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+data	
+object
+resultBean	
+object
+success	
+boolean
+resultStatusBean	
+object
+
+get
+/api/device/detail
+https://open.iopgps.com/api/device/detail
+-----------
+Modify device information
+Request Body schema: application/json
+deviceBrief	
+object
+vehicleBean	
+object
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+result	
+string
+message	
+string
+error message
+
+
+put
+/api/device/detail
+https://open.iopgps.com/api/device/detail
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"deviceBrief": {
+"imei": "string",
+"name": "string",
+"endTime": 0,
+"deviceMobile": "string",
+"saleTime": 0,
+"useStatus": 0,
+"note": "string"
+},
+"vehicleBean": {
+"vin": "string",
+"licenseNumber": "string",
+"carOwner": "string",
+"contactUser": "string",
+"contactTel": "string",
+"contractNumber": "string",
+"carType": "string",
+"color": "string",
+"loanStartTime": 0,
+"loanPeriods": 0,
+"carBrand": "string",
+"carSeries": "string",
+"dateOfMake": 0,
+"email": "string",
+"postCode": "string",
+"driverLicense": "string"
+}
+}
+------------
+Device recharge card renewal
+Request Body schema: application/json
+rechargeCardType
+required
+number
+Recharge card type: 1 month card, 12 year card, 120 lifetime card
+
+imeis
+required
+Array of strings
+Device No
+
+accountId	
+number
+Debit account ID (must be a dealer account)
+
+rechargeCardYear
+required
+number
+Number of recharge cards used
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+message	
+string
+error message
+
+resultBean	
+object
+success	
+boolean
+resultStatusBean	
+object
+result	
+string
+
+post
+/api/device/recharge
+https://open.iopgps.com/api/device/recharge
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"rechargeCardType": 0,
+"imeis": [
+"string"
+],
+"accountId": 0,
+"rechargeCardYear": 0
+}
+--------------
+Transfer devices to other accounts in batches
+Request Body schema: application/json
+ownerId
+required
+string
+Target account ID
+
+imeiSet
+required
+Array of strings
+Device No
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code
+required
+string
+message
+required
+string
+data
+required
+string
+
+put
+/api/device/batch/transfer
+https://open.iopgps.com/api/device/batch/transfer
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"ownerId": "string",
+"imeiSet": [
+"string"
+]
+}
+-------------
+Query device status
+query Parameters
+imei	
+string
+Device No
+
+account	
+string
+account
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+data	
+Array of objects
+Datasheets
+
+
+get
+/api/device/status
+https://open.iopgps.com/api/device/status
+----------
+Device real-time location
+This interface returns real-time location information analysis of the device. It only provides a total of 3 million quotas per day. This interface does not guarantee that a large number of Chinese addresses can be obtained.
+
+This interface prohibits polling and is limited to a single device and a single call; if the demand is large, please call Baidu's "Reverse Geographical Analysis Interface" by yourself
+query Parameters
+imei
+required
+string
+Device No
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+result	
+string
+lng	
+string
+Longitude wgs84ll coordinate system
+
+lat	
+string
+Latitude wgs84ll coordinate system
+
+address	
+string
+address
+
+gpsTime	
+number
+Positioning time
+
+
+get
+/api/device/location
+https://open.iopgps.com/api/device/location
+--------
+Equipment history track
+query Parameters
+imei
+required
+string
+Device No
+
+startTime
+required
+string
+Start time, timestamp, unit seconds
+
+endTime	
+string
+End time, timestamp, unit second, do not fill in the current time, the span cannot exceed 1 month, only data within 9 months can be obtained
+
+coordType	
+string
+Coordinate system type, wgs84 or not transferred to geodetic coordinate system, bd09ll is Baidu coordinate system (Baidu Map), gcj02 is Mars coordinate system (Amap, QQ, Google Maps)
+
+onlyGps	
+string
+Whether to return only GPS positioning type trajectories, 1 means only returns GPS positioning type trajectories, 0 or not passed, returns all positioning type trajectories
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+result	
+string
+data	
+Array of objects
+
+get
+/api/device/track/history
+https://open.iopgps.com/api/device/track/history
+-------------
+Equipment alarm record
+query Parameters
+imei
+required
+string
+Device No
+
+startTime
+required
+string
+Start time, timestamp, unit seconds
+
+endTime
+required
+string
+End time, timestamp, unit seconds
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+details	
+Array of objects
+
+get
+/api/device/alarm
+https://open.iopgps.com/api/device/alarm
+----------
+Count the number of device statuses
+query Parameters
+account	
+string
+account
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+result	
+string
+staticNum	
+integer
+Number of stationary devices
+
+moveNum	
+integer
+Number of sports equipment
+
+offlineNum	
+integer
+Number of offline
+
+unusedNum	
+integer
+unused number
+
+
+get
+/api/device/status/statistic
+https://open.iopgps.com/api/device/status/statistic
+-----------
+Mileage statistics
+query Parameters
+startTime	
+string
+Start time, timestamp, unit seconds
+
+endTime	
+string
+End time, timestamp, unit second, do not fill in the current time, the span cannot exceed 1 month, only data within 9 months can be obtained
+
+imei	
+string
+Device No
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+result	
+string
+runTime	
+number
+Running time, unit seconds
+
+miles	
+number
+Mileage in kilometers
+
+
+get
+/api/device/miles
+https://open.iopgps.com/api/device/miles
+--------------
+Check device location information by user
+query Parameters
+accountId	
+string
+account id
+
+isTakeSub	
+string
+Whether to include subordinates (1: included, others: not included)
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+result	
+string
+data	
+Array of objects
+
+get
+/api/device/locations/search-by-organization
+https://open.iopgps.com/api/device/locations/search-by-organization
+-----------
+Reverse address parsing into longitude and latitude to set home address and work address
+Request Body schema: application/json
+imei	
+string
+Device No
+
+homeAddress	
+string
+family address
+
+companyAddress	
+string
+working address
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+resultBean
+required
+object
+
+post
+/api/address/to/geo
+https://open.iopgps.com/api/address/to/geo
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"imei": "string",
+"homeAddress": "string",
+"companyAddress": "string"
+}
+-----------
+Add device fence
+Example of a request to create a circular fence based on latitude and longitude:
+{
+    "triggerType":1,
+    "imei":"868120162158934",
+    "mapType":1,
+    "oneTime":1,
+    "setting":"101.857706 22.575529 368",
+    "type":2,
+    "fenceName":"8934的围栏"
+}
+Example of creating a circular fence request based on a Chinese address
+
+{
+    "createByAddress": 1,
+    "triggerType":1,
+    "imei":"868120162158934",
+    "cityId": 310113,
+    "address": "蕰川路1999号",
+    "radius": 100,
+    "oneTime":1,
+    "fenceName":"8934的围栏"
+}
+Example of creating an area fence request
+{
+    "triggerType":1,
+    "imei":"868120162158934",
+    "type": 1,
+    "oneTime":1,
+    "fenceName":"8934的围栏",
+    "setting": "310000"
+}
+Create polygonal fence request example
+{
+    "triggerType": 1,
+    "imei": "867597017868891",
+    "mapType": "1",
+    "oneTime": 1,
+    "setting": "120.52156152553987 30.69047320037628,120.5289276311816 30.68761608261841,120.52271135666444 30.68510050606933,120.52156152553987 30.69047320037628",
+    "type": 3,
+    "fenceName": "424242"
+}
+Example of fortified fence request
+{
+    "imei": "860419050024984",
+    "triggerType": 2,
+    "mapType": 1,
+    "oneTime": 0,
+    "type": 2,
+    "setting": "121.436079 31.388727 1000",
+    "radius": 1000,
+    "fortifyType": 2,
+    "cycle": "1111100",
+    "time": "08:00-20:59"
+}
+Request Body schema: application/json
+triggerType	
+integer
+1 will alarm when entering the fence, 2 will alarm when exiting the fence, and 3 will alarm when entering and exiting the fence.
+
+mapType	
+integer
+Coordinate system (1: bd09ll, 2: gcj02ll, null: wgs84ll)
+
+oneTime	
+integer
+Whether to use it only once 1 yes once 0 no multiple times
+
+type	
+integer
+fenceName	
+string
+fence name
+
+imei	
+string
+Device No
+
+createByAddress	
+integer
+Default: "0"
+Whether to create based on address (currently only circular fences are supported) 1: Yes, others: No
+
+setting	
+string
+Required when "createByAddress" is not equal to 1, "101.857706 22.575529 368" Circular fence: "Latitude and longitude radius (meters)", Regional fence: "cityId" Polygon fence: 120.52156152553987 30.69047320037628,120.5289276311816 3 0.68761608261841,120.52271135666444 30.68510050606933
+
+cityId	
+integer
+Required when "createByAddress" is equal to 1, national standard region ID
+
+address	
+string
+Required when "createByAddress" is equal to 1, detailed address (street, house number)
+
+radius	
+integer
+Required when "createByAddress" is equal to 1, circular fence radius (meters)
+
+fortifyType	
+integer
+Defense type, 1: Temporary defense, 2: Customized defense
+
+cycle	
+string
+Period, 7 digits from left to right represent Monday to Sunday respectively, 0: off, 1: on
+
+time	
+string
+Defense time, the format of daily time period is 00:00-23:59
+
+startTime	
+integer
+Start time, timestamp, unit seconds
+
+endTime	
+integer
+End time, timestamp, unit seconds
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+fenceId	
+number
+fence id
+
+resultBean	
+object
+
+post
+/api/fence/add
+https://open.iopgps.com/api/fence/add
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+{
+"triggerType": 0,
+"mapType": 0,
+"oneTime": 0,
+"type": 0,
+"fenceName": "string",
+"imei": "string",
+"createByAddress": "0",
+"setting": "string",
+"cityId": 0,
+"address": "string",
+"radius": 0,
+"fortifyType": 0,
+"cycle": "string",
+"time": "string",
+"startTime": 0,
+"endTime": 0
+}
+------------
+Query equipment fence
+query Parameters
+imei	
+string
+Device No
+
+mapType	
+string
+Coordinate system (1: bd09ll, 2: gcj02ll, null: wgs84ll)
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+fenceBeanList	
+Array of objects
+resultBean	
+object
+
+get
+/api/fence/query
+https://open.iopgps.com/api/fence/query
+-------
+Delete device fence
+path Parameters
+fenceId
+required
+string
+FenceId
+
+query Parameters
+imei	
+string
+Device No
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+resultBean	
+object
+
+delete
+/api/fence/del/{fenceId}
+https://open.iopgps.com/api/fence/del/{fenceId}
+------------
+Device details
+query Parameters
+imei	
+string
+Device No
+
+account	
+string
+account
+
+lang	
+string
+Language, can support 19 languages, such as en, ar, bd, de...
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+data	
+Array of objects
+
+get
+/api/device/info
+https://open.iopgps.com/api/device/info
+---------
+Set overspeed in batches
+Request Body schema: application/json
+imeiSet	
+Array of strings
+Device number collection
+
+speedLimit	
+number
+Speeding threshold (range: 20~999)
+
+overspeedWarn	
+number
+0-off, 1-on
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+result	
+string
+
+post
+/api/batch/setalarm/speedlimit
+https://open.iopgps.com/api/batch/setalarm/speedlimit
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"imeiSet": [
+"string"
+],
+"speedLimit": 0,
+"overspeedWarn": 0
+}
+------------

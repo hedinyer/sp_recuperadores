@@ -6,7 +6,8 @@ import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
   buscarUbicacionGps,
   mensajeGpsNoDisponible,
-} from "@/lib/systemTrackGps";
+  resolverProveedorGps,
+} from "@/lib/gpsMoto";
 
 export const runtime = "nodejs";
 
@@ -46,10 +47,9 @@ export async function GET(request: Request) {
       );
     }
 
-    const [resultadoGps, gps_moto] = await Promise.all([
-      buscarUbicacionGps(placa),
-      obtenerGpsMotoPlaca(placa),
-    ]);
+    const gps_moto = await obtenerGpsMotoPlaca(placa);
+    const proveedor = resolverProveedorGps(gps_moto);
+    const resultadoGps = await buscarUbicacionGps(placa, gps_moto);
 
     const gps = resultadoGps.ok ? resultadoGps.gps : null;
     const gps_mensaje = gps
@@ -57,9 +57,16 @@ export async function GET(request: Request) {
       : mensajeGpsNoDisponible(
           placa,
           resultadoGps.ok ? "sin_dispositivo" : resultadoGps.motivo,
+          gps_moto,
         );
 
-    return NextResponse.json({ vehiculo, gps, gps_moto, gps_mensaje });
+    return NextResponse.json({
+      vehiculo,
+      gps,
+      gps_moto: gps_moto || proveedor,
+      gps_proveedor: proveedor,
+      gps_mensaje,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error leyendo datos";
     return NextResponse.json({ error: msg }, { status: 500 });

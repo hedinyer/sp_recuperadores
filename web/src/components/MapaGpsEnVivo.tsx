@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 
 import { useEffect, useRef } from "react";
 
-import type { UbicacionGpsMoto } from "@/lib/systemTrackGps";
+import type { UbicacionGpsMoto } from "@/lib/ubicacionGps";
 
 export type PuntoRutaGps = { lat: number; lng: number };
 

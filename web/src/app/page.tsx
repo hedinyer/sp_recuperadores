@@ -28,7 +28,7 @@ import {
   descargarBlob,
   dataUrlToBlob,
 } from "@/lib/reciboImagen";
-import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/systemTrackGps";
+import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/ubicacionGps";
 
 type Vehiculo = Record<string, string>;
 type TipoRecibo = "pago" | "recuperada";
@@ -110,6 +110,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [v, setV] = useState<Vehiculo | null>(null);
   const [gpsMoto, setGpsMoto] = useState<UbicacionGps | null>(null);
+  const [gpsMotoTipo, setGpsMotoTipo] = useState("iop gps");
   const [gpsMensaje, setGpsMensaje] = useState<string | null>(null);
 
   const [pagoPaso, setPagoPaso] = useState<PagoPaso | null>(null);
@@ -271,6 +272,7 @@ export default function Home() {
       }
       setV(data.vehiculo as Vehiculo);
       setGpsMoto(data.gps ?? null);
+      setGpsMotoTipo(String(data.gps_moto ?? data.gps_proveedor ?? "iop gps"));
       setGpsMensaje(data.gps_mensaje ?? null);
     } catch {
       setError("Sin conexión o error de red");
@@ -290,6 +292,7 @@ export default function Home() {
       const data = await res.json();
       if (res.ok) {
         setGpsMoto(data.gps ?? null);
+        setGpsMotoTipo(String(data.gps_moto ?? data.gps_proveedor ?? "iop gps"));
         setGpsMensaje(data.gps_mensaje ?? null);
       }
     } catch {
@@ -798,6 +801,7 @@ export default function Home() {
                     key={`gps-${(v.placa || placa).toUpperCase().replace(/\s/g, "")}`}
                     placa={(v.placa || placa).toUpperCase().replace(/\s/g, "")}
                     gps={gpsMoto}
+                    gpsMoto={gpsMotoTipo}
                     activo={mostrarGps}
                     onActualizar={actualizarGps}
                   />

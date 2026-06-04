@@ -1,0 +1,310 @@
+3.Vehicles
+Add a new vehicle and bind equipment
+licenseNumber and vin cannot be empty at the same time and support format verification.
+
+Request Body schema: application/json
+licenseNumber	
+string
+number plate
+
+carOwner	
+string
+Car owner name
+
+contactUser	
+string
+Contact person
+
+contactTel	
+string
+contact number
+
+contractNumber	
+string
+Contract No
+
+vin	
+string
+Frame number
+
+data	
+Array of objects
+Bind device list parameters
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+
+post
+/api/vehicle
+https://open.iopgps.com/api/vehicle
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"licenseNumber": "string",
+"carOwner": "string",
+"contactUser": "string",
+"contactTel": "string",
+"contractNumber": "string",
+"vin": "string",
+"data": [
+{}
+]
+}
+----------------
+Unbinding equipment and vehicles in batches
+Request Body schema: application/json
+imeis	
+Array of strings
+Array of device numbers. The incoming device number will be checked for permissions to determine whether the device belongs to the currently logged-in user node.
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+
+put
+/api/device/unbind/vehicle
+https://open.iopgps.com/api/device/unbind/vehicle
+Request samples
+Payload
+Content type
+application/json
+
+Copy
+Expand allCollapse all
+{
+"imeis": [
+"string"
+]
+}
+-------
+Check device status by car_1.0
+query Parameters
+content
+required
+string
+Search content
+
+mapType	
+string
+Coordinate system (1: bd09ll, 2: gcj02ll, null: wgs84ll)
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+data	
+Array of objects
+
+get
+/api/vehicle/status
+https://open.iopgps.com/api/vehicle/status
+--------------------
+Check device status by car_2.0
+query Parameters
+licenseNumber	
+string
+number plate
+
+vin	
+string
+Frame number
+
+mapType	
+string
+Coordinate system (1: bd09ll, 2: gcj02ll, null: wgs84ll)
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+number
+data	
+Array of objects
+Return data list
+
+
+get
+/api/vehicle/status/v2
+https://open.iopgps.com/api/vehicle/status/v2
+-----------------
+Query the number of times ACC is enabled
+query Parameters
+accountId	
+string
+account id
+
+isTakeSub	
+string
+Whether to include subordinates (1: included, others: not included)
+
+vehicleType	
+string
+Vehicle Type
+
+startTime	
+string
+Start time, timestamp, unit seconds
+
+endTime	
+string
+End time, timestamp, unit seconds
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+data	
+object
+
+get
+/api/vehicle/acc
+https://open.iopgps.com/api/vehicle/acc
+--------------
+Vehicle Location_1.0
+query Parameters
+accountId	
+string
+account id
+
+isTakeSub	
+string
+Whether to include subordinates (1: included, others: not included)
+
+vehicleType	
+string
+Vehicle Type
+
+mapType	
+string
+Coordinate system (1: bd09ll, 2: gcj02ll, null: wgs84ll)
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+data	
+object
+
+get
+/api/vehicle/location
+https://open.iopgps.com/api/vehicle/location
+---------
+Vehicle Location_2.0
+query Parameters
+accountId	
+string
+account id
+
+isTakeSub	
+string
+Whether to include subordinates (1: included, others: not included)
+
+vehicleType	
+string
+Vehicle Type
+
+mapType	
+string
+Coordinate system (1: bd09ll, 2: gcj02ll, null: wgs84ll)
+
+start	
+string
+Paging starting position, default 0
+
+limit	
+string
+Number of paging data items, default 20, maximum 1000
+
+needCount	
+string
+Whether to return the total number of data items (countVehicle) field
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+message	
+string
+data	
+object
+
+get
+/api/vehicle/location/v2
+https://open.iopgps.com/api/vehicle/location/v2
+------------
+Vehicle stop details
+query Parameters
+imei	
+string
+Device No
+
+licenseNumber	
+string
+number plate
+
+vin	
+string
+Frame number
+
+startTime
+required
+string
+Start time, timestamp, unit seconds
+
+endTime
+required
+string
+End time, timestamp, unit seconds
+
+Responses
+200
+successful operation
+
+Response Schema: */*
+code	
+integer
+result	
+string
+data	
+Array of objects
+
+get
+/api/vehicle/stay/v2
+https://open.iopgps.com/api/vehicle/stay/v2
+-----------

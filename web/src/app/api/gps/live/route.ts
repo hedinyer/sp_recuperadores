@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import {
   buscarUbicacionGpsEnVivo,
   mensajeGpsNoDisponible,
-} from "@/lib/systemTrackGps";
+} from "@/lib/gpsMoto";
 
 export const runtime = "nodejs";
 
@@ -19,17 +19,21 @@ export async function GET(request: Request) {
 
   const deviceIdRaw = searchParams.get("device_id");
   const deviceId = deviceIdRaw ? Number(deviceIdRaw) : undefined;
+  const imei = searchParams.get("imei")?.trim() || undefined;
+  const gpsMoto = searchParams.get("gps_moto");
 
   try {
-    const resultado = await buscarUbicacionGpsEnVivo(
-      placa,
-      Number.isFinite(deviceId) && deviceId! > 0 ? deviceId : undefined,
-    );
+    const resultado = await buscarUbicacionGpsEnVivo(placa, {
+      gpsMoto,
+      deviceId:
+        Number.isFinite(deviceId) && deviceId! > 0 ? deviceId : undefined,
+      imei,
+    });
 
     if (!resultado.ok) {
       return NextResponse.json({
         gps: null,
-        mensaje: mensajeGpsNoDisponible(placa, resultado.motivo),
+        mensaje: mensajeGpsNoDisponible(placa, resultado.motivo, gpsMoto),
       });
     }
 

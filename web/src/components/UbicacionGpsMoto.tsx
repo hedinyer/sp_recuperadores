@@ -4,10 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MapaGpsEnVivo, type PuntoRutaGps } from "@/components/MapaGpsEnVivo";
 import { enlaceGoogleMaps } from "@/lib/geolocation";
-import {
-  etiquetaEstadoGps,
-  type UbicacionGpsMoto as UbicacionGps,
-} from "@/lib/systemTrackGps";
+import { etiquetaEstadoGps, etiquetaProveedorGps } from "@/lib/gpsMoto";
+import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/ubicacionGps";
 
 /** Polling al mínimo práctico (API + red); animación del mapa en el mismo ritmo. */
 const INTERVALO_EN_VIVO_MS = 250;
@@ -15,6 +13,8 @@ const INTERVALO_EN_VIVO_MS = 250;
 type UbicacionGpsMotoProps = {
   placa: string;
   gps: UbicacionGps;
+  /** Valor en tabla placas: "iop gps" | "system track". */
+  gpsMoto?: string | null;
   /** Solo consulta GPS en vivo mientras el panel está abierto. */
   activo: boolean;
   onActualizar?: () => void;
@@ -34,6 +34,7 @@ function agregarPuntoRuta(prev: PuntoRutaGps[], punto: PuntoRutaGps): PuntoRutaG
 export function UbicacionGpsMoto({
   placa,
   gps: gpsInicial,
+  gpsMoto,
   activo,
   onActualizar,
 }: UbicacionGpsMotoProps) {
@@ -69,6 +70,8 @@ export function UbicacionGpsMoto({
         placa,
         device_id: String(deviceIdRef.current),
       });
+      if (gpsInicial.imei) params.set("imei", gpsInicial.imei);
+      if (gpsMoto) params.set("gps_moto", gpsMoto);
       const res = await fetch(`/api/gps/live?${params}`, {
         cache: "no-store",
         signal: abortRef.current?.signal,
@@ -96,7 +99,7 @@ export function UbicacionGpsMoto({
       fetchEnCursoRef.current = false;
       setActualizando(false);
     }
-  }, [activo, placa]);
+  }, [activo, placa, gpsMoto, gpsInicial.imei]);
 
   useEffect(() => {
     if (!activo || !enVivo) {
@@ -153,14 +156,14 @@ export function UbicacionGpsMoto({
         setEnviando(null);
       }
     },
-    [gps.nombreDispositivo, onActualizar, placa, refrescarPosicion],
+    [gps.nombreDispositivo, gpsMoto, onActualizar, placa, refrescarPosicion],
   );
 
   return (
     <section className="px-4 py-3.5 border-b border-zinc-800 bg-emerald-950/20">
       <div className="flex items-center justify-between gap-2 mb-2">
         <h2 className="text-[10px] font-medium uppercase tracking-wider text-emerald-400/90">
-          Ubicación GPS — System Track
+          Ubicación GPS — {etiquetaProveedorGps(gpsInicial.proveedor)}
         </h2>
         <div className="flex items-center gap-2">
           {enVivo ? (
@@ -300,7 +303,7 @@ export function AvisoGpsPendiente({ mensaje }: { mensaje: string }) {
   return (
     <section className="px-4 py-3.5 border-b border-zinc-800 bg-amber-950/20">
       <h2 className="text-[10px] font-medium uppercase tracking-wider text-amber-400/90 mb-1.5">
-        GPS System Track
+        GPS moto
       </h2>
       <p className="text-sm text-amber-100/90 leading-snug">{mensaje}</p>
     </section>
