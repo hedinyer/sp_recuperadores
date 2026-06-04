@@ -1,3 +1,4 @@
+import { extraerPlacasDeTexto, variantesPlaca } from "@/lib/placaGps";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import type {
   AccionMotorGps,
@@ -63,49 +64,6 @@ let cacheDispositivos: {
   porDeviceId: Map<number, UbicacionGpsMoto>;
 } | null = null;
 let cacheAuth: { hash: string; fetchedAt: number } | null = null;
-
-const PATRON_PLACA_MOTO = /[A-Z]{3}-?\d{2}H?\b/gi;
-const PATRON_PLACA_LEGACY = /[A-Z]{3}\d{3}\b/gi;
-
-function variantesPlaca(placa: string): string[] {
-  const norm = normalizarPlaca(placa);
-  if (!norm) return [];
-
-  const variantes = new Set<string>([norm]);
-  if (/^[A-Z]{3}\d{2}H$/.test(norm)) {
-    variantes.add(norm.slice(0, -1));
-  } else if (/^[A-Z]{3}\d{2}$/.test(norm)) {
-    variantes.add(`${norm}H`);
-  }
-  return [...variantes];
-}
-
-function registrarPlaca(claves: Set<string>, placaRaw: string): void {
-  const limpia = placaRaw.trim();
-  if (!limpia) return;
-  for (const variante of variantesPlaca(limpia)) {
-    claves.add(variante);
-  }
-}
-
-function extraerPlacasDeTexto(texto: string): string[] {
-  const raw = String(texto ?? "");
-  const encontradas = new Set<string>();
-
-  for (const match of raw.matchAll(PATRON_PLACA_MOTO)) {
-    registrarPlaca(encontradas, match[0]);
-  }
-  for (const match of raw.matchAll(PATRON_PLACA_LEGACY)) {
-    registrarPlaca(encontradas, match[0]);
-  }
-
-  const primero = raw.trim().split(/\s+/)[0] ?? "";
-  if (/^[A-Z]{3}-?\d{2,3}H?$/i.test(primero)) {
-    registrarPlaca(encontradas, primero);
-  }
-
-  return [...encontradas];
-}
 
 function clavesPlacaDispositivo(item: GpsDeviceItem): string[] {
   const claves = new Set<string>();

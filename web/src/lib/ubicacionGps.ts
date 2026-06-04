@@ -16,6 +16,8 @@ export type UbicacionGpsMoto = {
   coords: string;
   bloqueado: boolean;
   nombreDispositivo: string;
+  /** Cuenta IOP (appid) que reportó el dispositivo, para comandos. */
+  iopCuenta?: string;
 };
 
 export function resolverProveedorGps(raw: string | null | undefined): ProveedorGps {

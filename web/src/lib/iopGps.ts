@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 
+import { extraerPlacasDeTexto, variantesPlaca } from "@/lib/placaGps";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
   deviceIdDesdeImei,
@@ -9,11 +10,42 @@ import {
 
 const IOPGPS_BASE_URL =
   process.env.IOPGPS_API_URL?.trim() || "https://open.iopgps.com";
-const IOPGPS_APPID = process.env.IOPGPS_APPID?.trim() || "solucionespinilla";
-const IOPGPS_SECRET_KEY =
-  process.env.IOPGPS_SECRET_KEY?.trim() || "qr5i85fszplr0m149mskasoyx6fqhwei";
-const IOPGPS_ACCOUNT =
-  process.env.IOPGPS_ACCOUNT?.trim() || IOPGPS_APPID;
+
+type CuentaIop = {
+  appid: string;
+  secretKey: string;
+};
+
+const CUENTAS_IOP_DEFECTO: CuentaIop[] = [
+  {
+    appid: "solucionespinilla",
+    secretKey: "qr5i85fszplr0m149mskasoyx6fqhwei",
+  },
+  {
+    appid: "berala37",
+    secretKey: "q16guj78wwkxqjh2r7o833qj920rgve0",
+  },
+  {
+    appid: "all4motosbera",
+    secretKey: "tc1z9k9volktkclrz1c6tsh0m2emni7w",
+  },
+];
+
+function parseCuentasIopEnv(): CuentaIop[] {
+  const raw = process.env.IOPGPS_CUENTAS_JSON?.trim();
+  if (!raw) return CUENTAS_IOP_DEFECTO;
+  try {
+    const parsed = JSON.parse(raw) as CuentaIop[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.filter((c) => c.appid && c.secretKey);
+    }
+  } catch {
+    console.warn("[iopGps] IOPGPS_CUENTAS_JSON inválido, usando cuentas por defecto");
+  }
+  return CUENTAS_IOP_DEFECTO;
+}
+
+const CUENTAS_IOP = parseCuentasIopEnv();
 
 const CACHE_TTL_MS = 45_000;
 const CACHE_TTL_EN_VIVO_MS = 0;
@@ -61,7 +93,7 @@ type RelayResponse = {
   details?: Array<{ imei?: string; success?: boolean; message?: string }>;
 };
 
-let cacheAuth: { token: string; expira: number } | null = null;
+const cacheAuthPorCuenta = new Map<string, { token: string; expira: number }>();
 let cacheDispositivos: {
   fetchedAt: number;
   porPlaca: Map<string, UbicacionGpsMoto>;
@@ -69,51 +101,12 @@ let cacheDispositivos: {
   porImei: Map<string, UbicacionGpsMoto>;
 } | null = null;
 
-const PATRON_PLACA_MOTO = /[A-Z]{3}-?\d{2}H?\b/gi;
-const PATRON_PLACA_LEGACY = /[A-Z]{3}\d{3}\b/gi;
-
 function md5Lower(texto: string): string {
   return createHash("md5").update(texto, "utf8").digest("hex");
 }
 
-function firmarAuth(time: number): string {
-  return md5Lower(`${md5Lower(IOPGPS_SECRET_KEY)}${time}`);
-}
-
-function variantesPlaca(placa: string): string[] {
-  const norm = normalizarPlaca(placa);
-  if (!norm) return [];
-  const variantes = new Set<string>([norm]);
-  if (/^[A-Z]{3}\d{2}H$/.test(norm)) {
-    variantes.add(norm.slice(0, -1));
-  } else if (/^[A-Z]{3}\d{2}$/.test(norm)) {
-    variantes.add(`${norm}H`);
-  }
-  return [...variantes];
-}
-
-function registrarPlaca(claves: Set<string>, placaRaw: string): void {
-  const limpia = placaRaw.trim();
-  if (!limpia) return;
-  for (const variante of variantesPlaca(limpia)) {
-    claves.add(variante);
-  }
-}
-
-function extraerPlacasDeTexto(texto: string): string[] {
-  const raw = String(texto ?? "");
-  const encontradas = new Set<string>();
-  for (const match of raw.matchAll(PATRON_PLACA_MOTO)) {
-    registrarPlaca(encontradas, match[0]);
-  }
-  for (const match of raw.matchAll(PATRON_PLACA_LEGACY)) {
-    registrarPlaca(encontradas, match[0]);
-  }
-  const primero = raw.trim().split(/\s+/)[0] ?? "";
-  if (/^[A-Z]{3}-?\d{2,3}H?$/i.test(primero)) {
-    registrarPlaca(encontradas, primero);
-  }
-  return [...encontradas];
+function firmarAuth(time: number, secretKey: string): string {
+  return md5Lower(`${md5Lower(secretKey)}${time}`);
 }
 
 function formatFechaGps(segundos?: number): string {
@@ -127,10 +120,7 @@ function formatFechaGps(segundos?: number): string {
   return `${y}-${m}-${day} ${h}:${min}`;
 }
 
-function mapearEstadoOnline(
-  status: string,
-  signalTime?: number,
-): string {
+function mapearEstadoOnline(status: string, signalTime?: number): string {
   const st = status.trim();
   if (st.includes("离线") || st.toLowerCase().includes("offline")) {
     return "offline";
@@ -146,6 +136,7 @@ function mapearEstadoOnline(
 function mapearDispositivo(
   status: DeviceStatusRow,
   nombre: string,
+  cuenta: string,
 ): UbicacionGpsMoto | null {
   const imei = String(status.imei ?? "").trim();
   const lat = Number(status.lat);
@@ -170,6 +161,7 @@ function mapearDispositivo(
     coords: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
     bloqueado: false,
     nombreDispositivo: nombre.trim() || imei,
+    iopCuenta: cuenta,
   };
 }
 
@@ -194,10 +186,14 @@ async function fetchIop<T>(
   return (await res.json()) as T;
 }
 
-async function obtenerAccessToken(force = false): Promise<string> {
+async function obtenerAccessToken(
+  cuenta: CuentaIop,
+  force = false,
+): Promise<string> {
   const ahora = Date.now();
-  if (!force && cacheAuth && cacheAuth.expira > ahora) {
-    return cacheAuth.token;
+  const cache = cacheAuthPorCuenta.get(cuenta.appid);
+  if (!force && cache && cache.expira > ahora) {
+    return cache.token;
   }
 
   const time = Math.floor(ahora / 1000);
@@ -206,18 +202,23 @@ async function obtenerAccessToken(force = false): Promise<string> {
     token: "",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      appid: IOPGPS_APPID,
+      appid: cuenta.appid,
       time,
-      signature: firmarAuth(time),
+      signature: firmarAuth(time, cuenta.secretKey),
     }),
   });
 
   if (data.code !== 0 || !data.accessToken) {
-    throw new Error(data.result?.trim() || "No se pudo autenticar en IOP GPS");
+    throw new Error(
+      data.result?.trim() || `No se pudo autenticar IOP GPS (${cuenta.appid})`,
+    );
   }
 
   const ttl = Math.min(data.expiresIn ?? 7_200_000, AUTH_TTL_MS) - 60_000;
-  cacheAuth = { token: data.accessToken, expira: ahora + Math.max(ttl, 60_000) };
+  cacheAuthPorCuenta.set(cuenta.appid, {
+    token: data.accessToken,
+    expira: ahora + Math.max(ttl, 60_000),
+  });
   return data.accessToken;
 }
 
@@ -242,14 +243,27 @@ async function listarDispositivos(token: string): Promise<DeviceRow[]> {
   return todos;
 }
 
+function fusionarUbicacion(
+  map: Map<string, UbicacionGpsMoto>,
+  placa: string,
+  ubicacion: UbicacionGpsMoto,
+): void {
+  const prev = map.get(placa);
+  if (!prev || ubicacion.time >= prev.time) {
+    map.set(placa, ubicacion);
+  }
+}
+
 function indexarDispositivos(
   lista: DeviceRow[],
   estados: DeviceStatusRow[],
-): {
-  porPlaca: Map<string, UbicacionGpsMoto>;
-  porDeviceId: Map<number, UbicacionGpsMoto>;
-  porImei: Map<string, UbicacionGpsMoto>;
-} {
+  cuenta: string,
+  destino: {
+    porPlaca: Map<string, UbicacionGpsMoto>;
+    porDeviceId: Map<number, UbicacionGpsMoto>;
+    porImei: Map<string, UbicacionGpsMoto>;
+  },
+): void {
   const nombrePorImei = new Map<string, string>();
   for (const d of lista) {
     const imei = String(d.imei ?? "").trim();
@@ -257,33 +271,54 @@ function indexarDispositivos(
     nombrePorImei.set(imei, String(d.deviceName ?? "").trim());
   }
 
-  const porPlaca = new Map<string, UbicacionGpsMoto>();
-  const porDeviceId = new Map<number, UbicacionGpsMoto>();
-  const porImei = new Map<string, UbicacionGpsMoto>();
-
   for (const st of estados) {
     const imei = String(st.imei ?? "").trim();
-    const ubicacion = mapearDispositivo(st, nombrePorImei.get(imei) ?? imei);
+    const ubicacion = mapearDispositivo(
+      st,
+      nombrePorImei.get(imei) ?? imei,
+      cuenta,
+    );
     if (!ubicacion) continue;
 
-    porImei.set(imei, ubicacion);
-    porDeviceId.set(ubicacion.deviceId, ubicacion);
+    destino.porImei.set(imei, ubicacion);
+    destino.porDeviceId.set(ubicacion.deviceId, ubicacion);
 
-    const placas = extraerPlacasDeTexto(ubicacion.nombreDispositivo);
-    for (const placa of placas) {
-      const prev = porPlaca.get(placa);
-      porPlaca.set(
-        placa,
-        !prev || ubicacion.time > prev.time ? ubicacion : prev,
-      );
+    for (const placa of extraerPlacasDeTexto(ubicacion.nombreDispositivo)) {
+      fusionarUbicacion(destino.porPlaca, placa, ubicacion);
     }
   }
+}
 
-  return { porPlaca, porDeviceId, porImei };
+async function cargarCuentaIop(cuenta: CuentaIop): Promise<{
+  porPlaca: Map<string, UbicacionGpsMoto>;
+  porDeviceId: Map<number, UbicacionGpsMoto>;
+  porImei: Map<string, UbicacionGpsMoto>;
+}> {
+  const token = await obtenerAccessToken(cuenta);
+  const [lista, statusRes] = await Promise.all([
+    listarDispositivos(token),
+    fetchIop<DeviceStatusResponse>(
+      `/api/device/status?account=${encodeURIComponent(cuenta.appid)}`,
+      { method: "GET", token },
+    ),
+  ]);
+
+  const destino = {
+    porPlaca: new Map<string, UbicacionGpsMoto>(),
+    porDeviceId: new Map<number, UbicacionGpsMoto>(),
+    porImei: new Map<string, UbicacionGpsMoto>(),
+  };
+
+  if (statusRes.code === 0) {
+    indexarDispositivos(lista, statusRes.data ?? [], cuenta.appid, destino);
+  }
+
+  return destino;
 }
 
 export function invalidarCacheIopGps(): void {
   cacheDispositivos = null;
+  cacheAuthPorCuenta.clear();
 }
 
 type OpcionesCargaIop = { enVivo?: boolean };
@@ -304,22 +339,48 @@ async function cargarDispositivos(opciones?: OpcionesCargaIop): Promise<{
     };
   }
 
-  const token = await obtenerAccessToken();
-  const [lista, statusRes] = await Promise.all([
-    listarDispositivos(token),
-    fetchIop<DeviceStatusResponse>(
-      `/api/device/status?account=${encodeURIComponent(IOPGPS_ACCOUNT)}`,
-      { method: "GET", token },
-    ),
-  ]);
+  const porPlaca = new Map<string, UbicacionGpsMoto>();
+  const porDeviceId = new Map<number, UbicacionGpsMoto>();
+  const porImei = new Map<string, UbicacionGpsMoto>();
 
-  if (statusRes.code !== 0) {
-    throw new Error("IOP GPS no devolvió estados de dispositivos");
+  const resultados = await Promise.allSettled(
+    CUENTAS_IOP.map((cuenta) => cargarCuentaIop(cuenta)),
+  );
+
+  let algunaOk = false;
+  for (const r of resultados) {
+    if (r.status !== "fulfilled") {
+      console.warn(
+        "[iopGps] cuenta falló:",
+        r.reason instanceof Error ? r.reason.message : r.reason,
+      );
+      continue;
+    }
+    algunaOk = true;
+    for (const [placa, u] of r.value.porPlaca) {
+      fusionarUbicacion(porPlaca, placa, u);
+    }
+    for (const [id, u] of r.value.porDeviceId) {
+      const prev = porDeviceId.get(id);
+      if (!prev || u.time >= prev.time) porDeviceId.set(id, u);
+    }
+    for (const [imei, u] of r.value.porImei) {
+      const prev = porImei.get(imei);
+      if (!prev || u.time >= prev.time) porImei.set(imei, u);
+    }
   }
 
-  const indexado = indexarDispositivos(lista, statusRes.data ?? []);
-  cacheDispositivos = { fetchedAt: ahora, ...indexado };
-  return indexado;
+  if (!algunaOk) {
+    throw new Error("No se pudo consultar ninguna cuenta IOP GPS");
+  }
+
+  cacheDispositivos = {
+    fetchedAt: ahora,
+    porPlaca,
+    porDeviceId,
+    porImei,
+  };
+  return cacheDispositivos;
 }
 
 export type ResultadoBusquedaGps =
@@ -340,6 +401,10 @@ async function buscarPorPlaca(
   return null;
 }
 
+function cuentaPorAppid(appid: string): CuentaIop | undefined {
+  return CUENTAS_IOP.find((c) => c.appid === appid);
+}
+
 export async function buscarUbicacionGpsIop(
   placa: string,
 ): Promise<ResultadoBusquedaGps> {
@@ -350,7 +415,6 @@ export async function buscarUbicacionGpsIop(
   } catch (e) {
     console.warn("[iopGps]", e instanceof Error ? e.message : e);
     invalidarCacheIopGps();
-    cacheAuth = null;
     return { ok: false, motivo: "error_proveedor" };
   }
 }
@@ -396,7 +460,8 @@ export async function enviarComandoMotorIop(
       return { ok: false, error: "No se encontró el dispositivo IOP GPS de esa placa." };
     }
 
-    const token = await obtenerAccessToken();
+    const cuenta = cuentaPorAppid(dispositivo.iopCuenta ?? "") ?? CUENTAS_IOP[0];
+    const token = await obtenerAccessToken(cuenta);
     const parameter = accion === "bloquear" ? "2" : "1";
     const data = await fetchIop<RelayResponse>("/api/instruction/relay", {
       method: "POST",
@@ -417,8 +482,8 @@ export async function enviarComandoMotorIop(
         mensaje:
           data.result?.trim() ||
           (accion === "bloquear"
-            ? "Corte de aceite/electricidad enviado (IOP GPS)."
-            : "Restablecimiento de aceite/electricidad enviado (IOP GPS)."),
+            ? `Corte enviado (IOP GPS · ${cuenta.appid}).`
+            : `Restablecimiento enviado (IOP GPS · ${cuenta.appid}).`),
       };
     }
 
@@ -443,5 +508,10 @@ export function mensajeGpsIopNoDisponible(
   if (motivo === "error_proveedor") {
     return "No se pudo consultar IOP GPS en este momento. Intenta de nuevo en unos segundos.";
   }
-  return `La placa ${placaNorm} no aparece en IOP GPS con la cuenta ${IOPGPS_APPID}.`;
+  const cuentas = CUENTAS_IOP.map((c) => c.appid).join(", ");
+  return `La placa ${placaNorm} no aparece en IOP GPS (cuentas: ${cuentas}).`;
+}
+
+export function cuentasIopConfiguradas(): string[] {
+  return CUENTAS_IOP.map((c) => c.appid);
 }
