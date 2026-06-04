@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getFilasReporte } from "@/lib/cargarReporte";
-import { buscarPorPlaca } from "@/lib/csvPlaca";
+import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
 import {
   enviarComandoMotor,
   type AccionMotorGps,
@@ -34,14 +33,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const rows = await getFilasReporte();
-    if (!rows.length) {
-      return NextResponse.json(
-        { error: "El reporte está vacío o no es válido" },
-        { status: 503 },
-      );
-    }
-    if (!buscarPorPlaca(rows, placa)) {
+    if (!(await existePlacaActiva(placa))) {
       return NextResponse.json(
         { error: "No se encontró la placa" },
         { status: 404 },

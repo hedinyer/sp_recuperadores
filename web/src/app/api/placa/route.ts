@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getFilasReporte } from "@/lib/cargarReporte";
-import { buscarPorPlaca } from "@/lib/csvPlaca";
+import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
@@ -39,14 +38,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await getFilasReporte();
-    if (!rows.length) {
-      return NextResponse.json(
-        { error: "El reporte está vacío o no es válido" },
-        { status: 503 },
-      );
-    }
-    const vehiculo = buscarPorPlaca(rows, placa);
+    const vehiculo = await fetchVehiculoPorPlaca(placa);
     if (!vehiculo) {
       return NextResponse.json(
         { error: "No se encontró la placa", placa: placa.toUpperCase() },

@@ -91,6 +91,7 @@ export function generarFilasExtracto(
   valorCuota: number,
   registros: RegistroExtracto[],
   diasCredito: number = DIAS_CREDITO_DEFAULT,
+  fechaReferencia?: Date,
 ): FilaExtracto[] {
   if (valorCuota <= 0) {
     throw new Error("valor_cuota inválido");
@@ -98,7 +99,7 @@ export function generarFilasExtracto(
 
   const inicio = startOfDay(fechaInicio);
   const fechaFinCredito = addDays(inicio, diasCredito - 1);
-  let fin = startOfDay(new Date());
+  let fin = startOfDay(fechaReferencia ?? new Date());
   if (fin.getTime() > fechaFinCredito.getTime()) {
     fin = fechaFinCredito;
   }
@@ -219,12 +220,15 @@ export function calcularMetricasExtracto(
   valorCuota: number,
   registros: RegistroExtracto[],
   diasCredito: number = DIAS_CREDITO_DEFAULT,
+  fechaReferencia?: Date,
 ): MetricasExtracto {
+  const ref = fechaReferencia ?? new Date();
   const filas = generarFilasExtracto(
     fechaInicio,
     valorCuota,
     registros,
     diasCredito,
+    ref,
   );
   const totalRegistros = registros.reduce((s, r) => s + Number(r.valor), 0);
   const resumen = calcularResumenExtracto(
@@ -243,7 +247,7 @@ export function calcularMetricasExtracto(
     ultimoPago = formatFecha(startOfDay(maxFecha));
   }
 
-  const fin = startOfDay(new Date());
+  const fin = startOfDay(ref);
   const diasMora = ultimoPago
     ? daysBetween(new Date(ultimoPago), fin)
     : resumen.cuotas_generadas;

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { buscarPorPlaca } from "@/lib/csvPlaca";
-import { getFilasReporte } from "@/lib/cargarReporte";
+import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
 import {
   mensajePlacaPendiente,
@@ -50,8 +49,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const filas = await getFilasReporte();
-    const existeEnReporte = !!buscarPorPlaca(filas, placa);
+    const existeEnReporte = await existePlacaActiva(placa);
     if (!existeEnReporte) {
       return NextResponse.json(
         { error: "La placa no existe en la base principal de consulta" },

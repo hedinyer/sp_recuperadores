@@ -149,6 +149,7 @@ export default function Home() {
     null,
   );
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [mostrarGps, setMostrarGps] = useState(false);
   const [historialItems, setHistorialItems] = useState<ItemHistorialPlaca[]>([]);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialError, setHistorialError] = useState<string | null>(null);
@@ -254,6 +255,7 @@ export default function Home() {
     setRecibo(null);
     setPasoRecuperada(null);
     setMostrarHistorial(false);
+    setMostrarGps(false);
     setHistorialItems([]);
     setHistorialError(null);
     cerrarWizardPago();
@@ -326,6 +328,10 @@ export default function Home() {
       return abrir;
     });
   }, [v?.placa, cargarHistorial]);
+
+  const alternarGps = useCallback(() => {
+    setMostrarGps((prev) => !prev);
+  }, []);
 
   const generarRecibo = useCallback(async () => {
     if (!v || !recuperadorRecibo || !metodoPago || esPresencial == null) return;
@@ -702,50 +708,70 @@ export default function Home() {
                 </span>
               </div>
 
-              {gpsMoto ? (
-                <UbicacionGpsMoto
-                  placa={(v.placa || placa).toUpperCase().replace(/\s/g, "")}
-                  gps={gpsMoto}
-                  onActualizar={actualizarGps}
-                />
-              ) : null}
-              {!gpsMoto && gpsMensaje ? (
-                <AvisoGpsPendiente mensaje={gpsMensaje} />
-              ) : null}
-
               {/* Deuda */}
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
                     Valor para estar al día
                   </p>
-                  <button
-                    type="button"
-                    onClick={alternarHistorial}
-                    aria-expanded={mostrarHistorial}
-                    aria-label={
-                      mostrarHistorial
-                        ? "Ocultar historial de cobros y recogidas"
-                        : "Ver historial de cobros y recogidas"
-                    }
-                    className={`shrink-0 -mt-0.5 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
-                      mostrarHistorial
-                        ? "border-rose-600/60 bg-rose-950/50 text-rose-200"
-                        : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
-                    }`}
-                  >
-                    <svg
-                      aria-hidden
-                      className="w-5 h-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
+                  <div className="flex items-center gap-1.5 shrink-0 -mt-0.5">
+                    <button
+                      type="button"
+                      onClick={alternarGps}
+                      aria-expanded={mostrarGps}
+                      aria-label={
+                        mostrarGps
+                          ? "Ocultar ubicación GPS"
+                          : "Ver ubicación GPS"
+                      }
+                      className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
+                        mostrarGps
+                          ? "border-emerald-600/60 bg-emerald-950/50 text-emerald-200"
+                          : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
+                      }`}
                     >
-                      <path d="M4 7h16M4 12h16M4 17h16" />
-                    </svg>
-                  </button>
+                      <svg
+                        aria-hidden
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
+                        <circle cx="12" cy="10" r="2.5" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={alternarHistorial}
+                      aria-expanded={mostrarHistorial}
+                      aria-label={
+                        mostrarHistorial
+                          ? "Ocultar historial de cobros y recogidas"
+                          : "Ver historial de cobros y recogidas"
+                      }
+                      className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
+                        mostrarHistorial
+                          ? "border-rose-600/60 bg-rose-950/50 text-rose-200"
+                          : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
+                      }`}
+                    >
+                      <svg
+                        aria-hidden
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      >
+                        <path d="M4 7h16M4 12h16M4 17h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-1 text-[clamp(1.75rem,8vw,2.25rem)] font-bold text-rose-400 tabular-nums leading-none tracking-tight">
                   {formatearCOP(v.deuda_total)}
@@ -766,6 +792,26 @@ export default function Home() {
                   )}
                 </div>
               </section>
+
+              {mostrarGps ? (
+                gpsMoto ? (
+                  <UbicacionGpsMoto
+                    key={`gps-${(v.placa || placa).toUpperCase().replace(/\s/g, "")}`}
+                    placa={(v.placa || placa).toUpperCase().replace(/\s/g, "")}
+                    gps={gpsMoto}
+                    activo={mostrarGps}
+                    onActualizar={actualizarGps}
+                  />
+                ) : gpsMensaje ? (
+                  <AvisoGpsPendiente mensaje={gpsMensaje} />
+                ) : (
+                  <section className="px-4 py-3 border-b border-zinc-800 bg-emerald-950/10">
+                    <p className="text-sm text-zinc-500 text-center">
+                      Sin datos de GPS para esta placa
+                    </p>
+                  </section>
+                )
+              ) : null}
 
               {/* Resumen rápido */}
               <section className="grid grid-cols-3 divide-x divide-zinc-800 border-b border-zinc-800 bg-zinc-900/40">

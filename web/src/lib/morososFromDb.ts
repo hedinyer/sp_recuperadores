@@ -1,51 +1,15 @@
 import { getDatabaseUrls } from "@/lib/dbUrls";
+import {
+  analizarMorosidad,
+  ordenarMorosos,
+  type ResultadoMoroso,
+} from "@/lib/analisisMorosidad";
+import { parseDiasCredito, type RegistroExtracto } from "@/lib/extractoCliente";
 import { queryPg } from "@/lib/pgPool";
 import {
-  buildFilaReporte,
-} from "@/lib/vehiculoPorPlaca";
-import type { RegistroExtracto } from "@/lib/extractoCliente";
-
-/** Contratos activos + cliente/vehículo (esquema Django en `db_new.md`). */
-export const SQL_CLIENTES_EXTRACTO = `
-SELECT
-    ct.id AS contrato_id,
-    cl.cedula,
-    cl.nombre,
-    v.placa,
-    cl.telefono,
-    ven.nombre AS visitador,
-    ct.fecha_inicio::date AS fecha_inicio,
-    ct.tarifa::numeric AS valor_cuota,
-    ct.dias_contrato::text AS fecha_final
-FROM arrendamientos_contrato ct
-JOIN clientes_cliente cl ON cl.id = ct.cliente_id
-JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
-LEFT JOIN clientes_vendedor ven ON ven.id = ct.vendedor_id
-WHERE ct.estado = 'Activo'
-  AND ct.fecha_inicio IS NOT NULL
-  AND ct.tarifa > 0
-  AND v.placa IS NOT NULL
-  AND TRIM(v.placa) <> ''
-`;
-
-/** Pagos solo de contratos activos, desde fecha_inicio del contrato. */
-export const SQL_REGISTROS_EXTRACTO = `
-SELECT
-    ct.id AS contrato_id,
-    pf.fecha_pago::date AS fecha_registro,
-    pf.valor::numeric AS valor,
-    COALESCE(mp.nombre, '') AS tipo,
-    COALESCE(pf.referencia, '') AS referencia
-FROM terminal_pagos_pagofactura pf
-JOIN terminal_pagos_factura f ON f.id = pf.factura_id
-JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
-LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
-LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
-WHERE ct.estado = 'Activo'
-  AND ct.fecha_inicio IS NOT NULL
-  AND pf.fecha_pago >= ct.fecha_inicio
-ORDER BY ct.id, pf.fecha_pago
-`;
+  SQL_CLIENTES_EXTRACTO,
+  SQL_REGISTROS_EXTRACTO,
+} from "@/lib/reporteFromDb";
 
 type ClienteRow = {
   contrato_id: string | number;
@@ -102,7 +66,6 @@ async function queryDb(connectionString: string): Promise<{
     connectionString,
     SQL_CLIENTES_EXTRACTO,
   );
-
   if (!clientes.length) return { clientes: [], registros: [] };
 
   const registros = await queryPg<{
@@ -116,11 +79,30 @@ async function queryDb(connectionString: string): Promise<{
   return { clientes, registros };
 }
 
-/** Reporte completo (~900 filas). Usar solo cuando haga falta la lista entera. */
-export async function fetchReporteFilasDesdeDb(
-  connectionStrings?: string[],
-): Promise<Record<string, string>[]> {
-  const urls = connectionStrings ?? getDatabaseUrls();
+const CACHE_TTL_MS =
+  process.env.NODE_ENV === "production" ? 180_000 : 90_000;
+let cacheMorosos: { expira: number; data: ResultadoMoroso[] } | null = null;
+
+export type ResumenMorosos = {
+  total: number;
+  sin_pago_hoy: number;
+  criticos: number;
+  deuda_total: number;
+  generado_en: string;
+};
+
+/**
+ * Lista de morosos priorizada (antigüedad 14–280 días, patrón + deuda creciente).
+ */
+export async function fetchMorososDesdeDb(
+  force = false,
+): Promise<{ morosos: ResultadoMoroso[]; resumen: ResumenMorosos }> {
+  const ahora = Date.now();
+  if (!force && cacheMorosos && cacheMorosos.expira > ahora) {
+    return buildResumen(cacheMorosos.data);
+  }
+
+  const urls = getDatabaseUrls();
   const results = await Promise.allSettled(urls.map((cs) => queryDb(cs)));
 
   const todosClientes: ClienteRow[] = [];
@@ -138,43 +120,60 @@ export async function fetchReporteFilasDesdeDb(
       todosRegistros.push(...r.value.registros);
     } else {
       console.warn(
-        "[reporteFromDb] Error en una base:",
+        "[morososFromDb] Error en una base:",
         r.reason instanceof Error ? r.reason.message : r.reason,
       );
     }
   }
 
-  if (!todosClientes.length) return [];
-
   const seenPlacas = new Set<string>();
-  const clientesUnicos: ClienteRow[] = [];
+  const registrosMap = registrosPorContrato(todosRegistros);
+  const morosos: ResultadoMoroso[] = [];
+
   for (const c of todosClientes) {
     const placaKey = normalizarPlaca(c.placa ?? "");
     if (!placaKey || seenPlacas.has(placaKey)) continue;
     seenPlacas.add(placaKey);
-    clientesUnicos.push(c);
-  }
 
-  const registrosMap = registrosPorContrato(todosRegistros);
-  const filas: Record<string, string>[] = [];
-
-  for (const c of clientesUnicos) {
     const valorCuota = Number(c.valor_cuota);
     if (!c.fecha_inicio || valorCuota <= 0) continue;
 
+    const diasCredito = parseDiasCredito(c.fecha_final);
+    if (diasCredito >= 365) continue;
+
     const regs = registrosMap.get(String(c.contrato_id)) ?? [];
-    filas.push(buildFilaReporte(c, regs));
+    const resultado = analizarMorosidad({
+      placa: c.placa,
+      cedula: c.cedula,
+      nombre: c.nombre ?? "",
+      telefono: c.telefono ?? "",
+      visitador: c.visitador ?? "",
+      fecha_inicio: new Date(c.fecha_inicio),
+      valor_cuota: valorCuota,
+      dias_credito: diasCredito,
+      registros: regs,
+    });
+
+    if (resultado) morosos.push(resultado);
   }
 
-  filas.sort((a, b) => {
-    const ca = parseFloat(a.cumplimiento_pct) || 0;
-    const cb = parseFloat(b.cumplimiento_pct) || 0;
-    if (ca !== cb) return ca - cb;
-    const da = parseInt(a.dias_mora, 10) || 0;
-    const db = parseInt(b.dias_mora, 10) || 0;
-    if (da !== db) return db - da;
-    return (a.nombre ?? "").localeCompare(b.nombre ?? "", "es");
-  });
+  const ordenados = ordenarMorosos(morosos);
+  cacheMorosos = { expira: ahora + CACHE_TTL_MS, data: ordenados };
+  return buildResumen(ordenados);
+}
 
-  return filas;
+function buildResumen(morosos: ResultadoMoroso[]): {
+  morosos: ResultadoMoroso[];
+  resumen: ResumenMorosos;
+} {
+  return {
+    morosos,
+    resumen: {
+      total: morosos.length,
+      sin_pago_hoy: morosos.filter((m) => !m.pago_hoy).length,
+      criticos: morosos.filter((m) => m.riesgo_mora === "critico").length,
+      deuda_total: morosos.reduce((s, m) => s + m.deuda_total, 0),
+      generado_en: new Date().toISOString(),
+    },
+  };
 }

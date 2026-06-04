@@ -1,11 +1,6 @@
-import { Pool } from "pg";
-
-import { getFilasReporte } from "@/lib/cargarReporte";
-import { buscarPorPlaca } from "@/lib/csvPlaca";
-import {
-  DATABASE_URL_DEFAULT,
-  DATABASE_URL_PUNTO_VENTA_2,
-} from "@/lib/dbDefaults";
+import { getDatabaseUrls } from "@/lib/dbUrls";
+import { queryPg } from "@/lib/pgPool";
+import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
 import { etiquetaRecuperador } from "@/lib/recuperadores";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
@@ -19,43 +14,39 @@ export type ItemHistorialPlaca = {
   monto?: number;
 };
 
-const SQL_REGISTROS_CEDULA = `
+const SQL_REGISTROS_PLACA = `
 SELECT
-    r.fecha_registro::timestamptz AS fecha_registro,
-    r.valor::numeric AS valor,
-    r.tipo,
-    r.referencia
-FROM registros r
-WHERE r.cedula = $1
-ORDER BY r.fecha_registro DESC
+    pf.fecha_pago::timestamptz AS fecha_registro,
+    pf.valor::numeric AS valor,
+    COALESCE(mp.nombre, '') AS tipo,
+    pf.referencia
+FROM terminal_pagos_pagofactura pf
+JOIN terminal_pagos_factura f ON f.id = pf.factura_id
+JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
+JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
+LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
+LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
+WHERE upper(replace(v.placa, ' ', '')) = $1
+  AND pf.fecha_pago >= ct.fecha_inicio
+ORDER BY pf.fecha_pago DESC
 LIMIT 80
 `;
 
-async function registrosCobroPorCedula(
-  cedula: string,
+async function registrosCobroPorPlaca(
+  placa: string,
 ): Promise<ItemHistorialPlaca[]> {
-  const urls = [
-    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT,
-    process.env.DATABASE_URL_2?.trim() || DATABASE_URL_PUNTO_VENTA_2,
-  ].filter(Boolean);
-
+  const placaNorm = normalizarPlaca(placa);
   const vistos = new Set<string>();
   const items: ItemHistorialPlaca[] = [];
 
-  for (const connectionString of urls) {
-    const pool = new Pool({
-      connectionString,
-      max: 1,
-      connectionTimeoutMillis: 12_000,
-      idleTimeoutMillis: 5_000,
-    });
+  for (const connectionString of getDatabaseUrls()) {
     try {
-      const { rows } = await pool.query<{
+      const rows = await queryPg<{
         fecha_registro: Date;
         valor: string | number;
         tipo: string | null;
         referencia: string | null;
-      }>(SQL_REGISTROS_CEDULA, [cedula]);
+      }>(connectionString, SQL_REGISTROS_PLACA, [placaNorm]);
 
       for (const row of rows) {
         if (row.fecha_registro == null || row.valor == null) continue;
@@ -82,8 +73,6 @@ async function registrosCobroPorCedula(
       }
     } catch {
       // siguiente base
-    } finally {
-      await pool.end().catch(() => {});
     }
   }
 
@@ -97,7 +86,7 @@ async function eventosRecuperadores(
   const { data, error } = await supabase
     .from("recuperadores")
     .select(
-      "id, placa_asignada, estado_moto, Pagado, multa, nombre_recuperador, tipo_pago, presencial, fecha_hora_asignada, fecha_hora_recuperada, fecha_hora_abono",
+      "id, placa_asignada, estado_moto, Pagado, multa, nombre_recuperador, tipo_pago, presencial, fecha_hora_asignada, fecha_hora_recuperada",
     )
     .order("fecha_hora_asignada", { ascending: false })
     .limit(40);
@@ -146,7 +135,7 @@ async function eventosRecuperadores(
       pagado > 0;
     if (!esAbono) continue;
 
-    const fecha = row.fecha_hora_abono || row.fecha_hora_asignada;
+    const fecha = row.fecha_hora_asignada;
     if (!fecha) continue;
 
     const partes: string[] = [];
@@ -171,17 +160,16 @@ async function eventosRecuperadores(
 export async function obtenerHistorialPlaca(
   placa: string,
 ): Promise<{ items: ItemHistorialPlaca[]; cedula?: string }> {
-  const rows = await getFilasReporte();
-  const vehiculo = buscarPorPlaca(rows, placa);
+  const placaNorm = normalizarPlaca(placa);
+  const vehiculo = await fetchVehiculoPorPlaca(placaNorm);
   if (!vehiculo) {
     return { items: [] };
   }
 
   const cedula = (vehiculo.cedula ?? "").trim();
-  const placaNorm = normalizarPlaca(placa);
 
   const [cobrosDb, eventosRec] = await Promise.all([
-    cedula ? registrosCobroPorCedula(cedula) : Promise.resolve([]),
+    registrosCobroPorPlaca(placaNorm),
     eventosRecuperadores(placaNorm),
   ]);
 

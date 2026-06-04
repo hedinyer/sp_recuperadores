@@ -2,10 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 
 import { parseCsvPuntoComa } from "@/lib/csvPlaca";
-import {
-  DATABASE_URL_DEFAULT,
-  DATABASE_URL_PUNTO_VENTA_2,
-} from "@/lib/dbDefaults";
+import { getDatabaseUrls } from "@/lib/dbUrls";
 import { fetchReporteFilasDesdeDb } from "@/lib/reporteFromDb";
 import { fetchReporteFilasDesdePython } from "@/lib/reporteFromPython";
 
@@ -90,10 +87,7 @@ async function cargarDesdeCsv(): Promise<Record<string, string>[]> {
 }
 
 async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
-  const dbUrls = [
-    process.env.DATABASE_URL?.trim() || DATABASE_URL_DEFAULT,
-    process.env.DATABASE_URL_2?.trim() || DATABASE_URL_PUNTO_VENTA_2,
-  ].filter(Boolean);
+  const dbUrls = getDatabaseUrls();
   const soloCsv = process.env.REPORTE_CSV_ONLY === "1";
 
   if (!soloCsv) {
@@ -118,7 +112,8 @@ async function getFilasReporteSinCache(): Promise<Record<string, string>[]> {
   return [];
 }
 
-const CACHE_TTL_MS = 120_000;
+const CACHE_TTL_MS =
+  process.env.NODE_ENV === "production" ? 300_000 : 120_000;
 let cacheMemoria: {
   filas: Record<string, string>[];
   expira: number;

@@ -12,6 +12,8 @@ const SYSTEMTRACK_USER_API_HASH_FALLBACK =
   "$2y$10$OCkjP58xbNyEeR8MYK4evePR/l2sVfPI.Qj/W2prKGWxG35OnxIve";
 
 const CACHE_TTL_MS = 45_000;
+/** Sin caché en vivo: cada poll pide datos frescos a GPSWOX. */
+const CACHE_TTL_EN_VIVO_MS = 0;
 const AUTH_TTL_MS = 25 * 60_000;
 
 export type UbicacionGpsMoto = {
@@ -67,6 +69,7 @@ type SendCommandResponse = {
 let cacheDispositivos: {
   fetchedAt: number;
   porPlaca: Map<string, UbicacionGpsMoto>;
+  porDeviceId: Map<number, UbicacionGpsMoto>;
 } | null = null;
 let cacheAuth: { hash: string; fetchedAt: number } | null = null;
 
@@ -240,27 +243,43 @@ async function fetchDispositivos(apiHash: string): Promise<GpsDeviceGroup[]> {
   return data;
 }
 
-async function cargarDispositivosPorPlaca(): Promise<Map<string, UbicacionGpsMoto>> {
-  const ahora = Date.now();
-  if (cacheDispositivos && ahora - cacheDispositivos.fetchedAt < CACHE_TTL_MS) {
-    return cacheDispositivos.porPlaca;
-  }
+/** Posiciones recientes (GPSWOX); misma forma que get_devices. */
+async function fetchDispositivosLatest(
+  apiHash: string,
+): Promise<GpsDeviceGroup[] | null> {
+  const url = new URL(`${SYSTEMTRACK_BASE_URL}/api/get_devices_latest`);
+  url.searchParams.set("user_api_hash", apiHash);
 
-  let apiHash = await obtenerUserApiHash();
-  let data = await fetchDispositivos(apiHash);
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) return null;
 
-  let totalItems = data.reduce((n, g) => n + (g.items?.length ?? 0), 0);
-  if (totalItems <= 10) {
-    invalidarCachesDispositivos();
-    apiHash = await obtenerUserApiHash(true);
-    data = await fetchDispositivos(apiHash);
-  }
+  const data = (await res.json()) as GpsDeviceGroup[];
+  if (!Array.isArray(data)) return null;
+  const total = data.reduce((n, g) => n + (g.items?.length ?? 0), 0);
+  return total > 0 ? data : null;
+}
 
+function indexarDispositivos(data: GpsDeviceGroup[]): {
+  porPlaca: Map<string, UbicacionGpsMoto>;
+  porDeviceId: Map<number, UbicacionGpsMoto>;
+} {
   const porPlaca = new Map<string, UbicacionGpsMoto>();
+  const porDeviceId = new Map<number, UbicacionGpsMoto>();
+
   for (const grupo of data) {
     for (const item of grupo.items ?? []) {
       const dispositivo = mapearDispositivo(item);
       if (!dispositivo) continue;
+
+      const prevId = porDeviceId.get(dispositivo.deviceId);
+      porDeviceId.set(
+        dispositivo.deviceId,
+        prevId ? preferirDispositivo(prevId, dispositivo) : dispositivo,
+      );
+
       for (const clave of clavesPlacaDispositivo(item)) {
         const existente = porPlaca.get(clave);
         porPlaca.set(
@@ -273,22 +292,71 @@ async function cargarDispositivosPorPlaca(): Promise<Map<string, UbicacionGpsMot
     }
   }
 
-  cacheDispositivos = { fetchedAt: ahora, porPlaca };
-  return porPlaca;
+  return { porPlaca, porDeviceId };
+}
+
+type OpcionesCargaGps = {
+  /** TTL corto para seguimiento en vivo (polling). */
+  enVivo?: boolean;
+};
+
+async function cargarDispositivos(
+  opciones?: OpcionesCargaGps,
+): Promise<{
+  porPlaca: Map<string, UbicacionGpsMoto>;
+  porDeviceId: Map<number, UbicacionGpsMoto>;
+}> {
+  const ahora = Date.now();
+  const ttl = opciones?.enVivo ? CACHE_TTL_EN_VIVO_MS : CACHE_TTL_MS;
+
+  if (cacheDispositivos && ahora - cacheDispositivos.fetchedAt < ttl) {
+    return {
+      porPlaca: cacheDispositivos.porPlaca,
+      porDeviceId: cacheDispositivos.porDeviceId,
+    };
+  }
+
+  let apiHash = await obtenerUserApiHash();
+  let data =
+    opciones?.enVivo ? await fetchDispositivosLatest(apiHash) : null;
+  if (!data) {
+    data = await fetchDispositivos(apiHash);
+  }
+
+  let totalItems = data.reduce((n, g) => n + (g.items?.length ?? 0), 0);
+  if (totalItems <= 10) {
+    invalidarCachesDispositivos();
+    apiHash = await obtenerUserApiHash(true);
+    data = await fetchDispositivos(apiHash);
+  }
+
+  const { porPlaca, porDeviceId } = indexarDispositivos(data);
+  cacheDispositivos = { fetchedAt: ahora, porPlaca, porDeviceId };
+  return { porPlaca, porDeviceId };
 }
 
 async function buscarDispositivoPorPlaca(
   placa: string,
+  opciones?: OpcionesCargaGps,
 ): Promise<UbicacionGpsMoto | null> {
   const claves = variantesPlaca(placa);
   if (!claves.length) return null;
 
-  const dispositivos = await cargarDispositivosPorPlaca();
+  const { porPlaca } = await cargarDispositivos(opciones);
   for (const clave of claves) {
-    const dispositivo = dispositivos.get(clave);
+    const dispositivo = porPlaca.get(clave);
     if (dispositivo) return dispositivo;
   }
   return null;
+}
+
+async function buscarDispositivoPorId(
+  deviceId: number,
+  opciones?: OpcionesCargaGps,
+): Promise<UbicacionGpsMoto | null> {
+  if (!Number.isFinite(deviceId) || deviceId <= 0) return null;
+  const { porDeviceId } = await cargarDispositivos(opciones);
+  return porDeviceId.get(deviceId) ?? null;
 }
 
 export type ResultadoBusquedaGps =
@@ -306,6 +374,27 @@ export async function buscarUbicacionGps(
     console.warn("[systemTrackGps]", e instanceof Error ? e.message : e);
     invalidarCachesDispositivos();
     cacheAuth = null;
+    return { ok: false, motivo: "error_proveedor" };
+  }
+}
+
+/** Actualización frecuente para mapa en vivo (GPSWOX get_devices_latest / get_devices). */
+export async function buscarUbicacionGpsEnVivo(
+  placa: string,
+  deviceId?: number,
+): Promise<ResultadoBusquedaGps> {
+  try {
+    const opciones = { enVivo: true as const };
+    if (deviceId) {
+      const porId = await buscarDispositivoPorId(deviceId, opciones);
+      if (porId) return { ok: true, gps: porId };
+    }
+    const dispositivo = await buscarDispositivoPorPlaca(placa, opciones);
+    if (dispositivo) return { ok: true, gps: dispositivo };
+    return { ok: false, motivo: "sin_dispositivo" };
+  } catch (e) {
+    console.warn("[systemTrackGps] en vivo:", e instanceof Error ? e.message : e);
+    invalidarCachesDispositivos();
     return { ok: false, motivo: "error_proveedor" };
   }
 }
