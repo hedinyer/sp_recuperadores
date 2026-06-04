@@ -1,5 +1,7 @@
 "use client";
 
+import "leaflet/dist/leaflet.css";
+
 import { useEffect, useRef } from "react";
 
 import type { UbicacionGpsMoto } from "@/lib/systemTrackGps";
@@ -73,7 +75,6 @@ export function MapaGpsEnVivo({
 
     (async () => {
       const L = (await import("leaflet")).default;
-      await import("leaflet/dist/leaflet.css");
 
       if (cancelado || !contenedorRef.current || listoRef.current) return;
 
@@ -84,7 +85,6 @@ export function MapaGpsEnVivo({
         touchZoom: true,
         doubleClickZoom: true,
         boxZoom: true,
-        pinchZoom: true,
       }).setView([gps.lat, gps.lng], 17);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
