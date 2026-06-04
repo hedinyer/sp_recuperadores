@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { hasAdminSession } from "@/lib/adminAuth";
 import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
 import {
@@ -35,6 +36,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    if (!(await hasAdminSession())) {
+      return NextResponse.json(
+        { error: "Se requiere acceso de administrador" },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json();
     const placa = (body.placa ?? "")
       .trim()

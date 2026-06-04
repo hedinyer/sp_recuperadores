@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AdminGate, useAdminSession } from "@/components/AdminGate";
 import { NavFooter } from "@/components/NavFooter";
 import { formatearCOP } from "@/lib/formatoDinero";
 import type { ResultadoMoroso, RiesgoMora } from "@/lib/analisisMorosidad";
@@ -104,6 +105,7 @@ function filtrarAtrasos(
 }
 
 export default function PlacasMorososPage() {
+  const { adminOk, refresh: refreshAdmin } = useAdminSession();
   const [vista, setVista] = useState<VistaTab>("atrasos");
   const [morosos, setMorosos] = useState<ResultadoMoroso[]>([]);
   const [atrasos, setAtrasos] = useState<ResultadoAtraso[]>([]);
@@ -129,25 +131,21 @@ export default function PlacasMorososPage() {
 
   const cargarMorosos = useCallback(async (refresh = false) => {
     const q = refresh ? "?refresh=1" : "";
-    const [resMorosos, resPlacas] = await Promise.all([
-      fetch(`/api/placas/morosos${q}`),
-      fetch("/api/placas"),
-    ]);
-    const data = await resMorosos.json();
-    if (!resMorosos.ok) throw new Error(data.error ?? "Error al cargar morosos");
+    const res = await fetch(`/api/placas/morosos${q}`, { cache: "no-store" });
+    const data = await res.json();
+    if (res.status === 401) {
+      throw new Error("Se requiere acceso de administrador");
+    }
+    if (!res.ok) throw new Error(data.error ?? "Error al cargar morosos");
     setMorosos(data.morosos ?? []);
     setResumenMorosos(data.resumen ?? null);
-    const dataPlacas = await resPlacas.json();
-    if (resPlacas.ok) {
-      const hoy = new Set<string>();
-      for (const p of dataPlacas.placas ?? []) {
-        const status = String(p.status ?? "").toLowerCase();
-        if (status === "pendiente" || status === "asignada") {
-          hoy.add(normalizarPlacaKey(String(p.placa ?? "")));
-        }
-      }
-      setPlacasEnColaAdmin(hoy);
-    }
+    setPlacasEnColaAdmin(
+      new Set(
+        (data.pendientes as string[] | undefined)?.map((p) =>
+          normalizarPlacaKey(p),
+        ) ?? [],
+      ),
+    );
   }, []);
 
   const cargarAtrasos = useCallback(async (refresh = false) => {
@@ -166,6 +164,10 @@ export default function PlacasMorososPage() {
       setMensaje(null);
       try {
         if (vista === "morosos") {
+          if (!adminOk) {
+            setLoading(false);
+            return;
+          }
           await cargarMorosos(refresh);
         } else {
           await cargarAtrasos(refresh);
@@ -176,12 +178,18 @@ export default function PlacasMorososPage() {
         setLoading(false);
       }
     },
-    [vista, cargarMorosos, cargarAtrasos],
+    [vista, adminOk, cargarMorosos, cargarAtrasos],
   );
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    if (adminOk === false && vista === "morosos") {
+      setVista("atrasos");
+    }
+  }, [adminOk, vista]);
 
   const excluidasPrioridad = useMemo(() => {
     const s = new Set<string>();
@@ -244,6 +252,7 @@ export default function PlacasMorososPage() {
       );
       setAsignadasSesion(nuevaAsignadas);
       setPlacasEnColaAdmin(nuevaAdmin);
+      void cargarMorosos(true);
       const sig = disponibles[0];
       setMensaje(
         sig
@@ -262,7 +271,12 @@ export default function PlacasMorososPage() {
   const textoWhatsApp = (nombre: string, placa: string, deuda: number) =>
     `Hola ${nombre.split(" ")[0] ?? ""}, soy del área de cobranza. ¿Confirmas si realizaste algún pago hoy ${formatFechaCorta(hoyIso())}? Placa ${placa}. Deuda aprox: ${formatearCOP(deuda)}. Gracias.`;
 
-  const listaActual = vista === "morosos" ? listaMorosos : listaAtrasos;
+  const onAdminAutenticado = useCallback(() => {
+    refreshAdmin();
+    setLoading(true);
+    void cargarMorosos(true);
+  }, [refreshAdmin, cargarMorosos]);
+
   const resumen = vista === "morosos" ? resumenMorosos : resumenAtrasos;
 
   return (
@@ -271,6 +285,7 @@ export default function PlacasMorososPage() {
         <h1 className="text-lg font-bold tracking-tight">Morosos y atrasos</h1>
 
         <div className="mt-3 flex gap-1.5 rounded-xl bg-zinc-900 p-1 border border-zinc-800">
+          {adminOk !== false && (
           <button
             type="button"
             onClick={() => setVista("morosos")}
@@ -281,7 +296,9 @@ export default function PlacasMorososPage() {
             }`}
           >
             Prioridad cobro
+            {adminOk === null && " …"}
           </button>
+          )}
           <button
             type="button"
             onClick={() => setVista("atrasos")}
@@ -364,7 +381,7 @@ export default function PlacasMorososPage() {
           <div className="flex flex-col gap-1.5">
             <p className="text-[11px] text-zinc-500 leading-snug">
               Cola: {listaMorosos.length} visibles · {colaPrioridad.length}{" "}
-              disponibles
+              disponibles · {placasEnColaAdmin.size} pendientes en gestión
               {colaPrioridad.length < COLA_MIN_VISIBLE &&
                 colaPrioridad.length > 0 &&
                 " (pocas en cola, recarga ↻)"}
@@ -426,30 +443,30 @@ export default function PlacasMorososPage() {
       </div>
 
       <main className="flex-1 overflow-y-auto px-4 py-3 pb-2">
-        {loading && (
-          <p className="text-center text-sm text-zinc-500 py-12">
-            {vista === "morosos"
-              ? "Analizando patrones de pago…"
-              : "Generando reporte de atrasos…"}
-          </p>
-        )}
-        {error && (
-          <p className="text-center text-sm text-red-400 py-8">{error}</p>
-        )}
-        {!loading && !error && listaActual.length === 0 && (
-          <p className="text-center text-sm text-zinc-500 py-12">
-            {vista === "atrasos"
-              ? "No hay clientes con deuda pendiente."
-              : "No hay placas en este filtro."}
-            {vista === "morosos" &&
-              validados.size > 0 &&
-              ` (${validados.size} validadas hoy)`}
-          </p>
-        )}
-
-        <ul className="space-y-3 max-w-[414px] mx-auto">
-          {vista === "morosos" &&
-            listaMorosos.map((m) => {
+        {vista === "morosos" ? (
+          <AdminGate
+            title="Prioridad cobro"
+            subtitle="Contraseña admin (misma que Admin — Nicolas)"
+            onAuthenticated={onAdminAutenticado}
+          >
+            {loading && (
+              <p className="text-center text-sm text-zinc-500 py-12">
+                Analizando patrones de pago…
+              </p>
+            )}
+            {error && (
+              <p className="text-center text-sm text-red-400 py-8">{error}</p>
+            )}
+            {!loading && !error && listaMorosos.length === 0 && (
+              <p className="text-center text-sm text-zinc-500 py-12">
+                No hay placas en este filtro.
+                {validados.size > 0 && ` (${validados.size} validadas hoy)`}
+                {placasEnColaAdmin.size > 0 &&
+                  ` · ${placasEnColaAdmin.size} ya pendientes en gestión`}
+              </p>
+            )}
+            <ul className="space-y-3 max-w-[414px] mx-auto">
+            {listaMorosos.map((m) => {
               const rs = RIESGO_STYLES[m.riesgo_mora];
               const wa = enlaceWhatsApp(
                 m.telefono,
@@ -560,9 +577,25 @@ export default function PlacasMorososPage() {
                 </li>
               );
             })}
-
-          {vista === "atrasos" &&
-            listaAtrasos.map((a) => {
+            </ul>
+          </AdminGate>
+        ) : (
+          <>
+            {loading && (
+              <p className="text-center text-sm text-zinc-500 py-12">
+                Generando reporte de atrasos…
+              </p>
+            )}
+            {error && (
+              <p className="text-center text-sm text-red-400 py-8">{error}</p>
+            )}
+            {!loading && !error && listaAtrasos.length === 0 && (
+              <p className="text-center text-sm text-zinc-500 py-12">
+                No hay clientes con deuda pendiente.
+              </p>
+            )}
+            <ul className="space-y-3 max-w-[414px] mx-auto">
+            {listaAtrasos.map((a) => {
               const wa = enlaceWhatsApp(
                 a.telefono,
                 textoWhatsApp(a.nombre, a.placa, a.deuda_total),
@@ -668,7 +701,9 @@ export default function PlacasMorososPage() {
                 </li>
               );
             })}
-        </ul>
+            </ul>
+          </>
+        )}
       </main>
 
       <NavFooter />
