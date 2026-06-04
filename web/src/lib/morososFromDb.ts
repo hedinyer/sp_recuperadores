@@ -92,7 +92,7 @@ export type ResumenMorosos = {
 };
 
 /**
- * Lista de morosos priorizada (antigüedad 14–280 días, patrón + deuda creciente).
+ * Prioridad cobro: cuotas mora >5 y deuda >$250k, o pago diario sin abonar deuda.
  */
 export async function fetchMorososDesdeDb(
   force = false,

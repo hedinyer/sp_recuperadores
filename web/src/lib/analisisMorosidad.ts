@@ -12,10 +12,12 @@ export const ANTIGUEDAD_MIN_DIAS = 14;
 /** Excluye contratos con más de 280 días desde inicio (y ≥365). */
 export const ANTIGUEDAD_MAX_DIAS = 280;
 
-/** Más de 5 días sin pago (dias_mora > 5). */
+/** Más de 5 días sin pago (referencia en UI). */
 export const DIAS_MORA_RECUPERACION = 5;
-/** Deuda mínima para recuperación: más de $400.000 COP. */
-export const DEUDA_MIN_RECUPERACION_COP = 400_000;
+/** Cuotas en mora: más de 5 pendientes. */
+export const CUOTAS_MORA_RECUPERACION = 5;
+/** Deuda mínima para recuperación: más de $250.000 COP. */
+export const DEUDA_MIN_RECUPERACION_COP = 250_000;
 
 export type FrecuenciaPago =
   | "diaria"
@@ -86,6 +88,8 @@ export type ResultadoMoroso = {
   delta_deuda_30d: number;
   riesgo_mora: RiesgoMora;
   dias_excedidos_patron: number;
+  cuotas_pendientes: number;
+  pago_diario_sin_abono: boolean;
   score_prioridad: number;
   motivo: string;
 };
@@ -227,16 +231,25 @@ export function analizarMorosidad(
   const regsValidos = registros.filter(
     (r) => r.valor != null && !Number.isNaN(Number(r.valor)) && Number(r.valor) > 0,
   );
-  if (regsValidos.length < 2) return null;
 
   const inicio = startOfDay(fecha_inicio);
   const hoyD = startOfDay(hoy);
   const diasAntiguedad = daysBetween(inicio, hoyD);
 
-  const fechasPago = regsValidos.map((r) => startOfDay(r.fecha));
-  const intervalos = calcularIntervalos(fechasPago);
-  const { frecuencia, confianza, media, regularidad } =
-    detectarFrecuencia(intervalos);
+  let frecuencia: FrecuenciaPago = "insuficiente_datos";
+  let confianza = 0;
+  let media = 0;
+  let regularidad = 0;
+
+  if (regsValidos.length >= 2) {
+    const fechasPago = regsValidos.map((r) => startOfDay(r.fecha));
+    const intervalos = calcularIntervalos(fechasPago);
+    const detectado = detectarFrecuencia(intervalos);
+    frecuencia = detectado.frecuencia;
+    confianza = detectado.confianza;
+    media = detectado.media;
+    regularidad = detectado.regularidad;
+  }
 
   const metricasHoy = calcularMetricasExtracto(
     fecha_inicio,
@@ -275,26 +288,40 @@ export function analizarMorosidad(
 
   const diasExcedidos = Math.max(0, metricasHoy.dias_mora - DIAS_MORA_RECUPERACION);
   const superaDiasMora = metricasHoy.dias_mora > DIAS_MORA_RECUPERACION;
-  const superaDeuda = metricasHoy.deuda_total > DEUDA_MIN_RECUPERACION_COP;
+  const cumpleDeuda =
+    metricasHoy.deuda_total > DEUDA_MIN_RECUPERACION_COP;
+  const cumpleCuotasMora =
+    metricasHoy.cuotas_pendientes > CUOTAS_MORA_RECUPERACION;
 
-  /** Recoger moto: pagos irregulares y (mora >5d o deuda >$400.000). */
+  /** Pagan la cuota del día pero la deuda sigue creciendo (no abonan backlog). */
+  const pagoDiarioSinAbono =
+    frecuencia === "diaria" &&
+    confianza >= 0.45 &&
+    cumpleDeuda &&
+    (tendencia === "creciente" || deltaDeuda30 > valor_cuota * 0.25);
+
   const esMoroso =
-    pagosIrregulares && (superaDiasMora || superaDeuda);
+    (cumpleCuotasMora && cumpleDeuda) || pagoDiarioSinAbono;
 
   if (!esMoroso) return null;
 
   const scorePrioridad =
     metricasHoy.deuda_total *
     (1 + metricasHoy.dias_mora / 30) *
-    (superaDiasMora && superaDeuda ? 1.25 : 1);
+    (1 + Math.min(cuotasAtrasadas, 20) / 10) *
+    (pagoDiarioSinAbono ? 1.2 : cumpleCuotasMora && cumpleDeuda ? 1.15 : 1);
 
   const motivos: string[] = [];
-  if (pagosIrregulares) motivos.push("pagos irregulares");
+  if (cumpleCuotasMora) {
+    motivos.push(`${Math.ceil(cuotasAtrasadas)} cuotas en mora`);
+  }
+  if (pagoDiarioSinAbono) motivos.push("paga diario sin abonar deuda");
+  motivos.push(
+    `deuda ${Math.round(metricasHoy.deuda_total).toLocaleString("es-CO")}`,
+  );
   if (superaDiasMora) motivos.push(`${metricasHoy.dias_mora}d sin pago`);
-  if (superaDeuda) {
-    motivos.push(
-      `deuda ${Math.round(metricasHoy.deuda_total).toLocaleString("es-CO")}`,
-    );
+  if (pagosIrregulares && !pagoDiarioSinAbono) {
+    motivos.push("pagos irregulares");
   }
 
   return {
@@ -321,6 +348,8 @@ export function analizarMorosidad(
     delta_deuda_30d: Math.round(deltaDeuda30),
     riesgo_mora: riesgo,
     dias_excedidos_patron: diasExcedidos,
+    cuotas_pendientes: Math.round(cuotasAtrasadas * 10) / 10,
+    pago_diario_sin_abono: pagoDiarioSinAbono,
     score_prioridad: Math.round(scorePrioridad),
     motivo: motivos.join(" · "),
   };
