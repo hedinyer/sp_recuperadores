@@ -5,6 +5,7 @@ import {
   type ResultadoMoroso,
 } from "@/lib/analisisMorosidad";
 import { parseDiasCredito, type RegistroExtracto } from "@/lib/extractoCliente";
+import { placaExcluidaDeReportes } from "@/lib/placasExcluidasReportes";
 import { queryPg } from "@/lib/pgPool";
 import {
   SQL_CLIENTES_EXTRACTO,
@@ -132,7 +133,9 @@ export async function fetchMorososDesdeDb(
 
   for (const c of todosClientes) {
     const placaKey = normalizarPlaca(c.placa ?? "");
-    if (!placaKey || seenPlacas.has(placaKey)) continue;
+    if (!placaKey || placaExcluidaDeReportes(placaKey) || seenPlacas.has(placaKey)) {
+      continue;
+    }
     seenPlacas.add(placaKey);
 
     const valorCuota = Number(c.valor_cuota);
