@@ -235,7 +235,8 @@ export default function RecuperadoresPage() {
             { cache: "no-store" },
           );
           const data = await res.json();
-          if (!res.ok || !data.vehiculo) return [placa, null] as const;
+          if (data.eliminada) return [placa, null, true] as const;
+          if (!res.ok || !data.vehiculo) return [placa, null, false] as const;
           const v = data.vehiculo as Vehiculo;
           const cuotasRaw = v.cuotas_pendientes
             ? parseFloat(String(v.cuotas_pendientes))
@@ -252,25 +253,29 @@ export default function RecuperadoresPage() {
                   : null,
               telefono: v.telefono || undefined,
             },
+            false,
           ] as const;
         } catch {
-          return [placa, null] as const;
+          return [placa, null, false] as const;
         }
       }),
     ).then((results) => {
       if (cancelled) return;
       const next: Record<string, DeudaPlaca | null> = {};
-      for (const [placa, info] of results) {
-        next[placa] = info;
+      let huboEliminadas = false;
+      for (const [placa, info, eliminada] of results) {
+        if (eliminada) huboEliminadas = true;
+        else next[placa] = info;
       }
       setDeudasPorPlaca(next);
       setCargandoDeudas(false);
+      if (huboEliminadas) recargarRecuperadores();
     });
 
     return () => {
       cancelled = true;
     };
-  }, [placasConDeuda]);
+  }, [placasConDeuda, recargarRecuperadores]);
 
   const cerrarWizardPago = useCallback(() => {
     setPagoPaso(null);

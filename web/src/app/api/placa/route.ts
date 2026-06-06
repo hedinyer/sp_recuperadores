@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+import {
+  eliminarAsignacionBajaDeuda,
+  parseDeudaTotal,
+} from "@/lib/eliminarAsignacionBajaDeuda";
 import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
@@ -46,6 +50,17 @@ export async function GET(request: Request) {
         { error: "No se encontró la placa", placa: placa.toUpperCase() },
         { status: 404 },
       );
+    }
+
+    const deudaTotal = parseDeudaTotal(vehiculo.deuda_total);
+    const eliminada = await eliminarAsignacionBajaDeuda(placa, deudaTotal);
+    if (eliminada) {
+      return NextResponse.json({
+        eliminada: true,
+        motivo: "deuda_menor_minimo",
+        placa: normalizarPlaca(placa),
+        deuda_total: deudaTotal,
+      });
     }
 
     const gps_motoDb = await obtenerGpsMotoPlaca(placa);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { filtrarAsignacionesBajaDeuda } from "@/lib/eliminarAsignacionBajaDeuda";
 import { supabase } from "@/lib/supabase";
 import {
   actualizarStatusPlaca,
@@ -122,6 +123,8 @@ export async function GET() {
     if (error) throw error;
     if (placasError) throw placasError;
 
+    const filas = await filtrarAsignacionesBajaDeuda(data ?? []);
+
     const gpsPorPlaca = new Map<string, string>();
     for (const row of placasData ?? []) {
       const placa = normalizarPlaca(String(row.placa ?? ""));
@@ -152,7 +155,7 @@ export async function GET() {
     > = {};
 
     const vistos = new Set<string>();
-    for (const row of data) {
+    for (const row of filas) {
       const nom = row.nombre_recuperador || "Sin nombre";
       const placaNormalizada = normalizarPlaca(row.placa_asignada || "");
       const dedupeKey = `${nom}::${placaNormalizada}`;
