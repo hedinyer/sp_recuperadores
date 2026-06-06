@@ -6,7 +6,10 @@ import {
 } from "@/lib/eliminarAsignacionBajaDeuda";
 import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
-import { normalizarPlaca } from "@/lib/syncPlacaEstado";
+import {
+  buscarAsignacionPendientePorPlaca,
+  normalizarPlaca,
+} from "@/lib/syncPlacaEstado";
 import {
   buscarUbicacionGps,
   gpsMotoDesdeProveedor,
@@ -80,12 +83,15 @@ export async function GET(request: Request) {
           gps_motoDb,
         );
 
+    const asignacionPendiente = await buscarAsignacionPendientePorPlaca(placa);
+
     return NextResponse.json({
       vehiculo,
       gps,
       gps_moto,
       gps_proveedor: proveedor,
       gps_mensaje,
+      asignacion_pendiente: asignacionPendiente,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error leyendo datos";

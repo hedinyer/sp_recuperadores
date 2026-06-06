@@ -277,6 +277,15 @@ export default function Home() {
       setGpsMoto(data.gps ?? null);
       setGpsMotoTipo(String(data.gps_moto ?? data.gps_proveedor ?? "iop gps"));
       setGpsMensaje(data.gps_mensaje ?? null);
+      const asigPend = data.asignacion_pendiente as
+        | { nombre_recuperador?: string | null }
+        | null
+        | undefined;
+      setRecuperadorRecibo(
+        asigPend?.nombre_recuperador
+          ? String(asigPend.nombre_recuperador).trim()
+          : "",
+      );
     } catch {
       setError("Sin conexión o error de red");
     } finally {
@@ -417,7 +426,7 @@ export default function Home() {
       });
       cerrarWizardPago();
 
-      await fetch("/api/recuperadores", {
+      const res = await fetch("/api/recuperadores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -432,6 +441,15 @@ export default function Home() {
           gps_ubicacion: gpsUbicacion,
         }),
       });
+      if (!res.ok) {
+        const dataErr = await res.json().catch(() => ({}));
+        setError(
+          (dataErr as { error?: string }).error ??
+            "No se pudo guardar el abono en el servidor",
+        );
+        return;
+      }
+      setMensajeInfo(`Placa ${placaNormalizada} registrada como Abonó`);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Sin conexión al guardar el pago",
@@ -524,8 +542,14 @@ export default function Home() {
         }),
       });
       if (!res.ok) {
-        setError("No se pudo marcar la moto como recuperada");
+        const dataErr = await res.json().catch(() => ({}));
+        setError(
+          (dataErr as { error?: string }).error ??
+            "No se pudo marcar la moto como recuperada",
+        );
+        return;
       }
+      setMensajeInfo(`Moto ${recibo.placa} marcada como recuperada`);
     } catch {
       setError("Sin conexión para confirmar recuperación");
     } finally {

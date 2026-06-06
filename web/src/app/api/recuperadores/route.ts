@@ -4,6 +4,7 @@ import { filtrarAsignacionesBajaDeuda } from "@/lib/eliminarAsignacionBajaDeuda"
 import { supabase } from "@/lib/supabase";
 import {
   actualizarStatusPlaca,
+  buscarAsignacionPendientePorPlaca,
   normalizarPlaca,
 } from "@/lib/syncPlacaEstado";
 
@@ -62,42 +63,57 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: existente } = await supabase
-      .from("recuperadores")
-      .select("id")
-      .eq("placa_asignada", placa_asignada)
-      .eq("nombre_recuperador", nombre_recuperador)
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const pendiente = await buscarAsignacionPendientePorPlaca(placa_asignada);
 
     let asignacion;
 
-    if (existente?.id) {
+    if (pendiente?.id) {
       const updatePayload = { ...payload };
-      if (!updatePayload.fecha_hora_asignada) {
-        delete updatePayload.fecha_hora_asignada;
-      }
+      delete updatePayload.fecha_hora_asignada;
       const { data, error } = await supabase
         .from("recuperadores")
         .update(updatePayload)
-        .eq("id", existente.id)
+        .eq("id", pendiente.id)
         .select()
         .single();
       if (error) throw error;
       asignacion = data;
     } else {
-      const insertPayload = {
-        ...payload,
-        fecha_hora_asignada: new Date().toISOString(),
-      };
-      const { data, error } = await supabase
+      const { data: existente } = await supabase
         .from("recuperadores")
-        .insert(insertPayload)
-        .select()
-        .single();
-      if (error) throw error;
-      asignacion = data;
+        .select("id")
+        .eq("placa_asignada", placa_asignada)
+        .eq("nombre_recuperador", nombre_recuperador)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existente?.id) {
+        const updatePayload = { ...payload };
+        if (!updatePayload.fecha_hora_asignada) {
+          delete updatePayload.fecha_hora_asignada;
+        }
+        const { data, error } = await supabase
+          .from("recuperadores")
+          .update(updatePayload)
+          .eq("id", existente.id)
+          .select()
+          .single();
+        if (error) throw error;
+        asignacion = data;
+      } else {
+        const insertPayload = {
+          ...payload,
+          fecha_hora_asignada: new Date().toISOString(),
+        };
+        const { data, error } = await supabase
+          .from("recuperadores")
+          .insert(insertPayload)
+          .select()
+          .single();
+        if (error) throw error;
+        asignacion = data;
+      }
     }
 
     await actualizarStatusPlaca(placa_asignada, estado_moto);

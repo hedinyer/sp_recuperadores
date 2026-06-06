@@ -6,6 +6,12 @@ import { DetalleAsignacion } from "@/components/DetalleAsignacion";
 import { NavFooter } from "@/components/NavFooter";
 import { formatFechaHora } from "@/lib/fechas";
 import {
+  enPeriodo,
+  PERIODOS_METRICA,
+  type MetricasRecuperador,
+  type PeriodoMetrica,
+} from "@/lib/metricasRecuperadores";
+import {
   etiquetaRecuperador,
   RECUPERADORES_FIJOS,
 } from "@/lib/recuperadores";
@@ -35,93 +41,15 @@ type RecuperadorGroup = {
   }>;
 };
 
-type Metricas = {
-  nombre: string;
-  total_asignadas: number;
-  abonadas: number;
-  recuperadas: number;
-  total_pagado: number;
-  total_multa: number;
-};
-
 type DeudaPlaca = {
   nombre: string;
   deuda_total: string;
   dias_mora: number;
 };
 
-type PeriodoMetrica = "hoy" | "semana" | "mes" | "año";
-
-const PERIODOS_METRICA: { key: PeriodoMetrica; label: string }[] = [
-  { key: "hoy", label: "Hoy" },
-  { key: "semana", label: "Semana" },
-  { key: "mes", label: "Mes" },
-  { key: "año", label: "Año" },
-];
-
-function parseFecha(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function inicioPeriodo(periodo: PeriodoMetrica, ahora = new Date()): Date {
-  const inicio = new Date(ahora);
-  inicio.setHours(0, 0, 0, 0);
-  if (periodo === "semana") {
-    const dia = inicio.getDay();
-    const desdeLunes = dia === 0 ? 6 : dia - 1;
-    inicio.setDate(inicio.getDate() - desdeLunes);
-  } else if (periodo === "mes") {
-    inicio.setDate(1);
-  } else if (periodo === "año") {
-    inicio.setMonth(0, 1);
-  }
-  return inicio;
-}
-
-function finPeriodo(ahora = new Date()): Date {
-  const fin = new Date(ahora);
-  fin.setHours(23, 59, 59, 999);
-  return fin;
-}
-
-function enPeriodo(
-  fechaIso: string | null | undefined,
-  periodo: PeriodoMetrica,
-  ahora = new Date(),
-): boolean {
-  const fecha = parseFecha(fechaIso);
-  if (!fecha) return false;
-  return fecha >= inicioPeriodo(periodo, ahora) && fecha <= finPeriodo(ahora);
-}
-
-function esAbono(estado: string): boolean {
-  const e = estado.trim().toLowerCase();
-  return e === "abonó" || e === "abono";
-}
-
-function esRecuperada(estado: string): boolean {
-  return estado.trim().toLowerCase() === "recuperada";
-}
-
 function esPendiente(estado: string | null | undefined): boolean {
   const e = String(estado ?? "pendiente").trim().toLowerCase();
   return !e || e === "pendiente";
-}
-
-function fechaAbono(asig: {
-  fecha_abono: string | null;
-  fecha_asignada: string | null;
-}): string | null {
-  return asig.fecha_abono ?? asig.fecha_asignada;
-}
-
-function fechaRecuperacion(asig: {
-  fecha_recuperada: string | null;
-  fecha_asignada: string | null;
-}): string | null {
-  return asig.fecha_recuperada ?? asig.fecha_asignada;
 }
 
 const OPCIONES_GPS_MOTO = ["iop gps", "system track"] as const;
@@ -135,37 +63,6 @@ function formatearCOP(val: string | number | undefined): string {
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(n);
-}
-
-function calcularMetricas(
-  grupos: RecuperadorGroup[],
-  periodo: PeriodoMetrica,
-): Metricas[] {
-  return RECUPERADORES_FIJOS.map((nombre) => {
-    const asigs = grupos.find((g) => g.nombre === nombre)?.asignaciones || [];
-    const asignadasEnPeriodo = asigs.filter((a) =>
-      enPeriodo(a.fecha_asignada, periodo),
-    );
-    const abonadasEnPeriodo = asigs.filter(
-      (a) => esAbono(a.estado) && enPeriodo(fechaAbono(a), periodo),
-    );
-    const recuperadasEnPeriodo = asigs.filter(
-      (a) =>
-        esRecuperada(a.estado) && enPeriodo(fechaRecuperacion(a), periodo),
-    );
-    return {
-      nombre,
-      total_asignadas: asignadasEnPeriodo.length,
-      abonadas: abonadasEnPeriodo.length,
-      recuperadas: recuperadasEnPeriodo.length,
-      total_pagado: abonadasEnPeriodo.reduce((s, a) => s + a.pagado, 0),
-      total_multa:
-        abonadasEnPeriodo.reduce((s, a) => s + a.multa, 0) +
-        recuperadasEnPeriodo.reduce((s, a) => s + a.multa, 0),
-    };
-  }).filter(
-    (m) => m.total_asignadas > 0 || m.abonadas > 0 || m.recuperadas > 0,
-  );
 }
 
 export default function NicolasPage() {
@@ -289,6 +186,8 @@ function NicolasAdminPanel() {
   const [reasignarIds, setReasignarIds] = useState<Set<number>>(() => new Set());
   const [reasignando, setReasignando] = useState(false);
   const [periodoMetrica, setPeriodoMetrica] = useState<PeriodoMetrica>("hoy");
+  const [metricas, setMetricas] = useState<MetricasRecuperador[]>([]);
+  const [cargandoMetricas, setCargandoMetricas] = useState(false);
   const [deudasRecuperadas, setDeudasRecuperadas] = useState<
     Record<string, DeudaPlaca | null>
   >({});
@@ -338,6 +237,36 @@ function NicolasAdminPanel() {
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
+
+  useEffect(() => {
+    if (tab !== "metricas") return;
+
+    let cancelled = false;
+    setCargandoMetricas(true);
+
+    fetch(`/api/metricas?periodo=${encodeURIComponent(periodoMetrica)}`, {
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (!res.ok) return { metricas: [] as MetricasRecuperador[] };
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setMetricas(data.metricas ?? []);
+        setCargandoMetricas(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMetricas([]);
+          setCargandoMetricas(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, periodoMetrica]);
 
   useEffect(() => {
     const key = "sp-sync-pagos-v1";
@@ -495,7 +424,6 @@ function NicolasAdminPanel() {
     [reasignarHacia, reasignarDesde, cargarDatos],
   );
 
-  const metricas = calcularMetricas(grupos, periodoMetrica);
   const etiquetaPeriodo =
     PERIODOS_METRICA.find((p) => p.key === periodoMetrica)?.label ?? "";
 
@@ -909,7 +837,11 @@ function NicolasAdminPanel() {
                     ))}
                   </div>
                 </div>
-                {metricas.length === 0 ? (
+                {cargandoMetricas ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
+                    <p className="text-sm text-zinc-500">Cargando métricas…</p>
+                  </div>
+                ) : metricas.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-8 text-center">
                     <p className="text-sm text-zinc-500">
                       Sin actividad en este periodo

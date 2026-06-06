@@ -71,6 +71,33 @@ export function mensajePlacaPendiente(origen: OrigenPlacaPendiente): string {
   return "Esta placa está pendiente con un recuperador asignado";
 }
 
+/** Asignación pendiente en recuperadores para una placa (la más reciente). */
+export async function buscarAsignacionPendientePorPlaca(
+  placa: string,
+): Promise<{ id: number; nombre_recuperador: string | null } | null> {
+  const placaNorm = normalizarPlaca(placa);
+  if (!placaNorm) return null;
+
+  const { data, error } = await supabase
+    .from("recuperadores")
+    .select("id, nombre_recuperador")
+    .eq("placa_asignada", placaNorm)
+    .eq("estado_moto", "pendiente")
+    .order("fecha_hora_asignada", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data?.id) return null;
+
+  return {
+    id: data.id,
+    nombre_recuperador: data.nombre_recuperador
+      ? String(data.nombre_recuperador).trim() || null
+      : null,
+  };
+}
+
 export type FilaRecuperadorSync = {
   placa_asignada: string;
   estado_moto: string;
