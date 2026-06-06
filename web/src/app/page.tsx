@@ -148,7 +148,6 @@ export default function Home() {
     gpsUbicacion?: string;
   } | null>(null);
   const [exportandoRecibo, setExportandoRecibo] = useState(false);
-  const [confirmandoRecuperada, setConfirmandoRecuperada] = useState(false);
   const [pasoRecuperada, setPasoRecuperada] = useState<"confirmar" | "recibo" | null>(
     null,
   );
@@ -483,6 +482,7 @@ export default function Home() {
   const generarReciboRecuperada = useCallback(async () => {
     if (!v || !recuperadorRecibo) return;
     setError(null);
+    setMensajeInfo(null);
     setSolicitandoGps(true);
     const gpsResult = await obtenerGpsUbicacion();
     setSolicitandoGps(false);
@@ -491,6 +491,7 @@ export default function Home() {
       return;
     }
     const gpsUbicacion = gpsResult.coords;
+    const placaNormalizada = (v?.placa || "—").toUpperCase().replace(/\s/g, "");
     const now = new Date();
     const dd = String(now.getDate()).padStart(2, "0");
     const mm = String(now.getMonth() + 1).padStart(2, "0");
@@ -498,47 +499,17 @@ export default function Home() {
     const rand = String(Math.floor(10000 + Math.random() * 90000));
     const referencia = `${dd}${mm}${yy}${rand}`;
 
-    setRecibo({
-      referencia,
-      fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
-      recuperador: recuperadorRecibo,
-      cliente: v?.nombre || "—",
-      cedula: v?.cedula || "—",
-      placa: (v?.placa || "—").toUpperCase().replace(/\s/g, ""),
-      montoPago: 0,
-      montoMulta: 0,
-      total: 0,
-      tipo: "recuperada",
-      gpsUbicacion,
-    });
-    setPasoRecuperada(null);
-    setError(null);
-  }, [v, recuperadorRecibo]);
-
-  const confirmarMotoRecuperada = useCallback(async () => {
-    if (!recibo || recibo.tipo !== "recuperada" || confirmandoRecuperada) return;
-    setConfirmandoRecuperada(true);
-    setError(null);
     try {
-      let gps = recibo.gpsUbicacion;
-      if (!gps) {
-        const r = await obtenerGpsUbicacion();
-        if (!r.ok) {
-          setError(mensajeErrorGps(r.motivo));
-          return;
-        }
-        gps = r.coords;
-      }
       const res = await fetch("/api/recuperadores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nombre_recuperador: recibo.recuperador,
-          placa_asignada: recibo.placa,
+          nombre_recuperador: recuperadorRecibo,
+          placa_asignada: placaNormalizada,
           estado_moto: "recuperada",
           pagado: 0,
           multa: 0,
-          gps_ubicacion: gps ?? null,
+          gps_ubicacion: gpsUbicacion,
         }),
       });
       if (!res.ok) {
@@ -549,13 +520,26 @@ export default function Home() {
         );
         return;
       }
-      setMensajeInfo(`Moto ${recibo.placa} marcada como recuperada`);
+
+      setRecibo({
+        referencia,
+        fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
+        recuperador: recuperadorRecibo,
+        cliente: v?.nombre || "—",
+        cedula: v?.cedula || "—",
+        placa: placaNormalizada,
+        montoPago: 0,
+        montoMulta: 0,
+        total: 0,
+        tipo: "recuperada",
+        gpsUbicacion,
+      });
+      setPasoRecuperada(null);
+      setMensajeInfo(`Moto ${placaNormalizada} marcada como recuperada`);
     } catch {
-      setError("Sin conexión para confirmar recuperación");
-    } finally {
-      setConfirmandoRecuperada(false);
+      setError("Sin conexión para guardar la recuperación");
     }
-  }, [recibo, confirmandoRecuperada]);
+  }, [v, recuperadorRecibo]);
 
   const compartirReciboWpp = useCallback(async () => {
     if (!recibo || exportandoRecibo) return;
@@ -1105,18 +1089,6 @@ export default function Home() {
                 Descargar
               </button>
             </div>
-            {recibo.tipo === "recuperada" && (
-              <button
-                type="button"
-                onClick={confirmarMotoRecuperada}
-                disabled={confirmandoRecuperada}
-                className="w-full min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
-              >
-                {confirmandoRecuperada
-                  ? "Confirmando…"
-                  : "Confirmar y marcar como recuperada"}
-              </button>
-            )}
           </div>
         )}
 

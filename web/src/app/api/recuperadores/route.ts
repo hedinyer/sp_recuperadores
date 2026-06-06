@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 import { filtrarAsignacionesBajaDeuda } from "@/lib/eliminarAsignacionBajaDeuda";
 import { supabase } from "@/lib/supabase";
@@ -9,6 +10,53 @@ import {
 } from "@/lib/syncPlacaEstado";
 
 export const runtime = "nodejs";
+
+const COLUMNA_FECHA_ABONO = "fecha_hora_abono";
+
+function esColumnaFaltante(
+  error: PostgrestError | null,
+  columna: string,
+): boolean {
+  return (
+    error?.code === "PGRST204" &&
+    Boolean(error.message?.includes(`'${columna}'`))
+  );
+}
+
+function sinColumna<T extends Record<string, unknown>>(
+  payload: T,
+  columna: string,
+): T {
+  const copia = { ...payload };
+  delete copia[columna];
+  return copia;
+}
+
+async function guardarRecuperador(
+  payload: Record<string, unknown>,
+  id?: number,
+): Promise<{ data: Record<string, unknown>; error: PostgrestError | null }> {
+  const ejecutar = (datos: Record<string, unknown>) =>
+    id != null
+      ? supabase
+          .from("recuperadores")
+          .update(datos)
+          .eq("id", id)
+          .select()
+          .single()
+      : supabase
+          .from("recuperadores")
+          .insert(datos)
+          .select()
+          .single();
+
+  let resultado = await ejecutar(payload);
+  if (esColumnaFaltante(resultado.error, COLUMNA_FECHA_ABONO)) {
+    resultado = await ejecutar(sinColumna(payload, COLUMNA_FECHA_ABONO));
+  }
+
+  return resultado;
+}
 
 function buildPayload(body: Record<string, unknown>) {
   const nombre_recuperador = String(body.nombre_recuperador ?? "").trim();
@@ -70,12 +118,7 @@ export async function POST(request: Request) {
     if (pendiente?.id) {
       const updatePayload = { ...payload };
       delete updatePayload.fecha_hora_asignada;
-      const { data, error } = await supabase
-        .from("recuperadores")
-        .update(updatePayload)
-        .eq("id", pendiente.id)
-        .select()
-        .single();
+      const { data, error } = await guardarRecuperador(updatePayload, pendiente.id);
       if (error) throw error;
       asignacion = data;
     } else {
@@ -93,12 +136,10 @@ export async function POST(request: Request) {
         if (!updatePayload.fecha_hora_asignada) {
           delete updatePayload.fecha_hora_asignada;
         }
-        const { data, error } = await supabase
-          .from("recuperadores")
-          .update(updatePayload)
-          .eq("id", existente.id)
-          .select()
-          .single();
+        const { data, error } = await guardarRecuperador(
+          updatePayload,
+          existente.id,
+        );
         if (error) throw error;
         asignacion = data;
       } else {
@@ -106,11 +147,7 @@ export async function POST(request: Request) {
           ...payload,
           fecha_hora_asignada: new Date().toISOString(),
         };
-        const { data, error } = await supabase
-          .from("recuperadores")
-          .insert(insertPayload)
-          .select()
-          .single();
+        const { data, error } = await guardarRecuperador(insertPayload);
         if (error) throw error;
         asignacion = data;
       }
@@ -251,12 +288,7 @@ export async function PATCH(request: Request) {
       update.foto = String(body.foto).trim();
     }
 
-    const { data, error } = await supabase
-      .from("recuperadores")
-      .update(update)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await guardarRecuperador(update, Number(id));
 
     if (error) throw error;
     if (!data) {

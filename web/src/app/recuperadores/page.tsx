@@ -130,7 +130,6 @@ export default function RecuperadoresPage() {
   const [recuperadorRecibo, setRecuperadorRecibo] = useState("");
   const [recibo, setRecibo] = useState<ReciboData | null>(null);
   const [pasoRecuperada, setPasoRecuperada] = useState<"confirmar" | null>(null);
-  const [confirmandoRecuperada, setConfirmandoRecuperada] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [mensajeExito, setMensajeInfo] = useState<string | null>(null);
@@ -210,12 +209,6 @@ export default function RecuperadoresPage() {
       return a.placa.localeCompare(b.placa);
     });
   }, [busquedaPlaca, recuperadores]);
-
-  const placaReciboYaRecuperada = useMemo(() => {
-    if (!recibo) return false;
-    const asig = asignacionesActuales.find((a) => a.placa === recibo.placa);
-    return asig?.estado?.trim().toLowerCase() === "recuperada";
-  }, [recibo, asignacionesActuales]);
 
   useEffect(() => {
     if (!placasConDeuda) {
@@ -579,8 +572,9 @@ export default function RecuperadoresPage() {
   ]);
 
   const generarReciboRecuperada = useCallback(async () => {
-    if (!vehiculo || !recuperadorRecibo) return;
+    if (!vehiculo || !recuperadorRecibo || !asignacionActiva) return;
     setError(null);
+    setMensajeInfo(null);
     setSolicitandoGps(true);
     const gpsResult = await obtenerGpsUbicacion();
     setSolicitandoGps(false);
@@ -591,60 +585,17 @@ export default function RecuperadoresPage() {
 
     const placaNorm = normalizarPlaca(placaActiva || vehiculo.placa || "");
     const { referencia, fecha } = nuevaReferencia();
-
-    setRecibo({
-      referencia,
-      fecha,
-      recuperador: recuperadorRecibo,
-      cliente: vehiculo.nombre || "—",
-      cedula: vehiculo.cedula || "—",
-      placa: placaNorm,
-      montoPago: 0,
-      montoMulta: 0,
-      total: 0,
-      tipo: "recuperada",
-      gpsUbicacion: gpsResult.coords,
-    });
-    setPasoRecuperada(null);
-  }, [vehiculo, recuperadorRecibo, placaActiva]);
-
-  const confirmarMotoRecuperada = useCallback(async () => {
-    if (
-      !recibo ||
-      recibo.tipo !== "recuperada" ||
-      confirmandoRecuperada ||
-      !asignacionActiva
-    ) {
-      return;
-    }
-    setConfirmandoRecuperada(true);
-    setError(null);
-
+    const gpsUbicacion = gpsResult.coords;
     const fechaRecuperada = new Date().toISOString();
+
     setRecuperadores((prev) =>
       actualizarAsignacion(prev, asignacionActiva.id, {
         estado: "recuperada",
         fecha_recuperada: fechaRecuperada,
       }),
     );
-    setMensajeInfo(`Moto ${recibo.placa} marcada como recuperada`);
-    asignacionesRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
 
     try {
-      let gps = recibo.gpsUbicacion;
-      if (!gps) {
-        const r = await obtenerGpsUbicacion();
-        if (!r.ok) {
-          setError(mensajeErrorGps(r.motivo));
-          await recargarRecuperadores();
-          return;
-        }
-        gps = r.coords;
-      }
-
       const res = await fetch("/api/recuperadores", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -653,25 +604,48 @@ export default function RecuperadoresPage() {
           estado_moto: "recuperada",
           pagado: asignacionActiva.pagado,
           multa: asignacionActiva.multa,
-          nombre_recuperador: recibo.recuperador,
-          gps_ubicacion: gps ?? null,
+          nombre_recuperador: recuperadorRecibo,
+          gps_ubicacion: gpsUbicacion,
         }),
       });
       if (!res.ok) {
-        setError("No se pudo marcar la moto como recuperada");
-        setMensajeInfo(null);
+        const dataErr = await res.json().catch(() => ({}));
+        await recargarRecuperadores();
+        setError(
+          (dataErr as { error?: string }).error ??
+            "No se pudo marcar la moto como recuperada",
+        );
+        return;
       }
+
+      setRecibo({
+        referencia,
+        fecha,
+        recuperador: recuperadorRecibo,
+        cliente: vehiculo.nombre || "—",
+        cedula: vehiculo.cedula || "—",
+        placa: placaNorm,
+        montoPago: 0,
+        montoMulta: 0,
+        total: 0,
+        tipo: "recuperada",
+        gpsUbicacion,
+      });
+      setPasoRecuperada(null);
+      setMensajeInfo(`Moto ${placaNorm} marcada como recuperada`);
+      asignacionesRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
       await recargarRecuperadores();
     } catch {
-      setError("Sin conexión para confirmar recuperación");
-      setMensajeInfo(null);
+      setError("Sin conexión para guardar la recuperación");
       await recargarRecuperadores();
-    } finally {
-      setConfirmandoRecuperada(false);
     }
   }, [
-    recibo,
-    confirmandoRecuperada,
+    vehiculo,
+    recuperadorRecibo,
+    placaActiva,
     asignacionActiva,
     recargarRecuperadores,
   ]);
@@ -1031,14 +1005,8 @@ export default function RecuperadoresPage() {
             recibo={recibo}
             reciboRef={reciboRef}
             exportandoRecibo={exportandoRecibo}
-            confirmandoRecuperada={confirmandoRecuperada}
             onCompartir={() => void compartirReciboWpp()}
             onDescargar={() => void descargarRecibo()}
-            onConfirmarRecuperada={
-              recibo.tipo === "recuperada" && !placaReciboYaRecuperada
-                ? () => void confirmarMotoRecuperada()
-                : undefined
-            }
           />
         )}
 
