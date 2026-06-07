@@ -35,7 +35,7 @@ function sinColumna<T extends Record<string, unknown>>(
 async function guardarRecuperador(
   payload: Record<string, unknown>,
   id?: number,
-): Promise<{ data: Record<string, unknown>; error: PostgrestError | null }> {
+): Promise<{ data: Record<string, unknown> | null; error: PostgrestError | null }> {
   const ejecutar = (datos: Record<string, unknown>) =>
     id != null
       ? supabase
