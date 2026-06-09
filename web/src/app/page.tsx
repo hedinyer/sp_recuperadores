@@ -355,6 +355,16 @@ export default function Home() {
     }
 
     const placaNormalizada = (v.placa || "—").toUpperCase().replace(/\s/g, "");
+
+    if (requiereGpsPago && !gpsCapturado) {
+      setError(
+        metodoPago === "Efectivo"
+          ? "Activa la ubicación GPS (pago en efectivo)."
+          : "Activa la ubicación en el paso presencial antes de continuar.",
+      );
+      return;
+    }
+
     setGuardandoPago(true);
     setError(null);
 
@@ -377,15 +387,6 @@ export default function Home() {
               return dataFoto.foto as string;
             })()
           : Promise.resolve(undefined);
-
-      if (requiereGpsPago && !gpsCapturado) {
-        setError(
-          metodoPago === "Efectivo"
-            ? "Activa la ubicación GPS (pago en efectivo)."
-            : "Activa la ubicación en el paso presencial antes de continuar.",
-        );
-        return;
-      }
 
       const [fotoSubida] = await Promise.all([subirFoto]);
       fotoUrl = fotoSubida;

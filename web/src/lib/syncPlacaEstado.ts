@@ -39,12 +39,22 @@ export async function actualizarStatusPlaca(
   if (error) throw error;
 
   if (!actualizadas?.length) {
-    const { error: insertError } = await supabase.from("placas").insert({
+    const base = {
       placa: placaNorm,
       status,
       fecha: new Date().toISOString(),
-      gps_moto: "iop gps",
-    });
+    };
+    let insertError = (
+      await supabase.from("placas").insert({ ...base, gps_moto: "iop gps" })
+    ).error;
+
+    if (
+      insertError?.code === "PGRST204" &&
+      insertError.message?.includes("gps_moto")
+    ) {
+      insertError = (await supabase.from("placas").insert(base)).error;
+    }
+
     if (insertError) throw insertError;
   }
 }

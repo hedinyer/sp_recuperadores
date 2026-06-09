@@ -59,11 +59,18 @@ async function guardarRecuperador(
   return resultado;
 }
 
+function normalizarEstadoMoto(estado: string): string {
+  const e = estado.trim().toLowerCase();
+  if (e === "recuperada") return "recuperada";
+  if (e === "abonó" || e === "abono" || e.startsWith("abon")) return "Abonó";
+  return estado.trim() || "Abonó";
+}
+
 function buildPayload(body: Record<string, unknown>) {
   const nombre_recuperador = String(body.nombre_recuperador ?? "").trim();
   const placa_asignada = normalizarPlaca(String(body.placa_asignada ?? ""));
 
-  const estado_moto = String(body.estado_moto ?? "Abonó").trim() || "Abonó";
+  const estado_moto = normalizarEstadoMoto(String(body.estado_moto ?? "Abonó"));
   const pagado = Number(body.pagado ?? 0) || 0;
   const multa = Number(body.multa ?? 0) || 0;
 
@@ -103,36 +110,40 @@ function buildPayload(body: Record<string, unknown>) {
 
 function esAccionFinalConsultar(estado_moto: string): boolean {
   const e = estado_moto.trim().toLowerCase();
-  return e === "recuperada" || e === "abonó" || e === "abono";
+  return e === "recuperada" || e === "abonó" || e === "abono" || e.startsWith("abon");
 }
 
-/** Un solo registro en consultar: reutiliza asignación pendiente o actualiza la del recuperador. */
+/**
+ * Consultar: un solo registro.
+ * - Si hay asignación pendiente (Nicolás), la convierte en abono/recuperada.
+ * - Si no, inserta un registro nuevo (no reutiliza abonos viejos).
+ */
 async function guardarDesdeConsultar(
   placa_asignada: string,
-  nombre_recuperador: string,
   payload: Record<string, unknown>,
 ): Promise<{ data: Record<string, unknown> | null; error: PostgrestError | null }> {
-  const { data: filas, error: selErr } = await supabase
-    .from("recuperadores")
-    .select("id, estado_moto, nombre_recuperador, fecha_hora_asignada")
-    .eq("placa_asignada", placa_asignada)
-    .order("fecha_hora_asignada", { ascending: false });
+  const pendiente = await buscarAsignacionPendientePorPlaca(placa_asignada);
 
-  if (selErr) throw selErr;
-
-  const pendientes = (filas ?? []).filter((row) =>
-    esEstadoAsignacionPendiente(row.estado_moto),
-  );
-
-  if (pendientes.length > 0) {
-    const principal = pendientes[0];
-    const updatePayload = { ...payload };
-    delete updatePayload.fecha_hora_asignada;
-
-    const resultado = await guardarRecuperador(updatePayload, principal.id);
+  if (pendiente?.id) {
+    const updatePayload = {
+      ...payload,
+      fecha_hora_asignada: new Date().toISOString(),
+    };
+    const resultado = await guardarRecuperador(updatePayload, pendiente.id);
     if (resultado.error) return resultado;
 
-    const otrosPendientes = pendientes.slice(1).map((row) => row.id);
+    const { data: duplicados, error: dupErr } = await supabase
+      .from("recuperadores")
+      .select("id, estado_moto")
+      .eq("placa_asignada", placa_asignada)
+      .neq("id", pendiente.id);
+
+    if (dupErr) throw dupErr;
+
+    const otrosPendientes = (duplicados ?? [])
+      .filter((row) => esEstadoAsignacionPendiente(row.estado_moto))
+      .map((row) => row.id);
+
     if (otrosPendientes.length > 0) {
       const { error: delErr } = await supabase
         .from("recuperadores")
@@ -142,16 +153,6 @@ async function guardarDesdeConsultar(
     }
 
     return resultado;
-  }
-
-  const existente = (filas ?? []).find(
-    (row) => String(row.nombre_recuperador ?? "").trim() === nombre_recuperador,
-  );
-
-  if (existente?.id) {
-    const updatePayload = { ...payload };
-    delete updatePayload.fecha_hora_asignada;
-    return guardarRecuperador(updatePayload, existente.id);
   }
 
   return guardarRecuperador({
@@ -178,12 +179,14 @@ export async function POST(request: Request) {
     let asignacion;
 
     if (desdeConsultar && esAccionFinalConsultar(estado_moto)) {
-      const { data, error } = await guardarDesdeConsultar(
-        placa_asignada,
-        nombre_recuperador,
-        payload,
-      );
+      const { data, error } = await guardarDesdeConsultar(placa_asignada, payload);
       if (error) throw error;
+      if (!data) {
+        return NextResponse.json(
+          { error: "No se pudo guardar el registro en Supabase" },
+          { status: 500 },
+        );
+      }
       asignacion = data;
     } else {
       const pendiente = await buscarAsignacionPendientePorPlaca(placa_asignada);
@@ -230,7 +233,11 @@ export async function POST(request: Request) {
       }
     }
 
-    await actualizarStatusPlaca(placa_asignada, estado_moto);
+    try {
+      await actualizarStatusPlaca(placa_asignada, estado_moto);
+    } catch (placaErr) {
+      console.error("[recuperadores] sync placas:", placaErr);
+    }
 
     return NextResponse.json({ asignacion }, { status: 201 });
   } catch (e) {
