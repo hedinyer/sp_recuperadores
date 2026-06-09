@@ -21,12 +21,25 @@ export async function actualizarStatusPlaca(
   if (!status) return;
 
   const placaNorm = normalizarPlaca(placa);
-  const { error } = await supabase
+  if (!placaNorm) return;
+
+  const { data: actualizadas, error } = await supabase
     .from("placas")
     .update({ status })
-    .eq("placa", placaNorm);
+    .eq("placa", placaNorm)
+    .select("id");
 
   if (error) throw error;
+
+  if (!actualizadas?.length) {
+    const { error: insertError } = await supabase.from("placas").insert({
+      placa: placaNorm,
+      status,
+      fecha: new Date().toISOString(),
+      gps_moto: "iop gps",
+    });
+    if (insertError) throw insertError;
+  }
 }
 
 export type OrigenPlacaPendiente = "placas" | "recuperadores";

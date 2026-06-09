@@ -406,6 +406,31 @@ export default function Home() {
           (fotoPreview ?? undefined)
         : undefined;
 
+      const res = await fetch("/api/recuperadores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre_recuperador: recuperadorRecibo,
+          placa_asignada: placaNormalizada,
+          estado_moto: "Abonó",
+          pagado: pago,
+          multa,
+          tipo_pago: metodoPago,
+          presencial: esPresencial,
+          foto: fotoUrl ?? null,
+          gps_ubicacion: gpsUbicacion,
+          desde_consultar: true,
+        }),
+      });
+      if (!res.ok) {
+        const dataErr = await res.json().catch(() => ({}));
+        setError(
+          (dataErr as { error?: string }).error ??
+            "No se pudo guardar el abono en el servidor",
+        );
+        return;
+      }
+
       setRecibo({
         referencia,
         fecha: `${dd}/${mm}/${String(now.getFullYear())}`,
@@ -424,30 +449,6 @@ export default function Home() {
         gpsUbicacion: gpsUbicacion ?? undefined,
       });
       cerrarWizardPago();
-
-      const res = await fetch("/api/recuperadores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre_recuperador: recuperadorRecibo,
-          placa_asignada: placaNormalizada,
-          estado_moto: "Abonó",
-          pagado: pago,
-          multa,
-          tipo_pago: metodoPago,
-          presencial: esPresencial,
-          foto: fotoUrl ?? null,
-          gps_ubicacion: gpsUbicacion,
-        }),
-      });
-      if (!res.ok) {
-        const dataErr = await res.json().catch(() => ({}));
-        setError(
-          (dataErr as { error?: string }).error ??
-            "No se pudo guardar el abono en el servidor",
-        );
-        return;
-      }
       setMensajeInfo(`Placa ${placaNormalizada} registrada como Abonó`);
     } catch (e) {
       setError(
@@ -510,6 +511,7 @@ export default function Home() {
           pagado: 0,
           multa: 0,
           gps_ubicacion: gpsUbicacion,
+          desde_consultar: true,
         }),
       });
       if (!res.ok) {

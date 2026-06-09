@@ -90,12 +90,19 @@ function buildPayload(body: Record<string, unknown>) {
   const estadoNorm = estado_moto.toLowerCase();
   if (estadoNorm === "recuperada") {
     payload.fecha_hora_recuperada = new Date().toISOString();
+    payload.fecha_hora_abono = null;
   }
   if (estadoNorm === "abonó" || estadoNorm === "abono") {
     payload.fecha_hora_abono = new Date().toISOString();
+    payload.fecha_hora_recuperada = null;
   }
 
   return { nombre_recuperador, placa_asignada, estado_moto, payload };
+}
+
+function esAccionFinalConsultar(estado_moto: string): boolean {
+  const e = estado_moto.trim().toLowerCase();
+  return e === "recuperada" || e === "abonó" || e === "abono";
 }
 
 export async function POST(request: Request) {
@@ -111,6 +118,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const desdeConsultar = Boolean(body.desde_consultar);
     const pendiente = await buscarAsignacionPendientePorPlaca(placa_asignada);
 
     let asignacion;
@@ -119,6 +127,14 @@ export async function POST(request: Request) {
       const updatePayload = { ...payload };
       delete updatePayload.fecha_hora_asignada;
       const { data, error } = await guardarRecuperador(updatePayload, pendiente.id);
+      if (error) throw error;
+      asignacion = data;
+    } else if (desdeConsultar && esAccionFinalConsultar(estado_moto)) {
+      const insertPayload = {
+        ...payload,
+        fecha_hora_asignada: new Date().toISOString(),
+      };
+      const { data, error } = await guardarRecuperador(insertPayload);
       if (error) throw error;
       asignacion = data;
     } else {
@@ -271,9 +287,11 @@ export async function PATCH(request: Request) {
     const estadoNorm = estado.trim().toLowerCase();
     if (estadoNorm === "recuperada") {
       update.fecha_hora_recuperada = new Date().toISOString();
+      update.fecha_hora_abono = null;
     }
     if (estadoNorm === "abonó" || estadoNorm === "abono") {
       update.fecha_hora_abono = new Date().toISOString();
+      update.fecha_hora_recuperada = null;
     }
     if (body.gps_ubicacion != null && String(body.gps_ubicacion).trim()) {
       update.gps_ubicacion = String(body.gps_ubicacion).trim();
