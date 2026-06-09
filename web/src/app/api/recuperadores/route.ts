@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import {
   actualizarStatusPlaca,
   buscarAsignacionPendientePorPlaca,
+  esEstadoAsignacionPendiente,
   normalizarPlaca,
 } from "@/lib/syncPlacaEstado";
 
@@ -105,6 +106,60 @@ function esAccionFinalConsultar(estado_moto: string): boolean {
   return e === "recuperada" || e === "abonó" || e === "abono";
 }
 
+/** Un solo registro en consultar: reutiliza asignación pendiente o actualiza la del recuperador. */
+async function guardarDesdeConsultar(
+  placa_asignada: string,
+  nombre_recuperador: string,
+  payload: Record<string, unknown>,
+): Promise<{ data: Record<string, unknown> | null; error: PostgrestError | null }> {
+  const { data: filas, error: selErr } = await supabase
+    .from("recuperadores")
+    .select("id, estado_moto, nombre_recuperador, fecha_hora_asignada")
+    .eq("placa_asignada", placa_asignada)
+    .order("fecha_hora_asignada", { ascending: false });
+
+  if (selErr) throw selErr;
+
+  const pendientes = (filas ?? []).filter((row) =>
+    esEstadoAsignacionPendiente(row.estado_moto),
+  );
+
+  if (pendientes.length > 0) {
+    const principal = pendientes[0];
+    const updatePayload = { ...payload };
+    delete updatePayload.fecha_hora_asignada;
+
+    const resultado = await guardarRecuperador(updatePayload, principal.id);
+    if (resultado.error) return resultado;
+
+    const otrosPendientes = pendientes.slice(1).map((row) => row.id);
+    if (otrosPendientes.length > 0) {
+      const { error: delErr } = await supabase
+        .from("recuperadores")
+        .delete()
+        .in("id", otrosPendientes);
+      if (delErr) throw delErr;
+    }
+
+    return resultado;
+  }
+
+  const existente = (filas ?? []).find(
+    (row) => String(row.nombre_recuperador ?? "").trim() === nombre_recuperador,
+  );
+
+  if (existente?.id) {
+    const updatePayload = { ...payload };
+    delete updatePayload.fecha_hora_asignada;
+    return guardarRecuperador(updatePayload, existente.id);
+  }
+
+  return guardarRecuperador({
+    ...payload,
+    fecha_hora_asignada: new Date().toISOString(),
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -119,53 +174,59 @@ export async function POST(request: Request) {
     }
 
     const desdeConsultar = Boolean(body.desde_consultar);
-    const pendiente = await buscarAsignacionPendientePorPlaca(placa_asignada);
 
     let asignacion;
 
-    if (pendiente?.id) {
-      const updatePayload = { ...payload };
-      delete updatePayload.fecha_hora_asignada;
-      const { data, error } = await guardarRecuperador(updatePayload, pendiente.id);
-      if (error) throw error;
-      asignacion = data;
-    } else if (desdeConsultar && esAccionFinalConsultar(estado_moto)) {
-      const insertPayload = {
-        ...payload,
-        fecha_hora_asignada: new Date().toISOString(),
-      };
-      const { data, error } = await guardarRecuperador(insertPayload);
+    if (desdeConsultar && esAccionFinalConsultar(estado_moto)) {
+      const { data, error } = await guardarDesdeConsultar(
+        placa_asignada,
+        nombre_recuperador,
+        payload,
+      );
       if (error) throw error;
       asignacion = data;
     } else {
-      const { data: existente } = await supabase
-        .from("recuperadores")
-        .select("id")
-        .eq("placa_asignada", placa_asignada)
-        .eq("nombre_recuperador", nombre_recuperador)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const pendiente = await buscarAsignacionPendientePorPlaca(placa_asignada);
 
-      if (existente?.id) {
+      if (pendiente?.id) {
         const updatePayload = { ...payload };
-        if (!updatePayload.fecha_hora_asignada) {
-          delete updatePayload.fecha_hora_asignada;
-        }
+        delete updatePayload.fecha_hora_asignada;
         const { data, error } = await guardarRecuperador(
           updatePayload,
-          existente.id,
+          pendiente.id,
         );
         if (error) throw error;
         asignacion = data;
       } else {
-        const insertPayload = {
-          ...payload,
-          fecha_hora_asignada: new Date().toISOString(),
-        };
-        const { data, error } = await guardarRecuperador(insertPayload);
-        if (error) throw error;
-        asignacion = data;
+        const { data: existente } = await supabase
+          .from("recuperadores")
+          .select("id")
+          .eq("placa_asignada", placa_asignada)
+          .eq("nombre_recuperador", nombre_recuperador)
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existente?.id) {
+          const updatePayload = { ...payload };
+          if (!updatePayload.fecha_hora_asignada) {
+            delete updatePayload.fecha_hora_asignada;
+          }
+          const { data, error } = await guardarRecuperador(
+            updatePayload,
+            existente.id,
+          );
+          if (error) throw error;
+          asignacion = data;
+        } else {
+          const insertPayload = {
+            ...payload,
+            fecha_hora_asignada: new Date().toISOString(),
+          };
+          const { data, error } = await guardarRecuperador(insertPayload);
+          if (error) throw error;
+          asignacion = data;
+        }
       }
     }
 

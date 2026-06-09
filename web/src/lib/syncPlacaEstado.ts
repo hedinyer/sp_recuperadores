@@ -4,6 +4,13 @@ export function normalizarPlaca(placa: string): string {
   return placa.trim().toUpperCase().replace(/[\s-]/g, "");
 }
 
+export function esEstadoAsignacionPendiente(
+  estado: string | null | undefined,
+): boolean {
+  const e = String(estado ?? "pendiente").trim().toLowerCase();
+  return !e || e === "pendiente";
+}
+
 /** Mapea estado_moto de recuperadores al status de la tabla placas. */
 export function statusPlacaDesdeEstadoMoto(estado_moto: string): string | null {
   const e = estado_moto.trim().toLowerCase();
@@ -93,20 +100,21 @@ export async function buscarAsignacionPendientePorPlaca(
 
   const { data, error } = await supabase
     .from("recuperadores")
-    .select("id, nombre_recuperador")
+    .select("id, nombre_recuperador, estado_moto, fecha_hora_asignada")
     .eq("placa_asignada", placaNorm)
-    .eq("estado_moto", "pendiente")
-    .order("fecha_hora_asignada", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("fecha_hora_asignada", { ascending: false });
 
   if (error) throw error;
-  if (!data?.id) return null;
+
+  const pendiente = (data ?? []).find((row) =>
+    esEstadoAsignacionPendiente(row.estado_moto),
+  );
+  if (!pendiente?.id) return null;
 
   return {
-    id: data.id,
-    nombre_recuperador: data.nombre_recuperador
-      ? String(data.nombre_recuperador).trim() || null
+    id: pendiente.id,
+    nombre_recuperador: pendiente.nombre_recuperador
+      ? String(pendiente.nombre_recuperador).trim() || null
       : null,
   };
 }

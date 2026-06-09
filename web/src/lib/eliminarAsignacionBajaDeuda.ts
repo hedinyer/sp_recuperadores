@@ -1,5 +1,8 @@
 import { supabase } from "@/lib/supabase";
-import { normalizarPlaca } from "@/lib/syncPlacaEstado";
+import {
+  esEstadoAsignacionPendiente,
+  normalizarPlaca,
+} from "@/lib/syncPlacaEstado";
 import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
 
 /** Deuda mínima para mantener una placa asignada: $200.000 COP. */
@@ -14,13 +17,6 @@ export function parseDeudaTotal(
       ? Number(deuda.replace(/,/g, ""))
       : Number(deuda);
   return Number.isNaN(n) ? 0 : n;
-}
-
-export function esEstadoAsignacionPendiente(
-  estado: string | null | undefined,
-): boolean {
-  const e = String(estado ?? "pendiente").trim().toLowerCase();
-  return !e || e === "pendiente";
 }
 
 export async function placaTieneAsignacionPendiente(
