@@ -7,6 +7,7 @@ import { DeudaResumenSection } from "@/components/DeudaResumenSection";
 import { NavFooter } from "@/components/NavFooter";
 import { ReciboGeneradoPanel } from "@/components/ReciboGeneradoPanel";
 import { RecuperadorFifaCard } from "@/components/RecuperadorFifaCard";
+import { RecuperadoresPodio } from "@/components/RecuperadoresPodio";
 import { WizardPagoModal } from "@/components/WizardPagoModal";
 import { formatFechaHora } from "@/lib/fechas";
 import { formatearCOP, limpiarNumero } from "@/lib/formatoDinero";
@@ -24,6 +25,7 @@ import {
   etiquetaRecuperador,
   RECUPERADORES,
 } from "@/lib/recuperadores";
+import { dineroRecuperadoAsignacionEnPeriodo } from "@/lib/metricasRecuperadores";
 import type { MetodoPago, PagoPaso, ReciboData } from "@/lib/reciboTypes";
 import {
   abrirWhatsAppConTexto,
@@ -42,6 +44,7 @@ type Asignacion = {
   gps_moto: string;
   fecha_asignada: string | null;
   fecha_recuperada: string | null;
+  fecha_abono: string | null;
   foto: string | null;
   tipo_pago: string | null;
   presencial: boolean | null;
@@ -168,6 +171,50 @@ export default function RecuperadoresPage() {
     () => asignacionesActuales.filter((a) => esAsignacionPendiente(a.estado)),
     [asignacionesActuales],
   );
+
+  const top3Podio = useMemo(() => {
+    const ahora = new Date();
+    const ranking = RECUPERADORES.map((rec) => {
+      const grupo = recuperadores.find((r) => r.nombre === rec.nombre);
+      const dinero =
+        grupo?.asignaciones.reduce(
+          (sum, a) =>
+            sum +
+            dineroRecuperadoAsignacionEnPeriodo(
+              {
+                estado: a.estado,
+                pagado: a.pagado,
+                multa: a.multa,
+                fecha_abono: a.fecha_abono,
+                fecha_asignada: a.fecha_asignada,
+                fecha_recuperada: a.fecha_recuperada,
+              },
+              "mes",
+              ahora,
+            ),
+          0,
+        ) ?? 0;
+      return { etiqueta: rec.etiqueta, dinero };
+    })
+      .sort(
+        (a, b) =>
+          b.dinero - a.dinero ||
+          a.etiqueta.localeCompare(b.etiqueta, "es"),
+      )
+      .filter((r) => r.dinero > 0)
+      .slice(0, 3);
+
+    return ranking.map((r, i) => ({
+      puesto: (i + 1) as 1 | 2 | 3,
+      nombre: r.etiqueta,
+    }));
+  }, [recuperadores]);
+
+  const etiquetaMesPodio = useMemo(() => {
+    const ahora = new Date();
+    const mes = ahora.toLocaleDateString("es-CO", { month: "long" });
+    return `Podio · ${mes.charAt(0).toUpperCase()}${mes.slice(1)}`;
+  }, []);
 
   const placasConDeuda = useMemo(
     () =>
@@ -880,6 +927,11 @@ export default function RecuperadoresPage() {
               );
             })}
           </div>
+        </section>
+
+        <section className="shrink-0 flex flex-col gap-1.5">
+          <label className="text-xs text-zinc-400 pl-0.5">{etiquetaMesPodio}</label>
+          <RecuperadoresPodio top3={top3Podio} />
         </section>
 
         {selectedName && (

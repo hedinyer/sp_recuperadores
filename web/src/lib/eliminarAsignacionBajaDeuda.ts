@@ -77,6 +77,41 @@ export async function eliminarAsignacionBajaDeuda(
   return true;
 }
 
+/** Elimina una asignación pendiente y su publicación en placas (acción admin). */
+export async function eliminarAsignacionPendienteAdmin(
+  asignacionId: number,
+): Promise<{ placa: string }> {
+  const { data: row, error: selErr } = await supabase
+    .from("recuperadores")
+    .select("id, placa_asignada, estado_moto")
+    .eq("id", asignacionId)
+    .maybeSingle();
+
+  if (selErr) throw selErr;
+  if (!row) throw new Error("Asignación no encontrada");
+  if (!esEstadoAsignacionPendiente(row.estado_moto)) {
+    throw new Error("Solo se pueden eliminar asignaciones pendientes");
+  }
+
+  const placaNorm = normalizarPlaca(String(row.placa_asignada ?? ""));
+  if (!placaNorm) throw new Error("Placa inválida");
+
+  const { error: delRecup } = await supabase
+    .from("recuperadores")
+    .delete()
+    .eq("id", asignacionId);
+  if (delRecup) throw delRecup;
+
+  const { error: delPlacas } = await supabase
+    .from("placas")
+    .delete()
+    .eq("placa", placaNorm)
+    .in("status", ["asignada", "pendiente"]);
+  if (delPlacas) throw delPlacas;
+
+  return { placa: placaNorm };
+}
+
 export async function revisarYEliminarAsignacionPorPlaca(
   placa: string,
 ): Promise<boolean> {

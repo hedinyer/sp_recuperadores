@@ -83,6 +83,53 @@ function esRecuperada(estado: string): boolean {
   return estado.trim().toLowerCase() === "recuperada";
 }
 
+/** Dinero recuperado de una asignación (abono + multa, o multa si fue recuperada). */
+export function dineroRecuperadoAsignacion(
+  estado: string,
+  pagado: number | string | null | undefined,
+  multa: number | string | null | undefined,
+): number {
+  const p = num(pagado);
+  const m = num(multa);
+  if (esRecuperada(estado)) return m;
+  if (esAbono(estado, p)) return p + m;
+  return 0;
+}
+
+export type AsignacionDinero = {
+  estado: string;
+  pagado?: number | string | null;
+  multa?: number | string | null;
+  fecha_abono?: string | null;
+  fecha_asignada?: string | null;
+  fecha_recuperada?: string | null;
+};
+
+/** Dinero recuperado si la fecha del abono o recuperación cae en el periodo. */
+export function dineroRecuperadoAsignacionEnPeriodo(
+  asignacion: AsignacionDinero,
+  periodo: PeriodoMetrica = "mes",
+  ahora = new Date(),
+): number {
+  const estado = String(asignacion.estado ?? "");
+  const pagado = num(asignacion.pagado);
+  const multa = num(asignacion.multa);
+
+  if (esRecuperada(estado)) {
+    if (!enPeriodo(asignacion.fecha_recuperada, periodo, ahora)) return 0;
+    return multa;
+  }
+
+  if (esAbono(estado, pagado)) {
+    const fecha =
+      asignacion.fecha_abono ?? asignacion.fecha_asignada ?? null;
+    if (!enPeriodo(fecha, periodo, ahora)) return 0;
+    return pagado + multa;
+  }
+
+  return 0;
+}
+
 function fechaAbono(fila: FilaRecuperadorMetrica): string | null {
   return fila.fecha_hora_abono ?? fila.fecha_hora_asignada ?? null;
 }

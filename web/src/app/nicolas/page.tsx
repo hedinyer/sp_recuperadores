@@ -193,6 +193,7 @@ function NicolasAdminPanel() {
   >({});
   const [cargandoDeudasRecuperadas, setCargandoDeudasRecuperadas] =
     useState(false);
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null);
 
   const cargarDatos = useCallback(async () => {
     const [resPlacas, resRecup] = await Promise.all([
@@ -339,6 +340,39 @@ function NicolasAdminPanel() {
       setMensaje(data.error || "Error al asignar");
     }
   }, [asignarPlaca, asignarRecup, cargarDatos]);
+
+  const eliminarPendiente = useCallback(
+    async (id: number, placa: string) => {
+      if (
+        !window.confirm(
+          `¿Eliminar ${placa} de pendientes? Se quitará la asignación y la publicación en placas.`,
+        )
+      ) {
+        return;
+      }
+      setMensaje(null);
+      setEliminandoId(id);
+      try {
+        const res = await fetch("/api/asignaciones", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setMensaje(`Placa ${placa} eliminada`);
+          await cargarDatos();
+        } else {
+          setMensaje(data.error || "Error al eliminar");
+        }
+      } catch {
+        setMensaje("Error de conexión al eliminar");
+      } finally {
+        setEliminandoId(null);
+      }
+    },
+    [cargarDatos],
+  );
 
   const asignacionesReasignables = useMemo(
     () =>
@@ -707,8 +741,8 @@ function NicolasAdminPanel() {
                       key={a.id}
                       className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3"
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
                           <span className="text-base font-bold tracking-wider text-white">
                             {a.placa}
                           </span>
@@ -724,13 +758,24 @@ function NicolasAdminPanel() {
                             {a.estado}
                           </span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-xs text-zinc-300 font-medium">
-                            {etiquetaRecuperador(a.recuperador)}
-                          </p>
-                          <p className="text-[10px] text-zinc-500 tabular-nums">
-                            {formatFechaHora(a.fecha_asignada)}
-                          </p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <p className="text-xs text-zinc-300 font-medium">
+                              {etiquetaRecuperador(a.recuperador)}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 tabular-nums">
+                              {formatFechaHora(a.fecha_asignada)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => eliminarPendiente(a.id, a.placa)}
+                            disabled={eliminandoId === a.id}
+                            aria-label={`Eliminar ${a.placa}`}
+                            className="min-h-[36px] min-w-[36px] rounded-lg border border-red-900/60 bg-red-950/40 text-red-400 text-sm font-medium disabled:opacity-40 active:scale-[0.98] transition-transform touch-manipulation"
+                          >
+                            {eliminandoId === a.id ? "…" : "✕"}
+                          </button>
                         </div>
                       </div>
                       {(a.estado === "Abonó" || a.foto || a.tipo_pago) && (
