@@ -309,9 +309,20 @@ function NicolasAdminPanel() {
       body: JSON.stringify({ placa: p, gps_moto: nuevoGpsMoto }),
     });
     if (res.ok) {
+      const data = await res.json();
       setNuevaPlaca("");
       setNuevoGpsMoto("iop gps");
-      setMensaje(`Placa ${p} publicada (${nuevoGpsMoto})`);
+      const multa = data.multa as
+        | { creada?: boolean; monto?: number; motivo?: string | null }
+        | undefined;
+      let texto = `Placa ${p} publicada (${nuevoGpsMoto})`;
+      if (multa?.creada) {
+        texto += `. Multa de $${(multa.monto ?? 25000).toLocaleString("es-CO")} registrada en el ERP`;
+      } else if (multa && !multa.creada) {
+        texto +=
+          ". Aviso: no se pudo registrar la multa en el ERP; revisa manualmente";
+      }
+      setMensaje(texto);
       cargarDatos();
     } else {
       const data = await res.json();
@@ -571,6 +582,9 @@ function NicolasAdminPanel() {
           <label className="text-xs text-zinc-400 pl-0.5">
             Publicar nueva placa
           </label>
+          <p className="text-[11px] text-zinc-500 pl-0.5">
+            Al publicar se registra multa de $25.000 en el ERP.
+          </p>
           <select
             value={nuevoGpsMoto}
             onChange={(e) =>

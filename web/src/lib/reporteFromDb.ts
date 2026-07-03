@@ -2,6 +2,7 @@ import { getDatabaseUrls } from "@/lib/dbUrls";
 import { queryPg } from "@/lib/pgPool";
 import {
   buildFilaReporte,
+  fetchMultasPendientesPorContrato,
 } from "@/lib/vehiculoPorPlaca";
 import type { RegistroExtracto } from "@/lib/extractoCliente";
 
@@ -96,23 +97,29 @@ async function queryDb(connectionString: string): Promise<{
     tipo: string | null;
     referencia: string | null;
   }>;
+  multasPorContrato: Map<string, number>;
 }> {
   const clientes = await queryPg<ClienteRow>(
     connectionString,
     SQL_CLIENTES_EXTRACTO,
   );
 
-  if (!clientes.length) return { clientes: [], registros: [] };
+  if (!clientes.length) {
+    return { clientes: [], registros: [], multasPorContrato: new Map() };
+  }
 
-  const registros = await queryPg<{
-    contrato_id: string | number;
-    fecha_registro: Date;
-    valor: string | number;
-    tipo: string | null;
-    referencia: string | null;
-  }>(connectionString, SQL_REGISTROS_EXTRACTO);
+  const [registros, multasPorContrato] = await Promise.all([
+    queryPg<{
+      contrato_id: string | number;
+      fecha_registro: Date;
+      valor: string | number;
+      tipo: string | null;
+      referencia: string | null;
+    }>(connectionString, SQL_REGISTROS_EXTRACTO),
+    fetchMultasPendientesPorContrato(connectionString),
+  ]);
 
-  return { clientes, registros };
+  return { clientes, registros, multasPorContrato };
 }
 
 /** Reporte completo (~900 filas). Usar solo cuando haga falta la lista entera. */
@@ -130,11 +137,15 @@ export async function fetchReporteFilasDesdeDb(
     tipo: string | null;
     referencia: string | null;
   }> = [];
+  const multasPorContrato = new Map<string, number>();
 
   for (const r of results) {
     if (r.status === "fulfilled") {
       todosClientes.push(...r.value.clientes);
       todosRegistros.push(...r.value.registros);
+      for (const [id, monto] of r.value.multasPorContrato) {
+        multasPorContrato.set(id, (multasPorContrato.get(id) ?? 0) + monto);
+      }
     } else {
       console.warn(
         "[reporteFromDb] Error en una base:",
@@ -162,7 +173,8 @@ export async function fetchReporteFilasDesdeDb(
     if (!c.fecha_inicio || valorCuota <= 0) continue;
 
     const regs = registrosMap.get(String(c.contrato_id)) ?? [];
-    filas.push(buildFilaReporte(c, regs));
+    const deudaMultas = multasPorContrato.get(String(c.contrato_id)) ?? 0;
+    filas.push(buildFilaReporte(c, regs, deudaMultas));
   }
 
   filas.sort((a, b) => {

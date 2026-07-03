@@ -60,6 +60,8 @@ type Vehiculo = Record<string, string>;
 type DeudaPlaca = {
   nombre: string;
   deuda_total: string;
+  deuda_cuotas?: string;
+  deuda_multas?: string;
   dias_mora: number;
   cuotas_pendientes?: number | null;
   telefono?: string;
@@ -286,6 +288,8 @@ export default function RecuperadoresPage() {
             {
               nombre: v.nombre || "—",
               deuda_total: v.deuda_total || "0",
+              deuda_cuotas: v.deuda_cuotas,
+              deuda_multas: v.deuda_multas,
               dias_mora: parseInt(String(v.dias_mora ?? "0"), 10) || 0,
               cuotas_pendientes:
                 cuotasRaw != null && !Number.isNaN(cuotasRaw)
@@ -984,6 +988,8 @@ export default function RecuperadoresPage() {
 
                     <DeudaResumenSection
                       deudaTotal={deuda?.deuda_total}
+                      deudaCuotas={deuda?.deuda_cuotas}
+                      deudaMultas={deuda?.deuda_multas}
                       diasMora={deuda?.dias_mora ?? 0}
                       cuotasPendientes={deuda?.cuotas_pendientes}
                       loading={cargandoDeudas && !deuda}

@@ -34,7 +34,7 @@ import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/ubicacionGps";
 type Vehiculo = Record<string, string>;
 type TipoRecibo = "pago" | "recuperada";
 type MetodoPago = "Efectivo" | "Nequi" | "Transferencia";
-type PagoPaso = "montos" | "metodo" | "modalidad" | "foto";
+type PagoPaso = "recuperador" | "montos" | "metodo" | "modalidad" | "foto";
 
 const METODOS_PAGO: MetodoPago[] = ["Efectivo", "Nequi", "Transferencia"];
 
@@ -148,9 +148,9 @@ export default function Home() {
     gpsUbicacion?: string;
   } | null>(null);
   const [exportandoRecibo, setExportandoRecibo] = useState(false);
-  const [pasoRecuperada, setPasoRecuperada] = useState<"confirmar" | "recibo" | null>(
-    null,
-  );
+  const [pasoRecuperada, setPasoRecuperada] = useState<
+    "confirmar" | "recuperador" | null
+  >(null);
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
   const [mostrarGps, setMostrarGps] = useState(false);
   const [historialItems, setHistorialItems] = useState<ItemHistorialPlaca[]>([]);
@@ -206,17 +206,19 @@ export default function Home() {
     setPagoPaso("modalidad");
   }, [metodoPago, gpsCapturado, capturarGps]);
 
-  const totalPasosPago = esPresencial === true ? 4 : 3;
+  const totalPasosPago = esPresencial === true ? 5 : 4;
   const indicePasoPago =
-    pagoPaso === "montos"
+    pagoPaso === "recuperador"
       ? 1
-      : pagoPaso === "metodo"
+      : pagoPaso === "montos"
         ? 2
-        : pagoPaso === "modalidad"
+        : pagoPaso === "metodo"
           ? 3
-          : pagoPaso === "foto"
+          : pagoPaso === "modalidad"
             ? 4
-            : 0;
+            : pagoPaso === "foto"
+              ? 5
+              : 0;
 
   const onSeleccionarFoto = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -473,16 +475,17 @@ export default function Home() {
   ]);
 
   const iniciarReciboRecuperada = useCallback(() => {
-    if (!v || !recuperadorRecibo) {
+    if (!v) return;
+    setError(null);
+    setPasoRecuperada("confirmar");
+  }, [v]);
+
+  const generarReciboRecuperada = useCallback(async () => {
+    if (!v) return;
+    if (!recuperadorRecibo) {
       setError("Selecciona recuperador para recuperar la moto");
       return;
     }
-    setError(null);
-    setPasoRecuperada("confirmar");
-  }, [v, recuperadorRecibo]);
-
-  const generarReciboRecuperada = useCallback(async () => {
-    if (!v || !recuperadorRecibo) return;
     setError(null);
     setMensajeInfo(null);
     setSolicitandoGps(true);
@@ -698,23 +701,6 @@ export default function Home() {
 
         {v && (
           <>
-            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
-              <label className="text-xs text-zinc-400 pl-0.5 block mb-1">
-                Recuperador
-              </label>
-              <select
-                value={recuperadorRecibo}
-                onChange={(e) => setRecuperadorRecibo(e.target.value)}
-                className="w-full min-h-[44px] rounded-xl bg-zinc-800 border border-zinc-700 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              >
-                <option value="">Seleccionar recuperador</option>
-                {RECUPERADORES_FIJOS.map((nom) => (
-                  <option key={nom} value={nom}>
-                    {etiquetaRecuperador(nom)}
-                  </option>
-                ))}
-              </select>
-            </section>
             <article className="flex flex-col rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden shadow-lg shadow-black/30">
               {/* Placa */}
               <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-zinc-900 border-b border-zinc-800">
@@ -794,6 +780,13 @@ export default function Home() {
                 <p className="mt-1 text-[clamp(1.75rem,8vw,2.25rem)] font-bold text-rose-400 tabular-nums leading-none tracking-tight">
                   {formatearCOP(v.deuda_total)}
                 </p>
+                {Number(v.deuda_multas ?? 0) > 0 && (
+                  <p className="mt-2 text-xs text-zinc-400 leading-snug">
+                    Cuotas {formatearCOP(v.deuda_cuotas ?? "0")}
+                    {" · "}
+                    Multas {formatearCOP(v.deuda_multas ?? "0")}
+                  </p>
+                )}
               </section>
 
               {mostrarGps ? (
@@ -921,12 +914,8 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!recuperadorRecibo) {
-                    setError("Selecciona recuperador antes de generar pago");
-                    return;
-                  }
                   setError(null);
-                  setPagoPaso("montos");
+                  setPagoPaso("recuperador");
                 }}
                 className="flex-1 min-h-[50px] rounded-xl bg-emerald-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-emerald-900/30"
               >
@@ -1103,6 +1092,46 @@ export default function Home() {
                 Paso {indicePasoPago} de {totalPasosPago}
               </p>
 
+              {pagoPaso === "recuperador" && (
+                <>
+                  <h2 className="text-base font-semibold text-white mb-1">
+                    ¿Quién es el recuperador?
+                  </h2>
+                  <p className="text-xs text-zinc-500 mb-4">
+                    Elige quién registró el pago o la recuperación.
+                  </p>
+                  <select
+                    value={recuperadorRecibo}
+                    onChange={(e) => setRecuperadorRecibo(e.target.value)}
+                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="">Seleccionar recuperador</option>
+                    {RECUPERADORES_FIJOS.map((nom) => (
+                      <option key={nom} value={nom}>
+                        {etiquetaRecuperador(nom)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      type="button"
+                      onClick={cerrarWizardPago}
+                      className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPagoPaso("montos")}
+                      disabled={!recuperadorRecibo}
+                      className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </>
+              )}
+
               {pagoPaso === "montos" && (
                 <>
                   <h2 className="text-base font-semibold text-white mb-1">
@@ -1146,10 +1175,10 @@ export default function Home() {
                   <div className="flex gap-2 mt-5">
                     <button
                       type="button"
-                      onClick={cerrarWizardPago}
+                      onClick={() => setPagoPaso("recuperador")}
                       className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
                     >
-                      Cancelar
+                      Atrás
                     </button>
                     <button
                       type="button"
@@ -1358,19 +1387,16 @@ export default function Home() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
             <div className="w-full max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl">
               <p className="text-[11px] text-blue-400 font-medium mb-1">
-                Paso 1 de 2
+                Paso 1 de 3
               </p>
               <h2 className="text-base font-semibold text-white mb-2">
                 ¿Recuperaste la moto?
               </h2>
-              <p className="text-sm text-zinc-400 mb-1">
+              <p className="text-sm text-zinc-400 mb-5">
                 Placa{" "}
                 <span className="text-white font-bold tracking-widest">
                   {(v.placa || "").toUpperCase().replace(/\s/g, "")}
                 </span>
-              </p>
-              <p className="text-sm text-zinc-500 mb-5">
-                Recuperador: {etiquetaRecuperador(recuperadorRecibo)}
               </p>
               <div className="flex gap-2">
                 <button
@@ -1382,11 +1408,58 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setPasoRecuperada("recuperador")}
+                  className="flex-1 min-h-[48px] rounded-xl bg-blue-700 text-white font-semibold text-sm touch-manipulation"
+                >
+                  Sí, continuar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pasoRecuperada === "recuperador" && v && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="w-full max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl">
+              <p className="text-[11px] text-blue-400 font-medium mb-1">
+                Paso 2 de 3
+              </p>
+              <h2 className="text-base font-semibold text-white mb-1">
+                ¿Quién es el recuperador?
+              </h2>
+              <p className="text-xs text-zinc-500 mb-4">
+                Placa{" "}
+                <span className="text-white font-bold tracking-widest">
+                  {(v.placa || "").toUpperCase().replace(/\s/g, "")}
+                </span>
+              </p>
+              <select
+                value={recuperadorRecibo}
+                onChange={(e) => setRecuperadorRecibo(e.target.value)}
+                className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              >
+                <option value="">Seleccionar recuperador</option>
+                {RECUPERADORES_FIJOS.map((nom) => (
+                  <option key={nom} value={nom}>
+                    {etiquetaRecuperador(nom)}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setPasoRecuperada("confirmar")}
+                  className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                >
+                  Atrás
+                </button>
+                <button
+                  type="button"
                   onClick={() => void generarReciboRecuperada()}
-                  disabled={solicitandoGps}
+                  disabled={!recuperadorRecibo || solicitandoGps}
                   className="flex-1 min-h-[48px] rounded-xl bg-blue-700 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
                 >
-                  {solicitandoGps ? "Obteniendo GPS…" : "Sí, continuar"}
+                  {solicitandoGps ? "Obteniendo GPS…" : "Generar recibo"}
                 </button>
               </div>
             </div>

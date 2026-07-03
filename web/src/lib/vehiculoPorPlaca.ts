@@ -74,6 +74,47 @@ WHERE ct.estado = 'Activo'
 LIMIT 1
 `;
 
+/** Multas con saldo pendiente (mismo criterio que el ERP). */
+export const SQL_MULTAS_PENDIENTES_CONTRATO = `
+SELECT COALESCE(SUM(m.saldo::numeric), 0) AS deuda_multas
+FROM terminal_pagos_multa m
+WHERE m.contrato_id = $1
+  AND m.saldo::numeric > 0
+`;
+
+export const SQL_MULTAS_PENDIENTES_LOTE = `
+SELECT m.contrato_id, COALESCE(SUM(m.saldo::numeric), 0) AS deuda_multas
+FROM terminal_pagos_multa m
+WHERE m.saldo::numeric > 0
+GROUP BY m.contrato_id
+`;
+
+export async function fetchDeudaMultasPendientes(
+  connectionString: string,
+  contratoId: string | number,
+): Promise<number> {
+  const rows = await queryPg<{ deuda_multas: string | number }>(
+    connectionString,
+    SQL_MULTAS_PENDIENTES_CONTRATO,
+    [contratoId],
+  );
+  return Math.round(Number(rows[0]?.deuda_multas ?? 0));
+}
+
+export async function fetchMultasPendientesPorContrato(
+  connectionString: string,
+): Promise<Map<string, number>> {
+  const rows = await queryPg<{
+    contrato_id: string | number;
+    deuda_multas: string | number;
+  }>(connectionString, SQL_MULTAS_PENDIENTES_LOTE);
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(String(row.contrato_id), Math.round(Number(row.deuda_multas)));
+  }
+  return map;
+}
+
 function fechaAString(v: unknown): string {
   if (v instanceof Date) {
     const y = v.getFullYear();
@@ -87,6 +128,7 @@ function fechaAString(v: unknown): string {
 export function buildFilaReporte(
   c: ClienteDbRow,
   registros: RegistroExtracto[],
+  deudaMultas = 0,
 ): Record<string, string> {
   const valorCuota = Number(c.valor_cuota);
   const m = calcularMetricasExtracto(
@@ -95,6 +137,9 @@ export function buildFilaReporte(
     registros,
     parseDiasCredito(c.fecha_final),
   );
+
+  const deudaCuotas = Math.round(m.deuda_total);
+  const multas = Math.round(deudaMultas);
 
   return {
     cedula: c.cedula,
@@ -109,7 +154,9 @@ export function buildFilaReporte(
     cuotas_pagadas: m.cuotas_pagadas.toFixed(1),
     cuotas_pendientes: m.cuotas_pendientes.toFixed(1),
     total_pagado: String(Math.round(m.total_pagado)),
-    deuda_total: String(Math.round(m.deuda_total)),
+    deuda_cuotas: String(deudaCuotas),
+    deuda_multas: String(multas),
+    deuda_total: String(deudaCuotas + multas),
     ultimo_pago: m.ultimo_pago,
     dias_mora: String(m.dias_mora),
     cumplimiento_pct: String(m.cumplimiento_pct),
@@ -146,18 +193,24 @@ async function fetchDesdeUrl(
   const cliente = clientes[0];
   if (!cliente) return null;
 
-  const regRows = await queryPg<RegistroDbRow>(
-    connectionString,
-    SQL_REGISTROS_CONTRATO,
-    [cliente.contrato_id],
-  );
+  const [regRows, deudaMultas] = await Promise.all([
+    queryPg<RegistroDbRow>(connectionString, SQL_REGISTROS_CONTRATO, [
+      cliente.contrato_id,
+    ]),
+    fetchDeudaMultasPendientes(connectionString, cliente.contrato_id),
+  ]);
 
-  return buildFilaReporte(cliente, registrosDesdeRows(regRows));
+  return buildFilaReporte(cliente, registrosDesdeRows(regRows), deudaMultas);
+}
+
+/** Limpia caché de consulta (p. ej. tras registrar multa en el ERP). */
+export function invalidarCachePlaca(placa: string): void {
+  const placaNorm = normalizarPlaca(placa);
+  if (placaNorm) cachePlaca.delete(placaNorm);
 }
 
 /**
  * Una fila del reporte para una placa (sin cargar los ~900 contratos).
- * Solo SELECT; no modifica la base.
  */
 export async function fetchVehiculoPorPlaca(
   placa: string,

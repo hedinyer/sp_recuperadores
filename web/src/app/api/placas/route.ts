@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { hasAdminSession } from "@/lib/adminAuth";
+import {
+  MULTA_PUBLICACION_COP,
+  registrarMultaPublicacionPlaca,
+} from "@/lib/multaPublicacion";
 import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
 import {
@@ -107,7 +111,19 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    return NextResponse.json({ placa: data }, { status: 201 });
+    const multa = await registrarMultaPublicacionPlaca(placa);
+
+    return NextResponse.json(
+      {
+        placa: data,
+        multa: {
+          monto: MULTA_PUBLICACION_COP,
+          creada: multa.creada,
+          motivo: multa.motivo ?? null,
+        },
+      },
+      { status: 201 },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al crear placa";
     return NextResponse.json({ error: msg }, { status: 500 });

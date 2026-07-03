@@ -4,6 +4,8 @@ import { formatearCOP, minimoCobroDeuda } from "@/lib/formatoDinero";
 
 type Props = {
   deudaTotal?: string;
+  deudaCuotas?: string;
+  deudaMultas?: string;
   diasMora?: number;
   cuotasPendientes?: number | null;
   loading?: boolean;
@@ -12,6 +14,8 @@ type Props = {
 
 export function DeudaResumenSection({
   deudaTotal,
+  deudaCuotas,
+  deudaMultas,
   diasMora = 0,
   cuotasPendientes = null,
   loading = false,
@@ -20,6 +24,8 @@ export function DeudaResumenSection({
   const cuotasPend =
     cuotasPendientes != null ? Number(cuotasPendientes) : null;
   const minimoRecibir = minimoCobroDeuda(deudaTotal);
+  const multas = Number(deudaMultas ?? 0) || 0;
+  const cuotas = Number(deudaCuotas ?? 0) || 0;
 
   return (
     <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
@@ -38,6 +44,13 @@ export function DeudaResumenSection({
           <p className="mt-1 text-[clamp(1.75rem,8vw,2.25rem)] font-bold text-rose-400 tabular-nums leading-none tracking-tight">
             {formatearCOP(deudaTotal)}
           </p>
+          {multas > 0 && (
+            <p className="mt-2 text-xs text-zinc-400 leading-snug">
+              Cuotas {formatearCOP(String(cuotas || Number(deudaTotal) - multas))}
+              {" · "}
+              Multas {formatearCOP(String(multas))}
+            </p>
+          )}
           {minimoRecibir != null && (
             <p className="mt-2 text-sm text-amber-300/95 leading-snug">
               <span className="text-[11px] font-medium uppercase tracking-wider text-amber-400/80 block mb-0.5">

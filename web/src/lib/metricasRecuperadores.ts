@@ -44,6 +44,10 @@ export function inicioPeriodo(
     const dia = inicio.getDay();
     const desdeLunes = dia === 0 ? 6 : dia - 1;
     inicio.setDate(inicio.getDate() - desdeLunes);
+    const inicioMes = new Date(ahora);
+    inicioMes.setHours(0, 0, 0, 0);
+    inicioMes.setDate(1);
+    if (inicio < inicioMes) return inicioMes;
   } else if (periodo === "mes") {
     inicio.setDate(1);
   } else if (periodo === "año") {
