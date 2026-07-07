@@ -49,25 +49,34 @@ export async function GET(request: Request) {
   try {
     const vehiculo = await fetchVehiculoPorPlaca(placa);
     if (!vehiculo) {
+      const placaNorm = normalizarPlaca(placa);
+      const msg =
+        placaNorm.length < 5
+          ? "Escribe al menos 5 letras de la placa"
+          : "No se encontró la placa";
       return NextResponse.json(
-        { error: "No se encontró la placa", placa: placa.toUpperCase() },
+        { error: msg, placa: placa.toUpperCase() },
         { status: 404 },
       );
     }
 
+    const placaCompleta = normalizarPlaca(vehiculo.placa);
     const deudaTotal = parseDeudaTotal(vehiculo.deuda_total);
-    const eliminada = await eliminarAsignacionBajaDeuda(placa, deudaTotal);
+    const eliminada = await eliminarAsignacionBajaDeuda(
+      placaCompleta,
+      deudaTotal,
+    );
     if (eliminada) {
       return NextResponse.json({
         eliminada: true,
         motivo: "deuda_menor_minimo",
-        placa: normalizarPlaca(placa),
+        placa: placaCompleta,
         deuda_total: deudaTotal,
       });
     }
 
-    const gps_motoDb = await obtenerGpsMotoPlaca(placa);
-    const resultadoGps = await buscarUbicacionGps(placa, gps_motoDb);
+    const gps_motoDb = await obtenerGpsMotoPlaca(placaCompleta);
+    const resultadoGps = await buscarUbicacionGps(placaCompleta, gps_motoDb);
 
     const gps = resultadoGps.ok ? resultadoGps.gps : null;
     const proveedor = gps?.proveedor ?? resolverProveedorGps(gps_motoDb);
@@ -78,12 +87,13 @@ export async function GET(request: Request) {
     const gps_mensaje = gps
       ? null
       : mensajeGpsNoDisponible(
-          placa,
+          placaCompleta,
           resultadoGps.ok ? "sin_dispositivo" : resultadoGps.motivo,
           gps_motoDb,
         );
 
-    const asignacionPendiente = await buscarAsignacionPendientePorPlaca(placa);
+    const asignacionPendiente =
+      await buscarAsignacionPendientePorPlaca(placaCompleta);
 
     return NextResponse.json({
       vehiculo,

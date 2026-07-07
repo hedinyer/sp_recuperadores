@@ -48,6 +48,29 @@ WHERE ct.estado = 'Activo'
 LIMIT 1
 `;
 
+const SQL_CLIENTE_POR_PLACA_PREFIJO = `
+SELECT
+    ct.id AS contrato_id,
+    cl.cedula,
+    cl.nombre,
+    v.placa,
+    cl.telefono,
+    ven.nombre AS visitador,
+    ct.fecha_inicio::date AS fecha_inicio,
+    ct.tarifa::numeric AS valor_cuota,
+    ct.dias_contrato::text AS fecha_final
+FROM arrendamientos_contrato ct
+JOIN clientes_cliente cl ON cl.id = ct.cliente_id
+JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
+LEFT JOIN clientes_vendedor ven ON ven.id = ct.vendedor_id
+WHERE ct.estado = 'Activo'
+  AND ct.fecha_inicio IS NOT NULL
+  AND ct.tarifa > 0
+  AND upper(replace(v.placa, ' ', '')) LIKE $1 || '%'
+ORDER BY upper(replace(v.placa, ' ', ''))
+LIMIT 1
+`;
+
 const SQL_REGISTROS_CONTRATO = `
 SELECT
     pf.fecha_pago::date AS fecha_registro,
@@ -186,11 +209,13 @@ async function fetchDesdeUrl(
   connectionString: string,
   placaNorm: string,
 ): Promise<Record<string, string> | null> {
-  const clientes = await queryPg<ClienteDbRow>(
-    connectionString,
-    SQL_CLIENTE_POR_PLACA,
-    [placaNorm],
-  );
+  const sql =
+    placaNorm.length === 5
+      ? SQL_CLIENTE_POR_PLACA_PREFIJO
+      : SQL_CLIENTE_POR_PLACA;
+  const clientes = await queryPg<ClienteDbRow>(connectionString, sql, [
+    placaNorm,
+  ]);
   const cliente = clientes[0];
   if (!cliente) return null;
 
@@ -217,7 +242,7 @@ export async function fetchVehiculoPorPlaca(
   placa: string,
 ): Promise<Record<string, string> | null> {
   const placaNorm = normalizarPlaca(placa);
-  if (!placaNorm) return null;
+  if (!placaNorm || placaNorm.length < 5) return null;
 
   const ahora = Date.now();
   const cached = cachePlaca.get(placaNorm);

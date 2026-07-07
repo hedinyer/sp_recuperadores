@@ -251,6 +251,10 @@ export default function Home() {
       setError("Escribe una placa");
       return;
     }
+    if (normalizarPlaca(p).length < 5) {
+      setError("Escribe al menos 5 letras de la placa");
+      return;
+    }
     setLoading(true);
     setError(null);
     setMensajeInfo(null);
@@ -667,7 +671,7 @@ export default function Home() {
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              placeholder="Ej. TIJ66H"
+              placeholder="Ej. TIJ76 (5 letras)"
               value={placa}
               onChange={(e) => setPlaca(e.target.value.toUpperCase())}
               onKeyDown={(e) => e.key === "Enter" && consultar()}
