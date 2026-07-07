@@ -44,6 +44,7 @@ LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
 LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
 WHERE ct.estado = 'Activo'
   AND ct.fecha_inicio IS NOT NULL
+  AND lower(f.estado) <> 'anulada'
 ORDER BY ct.id, pf.fecha_pago
 `;
 
