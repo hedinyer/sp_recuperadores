@@ -17,6 +17,8 @@ type ClienteDbRow = {
   fecha_inicio: Date;
   valor_cuota: string | number;
   fecha_final: string | null;
+  /** Estado del contrato en el ERP (`Activo`, `Inactivo`, etc.). */
+  estado?: string | null;
 };
 
 type RegistroDbRow = {
@@ -36,15 +38,16 @@ SELECT
     ven.nombre AS visitador,
     ct.fecha_inicio::date AS fecha_inicio,
     ct.tarifa::numeric AS valor_cuota,
-    ct.dias_contrato::text AS fecha_final
+    ct.dias_contrato::text AS fecha_final,
+    ct.estado
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
 LEFT JOIN clientes_vendedor ven ON ven.id = ct.vendedor_id
-WHERE ct.estado = 'Activo'
-  AND ct.fecha_inicio IS NOT NULL
+WHERE ct.fecha_inicio IS NOT NULL
   AND ct.tarifa > 0
   AND upper(replace(v.placa, ' ', '')) = $1
+ORDER BY (ct.estado = 'Activo') DESC, ct.fecha_inicio DESC
 LIMIT 1
 `;
 
@@ -58,16 +61,19 @@ SELECT
     ven.nombre AS visitador,
     ct.fecha_inicio::date AS fecha_inicio,
     ct.tarifa::numeric AS valor_cuota,
-    ct.dias_contrato::text AS fecha_final
+    ct.dias_contrato::text AS fecha_final,
+    ct.estado
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
 LEFT JOIN clientes_vendedor ven ON ven.id = ct.vendedor_id
-WHERE ct.estado = 'Activo'
-  AND ct.fecha_inicio IS NOT NULL
+WHERE ct.fecha_inicio IS NOT NULL
   AND ct.tarifa > 0
   AND upper(replace(v.placa, ' ', '')) LIKE $1 || '%'
-ORDER BY upper(replace(v.placa, ' ', ''))
+ORDER BY
+  upper(replace(v.placa, ' ', '')),
+  (ct.estado = 'Activo') DESC,
+  ct.fecha_inicio DESC
 LIMIT 1
 `;
 
@@ -184,6 +190,7 @@ export function buildFilaReporte(
     ultimo_pago: m.ultimo_pago,
     dias_mora: String(m.dias_mora),
     cumplimiento_pct: String(m.cumplimiento_pct),
+    estado_contrato: String(c.estado ?? "Activo").trim() || "Activo",
   };
 }
 

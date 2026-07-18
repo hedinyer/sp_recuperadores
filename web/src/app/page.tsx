@@ -716,6 +716,17 @@ export default function Home() {
                 </span>
               </div>
 
+              {v.estado_contrato &&
+              v.estado_contrato.trim().toLowerCase() !== "activo" ? (
+                <div
+                  role="status"
+                  className="px-4 py-2 border-b border-amber-900/50 bg-amber-950/40 text-sm text-amber-200"
+                >
+                  Contrato {v.estado_contrato.trim()} — se muestra la deuda
+                  igualmente
+                </div>
+              ) : null}
+
               {/* Deuda */}
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
                 <div className="flex items-start justify-between gap-2">
