@@ -29,23 +29,51 @@ WHERE ct.estado = 'Activo'
   AND TRIM(v.placa) <> ''
 `;
 
-/** Pagos del contrato activo (sin filtrar por fecha_inicio; el extracto oficial los incluye). */
+/**
+ * Pagos que abonan cuotas (contratos activos).
+ * Resta multas vía `pagomulta` y excluye cargos DALE de $25.000.
+ */
 export const SQL_REGISTROS_EXTRACTO = `
 SELECT
-    ct.id AS contrato_id,
-    pf.fecha_pago::date AS fecha_registro,
-    pf.valor::numeric AS valor,
-    COALESCE(mp.nombre, '') AS tipo,
-    COALESCE(pf.referencia, '') AS referencia
-FROM terminal_pagos_pagofactura pf
-JOIN terminal_pagos_factura f ON f.id = pf.factura_id
-JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
-LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
-LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
-WHERE ct.estado = 'Activo'
-  AND ct.fecha_inicio IS NOT NULL
-  AND lower(f.estado) <> 'anulada'
-ORDER BY ct.id, pf.fecha_pago
+    contrato_id,
+    fecha_registro,
+    valor,
+    tipo,
+    referencia
+FROM (
+  SELECT
+      ct.id AS contrato_id,
+      pf.fecha_pago::date AS fecha_registro,
+      pf.valor::numeric
+        - CASE
+            WHEN ROW_NUMBER() OVER (
+              PARTITION BY f.id ORDER BY pf.fecha_pago, pf.id
+            ) = 1
+            THEN COALESCE(pm.valor_multa, 0)
+            ELSE 0
+          END AS valor,
+      COALESCE(mp.nombre, '') AS tipo,
+      COALESCE(pf.referencia, '') AS referencia
+  FROM terminal_pagos_pagofactura pf
+  JOIN terminal_pagos_factura f ON f.id = pf.factura_id
+  JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
+  LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
+  LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
+  LEFT JOIN (
+    SELECT factura_id, SUM(valor::numeric) AS valor_multa
+    FROM terminal_pagos_pagomulta
+    GROUP BY factura_id
+  ) pm ON pm.factura_id = f.id
+  WHERE ct.estado = 'Activo'
+    AND ct.fecha_inicio IS NOT NULL
+    AND lower(f.estado) <> 'anulada'
+    AND NOT (
+      pf.valor::numeric = 25000
+      AND lower(COALESCE(mp.nombre, '')) = 'dale'
+    )
+) pagos_cuota
+WHERE valor > 0
+ORDER BY contrato_id, fecha_registro
 `;
 
 type ClienteRow = {
