@@ -79,8 +79,9 @@ export async function POST(request: Request) {
         heading: numOrNull(body.heading),
         speed_mps: numOrNull(body.speed_mps),
         gps_coords,
-        foto_frontal_url: null,
-        foto_trasera_url: null,
+        // Columnas foto aún NOT NULL en prod; fotos ya no se capturan.
+        foto_frontal_url: "",
+        foto_trasera_url: "",
         flash_frontal: false,
         flash_trasera: false,
         user_agent:
