@@ -19,16 +19,14 @@ async function setTorch(track: MediaStreamTrack, on: boolean): Promise<boolean> 
   if (!caps?.torch) return false;
   try {
     await track.applyConstraints({
-      // @ts-expect-error torch no está en todos los typings DOM
       advanced: [{ torch: on }],
-    });
+    } as unknown as MediaTrackConstraints);
     return on;
   } catch {
     try {
       await track.applyConstraints({
-        // @ts-expect-error torch
         torch: on,
-      } as MediaTrackConstraints);
+      } as unknown as MediaTrackConstraints);
       return on;
     } catch {
       return false;
