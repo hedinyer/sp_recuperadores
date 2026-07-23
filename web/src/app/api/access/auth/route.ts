@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import {
   ACCESS_COOKIE,
   accessCookieOptions,
-  accessSessionValue,
   hasAccessSession,
   verifyAccessKey,
 } from "@/lib/appAccess";
@@ -15,6 +14,7 @@ export async function GET() {
   return NextResponse.json({ ok });
 }
 
+/** Solo valida la clave. La cookie se emite en /api/access/sesion tras GPS + fotos. */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -27,9 +27,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(ACCESS_COOKIE, accessSessionValue(), accessCookieOptions());
-    return res;
+    return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Solicitud inválida" }, { status: 400 });
   }

@@ -10,6 +10,7 @@ const ACCESS_COOKIE = "app_access";
 const PUBLIC_PATHS = [
   "/acceso",
   "/api/access/auth",
+  "/api/access/sesion",
   "/api/calendario_marisol/calendar.ics",
 ];
 

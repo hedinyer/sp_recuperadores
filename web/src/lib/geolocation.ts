@@ -1,32 +1,121 @@
 export type MotivoGpsError = "no_soporte" | "denegado" | "timeout" | "error";
 
+export type GpsPreciso = {
+  lat: number;
+  lng: number;
+  accuracy_m: number | null;
+  altitude_m: number | null;
+  altitude_accuracy_m: number | null;
+  heading: number | null;
+  speed_mps: number | null;
+  /** "lat,lng" con hasta 8 decimales */
+  coords: string;
+};
+
 export type ResultadoGps =
   | { ok: true; coords: string }
   | { ok: false; motivo: MotivoGpsError };
 
+export type ResultadoGpsPreciso =
+  | { ok: true; gps: GpsPreciso }
+  | { ok: false; motivo: MotivoGpsError };
+
+function finitoONull(n: number | null | undefined): number | null {
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+function desdePosition(pos: GeolocationPosition): GpsPreciso {
+  const { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed } =
+    pos.coords;
+  return {
+    lat: latitude,
+    lng: longitude,
+    accuracy_m: finitoONull(accuracy),
+    altitude_m: finitoONull(altitude),
+    altitude_accuracy_m: finitoONull(altitudeAccuracy),
+    heading: finitoONull(heading),
+    speed_mps: finitoONull(speed),
+    coords: `${latitude.toFixed(8)},${longitude.toFixed(8)}`,
+  };
+}
+
+function motivoDeError(err: GeolocationPositionError): MotivoGpsError {
+  if (err.code === err.PERMISSION_DENIED) return "denegado";
+  if (err.code === err.TIMEOUT) return "timeout";
+  return "error";
+}
+
 /** Devuelve "lat,lng" con hasta 6 decimales. */
 export function obtenerGpsUbicacion(): Promise<ResultadoGps> {
+  return obtenerGpsPreciso({ samples: 1, maxWaitMs: 20_000 }).then((r) =>
+    r.ok ? { ok: true, coords: r.gps.coords } : r,
+  );
+}
+
+/**
+ * GPS de alta precisión: varias lecturas y se queda con la de menor accuracy_m.
+ * enableHighAccuracy + maximumAge 0 + sin caché.
+ */
+export function obtenerGpsPreciso(opts?: {
+  samples?: number;
+  maxWaitMs?: number;
+  targetAccuracyM?: number;
+}): Promise<ResultadoGpsPreciso> {
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     return Promise.resolve({ ok: false, motivo: "no_soporte" });
   }
 
+  const samples = Math.max(1, opts?.samples ?? 5);
+  const maxWaitMs = opts?.maxWaitMs ?? 45_000;
+  const targetAccuracyM = opts?.targetAccuracyM ?? 15;
+
   return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
+    let best: GpsPreciso | null = null;
+    let got = 0;
+    let settled = false;
+    let watchId: number | null = null;
+
+    const finish = (result: ResultadoGpsPreciso) => {
+      if (settled) return;
+      settled = true;
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    const timer = setTimeout(() => {
+      if (best) finish({ ok: true, gps: best });
+      else finish({ ok: false, motivo: "timeout" });
+    }, maxWaitMs);
+
+    watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        resolve({ ok: true, coords: `${lat},${lng}` });
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          resolve({ ok: false, motivo: "denegado" });
-        } else if (err.code === err.TIMEOUT) {
-          resolve({ ok: false, motivo: "timeout" });
-        } else {
-          resolve({ ok: false, motivo: "error" });
+        const gps = desdePosition(pos);
+        got += 1;
+        if (
+          !best ||
+          (gps.accuracy_m != null &&
+            (best.accuracy_m == null || gps.accuracy_m < best.accuracy_m))
+        ) {
+          best = gps;
+        }
+        if (
+          best.accuracy_m != null &&
+          best.accuracy_m <= targetAccuracyM &&
+          got >= 2
+        ) {
+          finish({ ok: true, gps: best });
+          return;
+        }
+        if (got >= samples && best) {
+          finish({ ok: true, gps: best });
         }
       },
-      { enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 },
+      (err) => {
+        if (best) finish({ ok: true, gps: best });
+        else finish({ ok: false, motivo: motivoDeError(err) });
+      },
+      { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 0 },
     );
   });
 }
