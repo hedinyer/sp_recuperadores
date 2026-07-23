@@ -1,27 +1,20 @@
 "use client";
 
-import { useCallback, useRef, useState, Suspense } from "react";
+import { useCallback, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { capturarFotoCamaraRobusto } from "@/lib/capturaAcceso";
 import {
   mensajeErrorGps,
   obtenerGpsPreciso,
   type GpsPreciso,
 } from "@/lib/geolocation";
 
-type Paso =
-  | "clave"
-  | "gps"
-  | "camara_trasera"
-  | "camara_frontal"
-  | "enviando";
+type Paso = "clave" | "gps" | "enviando";
 
 function AccesoForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/";
-  const previewRef = useRef<HTMLVideoElement | null>(null);
 
   const [paso, setPaso] = useState<Paso>("clave");
   const [key, setKey] = useState("");
@@ -29,70 +22,42 @@ function AccesoForm() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [gps, setGps] = useState<GpsPreciso | null>(null);
-  const [fotoTrasera, setFotoTrasera] = useState<{
-    blob: Blob;
-    flash: boolean;
-    url: string;
-  } | null>(null);
-  const [fotoFrontal, setFotoFrontal] = useState<{
-    blob: Blob;
-    flash: boolean;
-    url: string;
-  } | null>(null);
 
   const dest =
     nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
 
   const enviarSesion = useCallback(
-    async (
-      gpsData: GpsPreciso,
-      trasera: { blob: Blob; flash: boolean },
-      frontal: { blob: Blob; flash: boolean },
-      clave: string,
-    ) => {
+    async (gpsData: GpsPreciso, clave: string) => {
       setPaso("enviando");
-      setStatus("Guardando evidencia…");
-      const fd = new FormData();
-      fd.append("key", clave);
-      fd.append("lat", String(gpsData.lat));
-      fd.append("lng", String(gpsData.lng));
-      fd.append("gps_coords", gpsData.coords);
-      if (gpsData.accuracy_m != null) {
-        fd.append("accuracy_m", String(gpsData.accuracy_m));
-      }
-      if (gpsData.altitude_m != null) {
-        fd.append("altitude_m", String(gpsData.altitude_m));
-      }
-      if (gpsData.altitude_accuracy_m != null) {
-        fd.append("altitude_accuracy_m", String(gpsData.altitude_accuracy_m));
-      }
-      if (gpsData.heading != null) {
-        fd.append("heading", String(gpsData.heading));
-      }
-      if (gpsData.speed_mps != null) {
-        fd.append("speed_mps", String(gpsData.speed_mps));
-      }
-      fd.append("flash_trasera", trasera.flash ? "1" : "0");
-      fd.append("flash_frontal", frontal.flash ? "1" : "0");
-      fd.append(
-        "viewport",
-        `${window.innerWidth}x${window.innerHeight}@${window.devicePixelRatio ?? 1}`,
-      );
-      fd.append("user_agent", navigator.userAgent);
-      fd.append(
-        "foto_trasera",
-        new File([trasera.blob], "trasera.jpg", { type: "image/jpeg" }),
-      );
-      fd.append(
-        "foto_frontal",
-        new File([frontal.blob], "frontal.jpg", { type: "image/jpeg" }),
-      );
-
+      setStatus("Registrando ubicación…");
       const res = await fetch("/api/access/sesion", {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: clave,
+          lat: gpsData.lat,
+          lng: gpsData.lng,
+          gps_coords: gpsData.coords,
+          accuracy_m: gpsData.accuracy_m,
+          altitude_m: gpsData.altitude_m,
+          altitude_accuracy_m: gpsData.altitude_accuracy_m,
+          heading: gpsData.heading,
+          speed_mps: gpsData.speed_mps,
+          viewport: `${window.innerWidth}x${window.innerHeight}@${window.devicePixelRatio ?? 1}`,
+          user_agent: navigator.userAgent,
+        }),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data: { ok?: boolean; error?: string } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Respuesta inválida del servidor"
+            : raw.slice(0, 120) || `Error HTTP ${res.status}`,
+        );
+      }
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "No se pudo registrar la sesión");
       }
@@ -100,36 +65,6 @@ function AccesoForm() {
       router.refresh();
     },
     [dest, router],
-  );
-
-  const capturarTrasera = useCallback(
-    async (gpsData: GpsPreciso, clave: string) => {
-      setPaso("camara_trasera");
-      setStatus("Cámara trasera + flash…");
-      setError(null);
-      try {
-        const cap = await capturarFotoCamaraRobusto("environment", {
-          previewVideo: previewRef.current,
-        });
-        const url = URL.createObjectURL(cap.blob);
-        const trasera = { blob: cap.blob, flash: cap.flashActivo, url };
-        setFotoTrasera(trasera);
-        setPaso("camara_frontal");
-        setStatus("Cámara frontal + flash…");
-        const capF = await capturarFotoCamaraRobusto("user", {
-          previewVideo: previewRef.current,
-        });
-        const urlF = URL.createObjectURL(capF.blob);
-        const frontal = { blob: capF.blob, flash: capF.flashActivo, url: urlF };
-        setFotoFrontal(frontal);
-        await enviarSesion(gpsData, trasera, frontal, clave);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Error de cámara");
-        setPaso("clave");
-        setLoading(false);
-      }
-    },
-    [enviarSesion],
   );
 
   const entrar = useCallback(async () => {
@@ -166,13 +101,17 @@ function AccesoForm() {
         return;
       }
       setGps(gpsRes.gps);
-      await capturarTrasera(gpsRes.gps, key);
-    } catch {
-      setError("Sin conexión o permisos denegados");
+      await enviarSesion(gpsRes.gps, key);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Sin conexión o permisos denegados",
+      );
       setPaso("clave");
       setLoading(false);
     }
-  }, [key, capturarTrasera]);
+  }, [key, enviarSesion]);
 
   return (
     <main className="min-h-dvh flex items-center justify-center px-4 bg-zinc-950">
@@ -182,8 +121,7 @@ function AccesoForm() {
             Acceso a la aplicación
           </h1>
           <p className="text-[11px] text-zinc-500 mt-0.5">
-            Clave + GPS preciso + foto trasera y frontal (flash si el teléfono lo
-            permite). Sin esto no se abre la app.
+            Clave + GPS preciso. Sin ubicación no se abre la app.
           </p>
         </div>
 
@@ -217,18 +155,6 @@ function AccesoForm() {
           <p className="text-sm text-emerald-400/90">{status}</p>
         )}
 
-        {(paso === "camara_trasera" ||
-          paso === "camara_frontal" ||
-          paso === "gps") && (
-          <video
-            ref={previewRef}
-            className="w-full aspect-[3/4] rounded-xl bg-black object-cover"
-            muted
-            playsInline
-            autoPlay
-          />
-        )}
-
         {gps && (
           <p className="text-[11px] text-zinc-500">
             GPS {gps.coords}
@@ -238,36 +164,11 @@ function AccesoForm() {
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
-          {fotoTrasera && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={fotoTrasera.url}
-              alt="Trasera"
-              className="rounded-lg aspect-square object-cover border border-zinc-700"
-            />
-          )}
-          {fotoFrontal && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={fotoFrontal.url}
-              alt="Frontal"
-              className="rounded-lg aspect-square object-cover border border-zinc-700"
-            />
-          )}
-        </div>
-
         {error && (
           <p role="alert" className="text-sm text-red-300">
             {error}
           </p>
         )}
-
-        <p className="text-[10px] text-zinc-600 leading-relaxed">
-          En Android Chrome el flash/torch se fuerza si el hardware lo expone. En
-          iPhone Safari el navegador no permite controlar el flash; igual se
-          exigen ambas fotos y el GPS.
-        </p>
       </section>
     </main>
   );

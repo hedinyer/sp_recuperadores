@@ -14,10 +14,6 @@ type Sesion = {
   accuracy_m: number | null;
   altitude_m: number | null;
   gps_coords: string;
-  foto_frontal_url: string;
-  foto_trasera_url: string;
-  flash_frontal: boolean;
-  flash_trasera: boolean;
   user_agent: string | null;
   viewport: string | null;
   ip: string | null;
@@ -91,24 +87,9 @@ function ListaSesiones() {
             </div>
             <span className="text-[10px] text-zinc-500">#{s.id}</span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={s.foto_trasera_url}
-              alt="Trasera"
-              className="rounded-lg aspect-square object-cover bg-zinc-800"
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={s.foto_frontal_url}
-              alt="Frontal"
-              className="rounded-lg aspect-square object-cover bg-zinc-800"
-            />
-          </div>
           <p className="text-[10px] text-zinc-500">
-            Flash trasera: {s.flash_trasera ? "sí" : "no"} · frontal:{" "}
-            {s.flash_frontal ? "sí" : "no"}
-            {s.ip ? ` · IP ${s.ip}` : ""}
+            {s.ip ? `IP ${s.ip}` : "Sin IP"}
+            {s.viewport ? ` · ${s.viewport}` : ""}
           </p>
         </li>
       ))}
@@ -121,7 +102,7 @@ export default function SesionesPage() {
     <main className="min-h-dvh bg-zinc-950 text-white px-4 pt-6 max-w-[480px] mx-auto">
       <h1 className="text-lg font-semibold mb-1">Quién abrió la app</h1>
       <p className="text-[11px] text-zinc-500 mb-4">
-        GPS + fotos al momento de entrar. Solo administradores.
+        GPS al momento de entrar. Solo administradores.
       </p>
       <AdminGate title="Sesiones abiertas" subtitle="Acceso administrador">
         <ListaSesiones />
