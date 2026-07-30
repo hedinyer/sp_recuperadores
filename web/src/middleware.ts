@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   "/api/access/auth",
   "/api/access/sesion",
   "/api/calendario_marisol/calendar.ics",
+  "/recoger-bogota",
+  "/api/placas/recoger-bogota",
 ];
 
 function isPublicPath(pathname: string): boolean {
