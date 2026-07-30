@@ -53,7 +53,10 @@ export async function POST(request: Request) {
       .toUpperCase()
       .replace(/\s/g, "");
     const gpsMotoRaw = String(body.gps_moto ?? "").trim().toLowerCase();
-    const gps_moto = gpsMotoRaw === "system track" ? "system track" : "iop gps";
+    const gps_moto =
+      gpsMotoRaw === "ds track" || gpsMotoRaw === "system track"
+        ? "ds track"
+        : "iop gps";
     if (!/^[A-Z0-9]{6}$/.test(placa)) {
       return NextResponse.json(
         { error: "La placa debe tener 6 caracteres alfanuméricos" },

@@ -128,6 +128,49 @@ function calcularIntervalos(fechas: Date[]): number[] {
   return out;
 }
 
+export type PatronPago = {
+  frecuencia_principal: FrecuenciaPago;
+  frecuencia_etiqueta: string;
+  frecuencia_confianza: number;
+  dias_promedio_entre_pagos: number;
+  regularidad_score: number;
+  pagos_irregulares: boolean;
+};
+
+/** Intervalos entre pagos → media, regularidad (1 − std/media) y bucket de frecuencia. */
+export function analizarPatronPago(
+  registros: RegistroExtracto[],
+): PatronPago {
+  const regsValidos = registros.filter(
+    (r) => r.valor != null && !Number.isNaN(Number(r.valor)) && Number(r.valor) > 0,
+  );
+  if (regsValidos.length < 2) {
+    return {
+      frecuencia_principal: "insuficiente_datos",
+      frecuencia_etiqueta: ETIQUETA_FRECUENCIA.insuficiente_datos,
+      frecuencia_confianza: 0,
+      dias_promedio_entre_pagos: 0,
+      regularidad_score: 0,
+      pagos_irregulares: false,
+    };
+  }
+
+  const intervalos = calcularIntervalos(regsValidos.map((r) => r.fecha));
+  const detectado = detectarFrecuencia(intervalos);
+  const pagos_irregulares =
+    detectado.frecuencia === "irregular" ||
+    (detectado.regularidad < 0.45 && detectado.confianza < 0.5);
+
+  return {
+    frecuencia_principal: detectado.frecuencia,
+    frecuencia_etiqueta: ETIQUETA_FRECUENCIA[detectado.frecuencia],
+    frecuencia_confianza: detectado.confianza,
+    dias_promedio_entre_pagos: detectado.media,
+    regularidad_score: detectado.regularidad,
+    pagos_irregulares,
+  };
+}
+
 export function detectarFrecuencia(intervalos: number[]): {
   frecuencia: FrecuenciaPago;
   confianza: number;
@@ -236,20 +279,14 @@ export function analizarMorosidad(
   const hoyD = startOfDay(hoy);
   const diasAntiguedad = daysBetween(inicio, hoyD);
 
-  let frecuencia: FrecuenciaPago = "insuficiente_datos";
-  let confianza = 0;
-  let media = 0;
-  let regularidad = 0;
-
-  if (regsValidos.length >= 2) {
-    const fechasPago = regsValidos.map((r) => startOfDay(r.fecha));
-    const intervalos = calcularIntervalos(fechasPago);
-    const detectado = detectarFrecuencia(intervalos);
-    frecuencia = detectado.frecuencia;
-    confianza = detectado.confianza;
-    media = detectado.media;
-    regularidad = detectado.regularidad;
-  }
+  const patron = analizarPatronPago(regsValidos);
+  const {
+    frecuencia_principal: frecuencia,
+    frecuencia_confianza: confianza,
+    dias_promedio_entre_pagos: media,
+    regularidad_score: regularidad,
+    pagos_irregulares: pagosIrregulares,
+  } = patron;
 
   const metricasHoy = calcularMetricasExtracto(
     fecha_inicio,
@@ -275,10 +312,6 @@ export function analizarMorosidad(
   let tendencia: TendenciaDeuda = "estable";
   if (deltaDeuda30 > valor_cuota * 0.4) tendencia = "creciente";
   else if (deltaDeuda30 < -valor_cuota * 0.2) tendencia = "mejorando";
-
-  const pagosIrregulares =
-    frecuencia === "irregular" ||
-    (regularidad < 0.45 && confianza < 0.5);
 
   const cuotasAtrasadas = metricasHoy.cuotas_pendientes;
   const riesgo = calcularRiesgoMora(
@@ -339,7 +372,7 @@ export function analizarMorosidad(
     ultimo_pago: metricasHoy.ultimo_pago,
     pago_hoy: pagoEnFecha(regsValidos, hoyD),
     frecuencia_principal: frecuencia,
-    frecuencia_etiqueta: ETIQUETA_FRECUENCIA[frecuencia],
+    frecuencia_etiqueta: patron.frecuencia_etiqueta,
     frecuencia_confianza: confianza,
     dias_promedio_entre_pagos: media,
     regularidad_score: regularidad,

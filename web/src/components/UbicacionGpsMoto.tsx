@@ -14,7 +14,7 @@ import {
 type UbicacionGpsMotoProps = {
   placa: string;
   gps: UbicacionGps;
-  /** Valor en tabla placas: "iop gps" | "system track". */
+  /** Valor en tabla placas: "iop gps" | "ds track" (legacy: "system track"). */
   gpsMoto?: string | null;
   /** Solo consulta GPS en vivo mientras el panel está abierto. */
   activo: boolean;

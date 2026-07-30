@@ -1,8 +1,8 @@
+import { mapaDispositivosPorPlacaDs } from "@/lib/dsTrackGps";
 import { mapaDispositivosPorPlacaIop } from "@/lib/iopGps";
 import { variantesPlaca } from "@/lib/placaGps";
-import { mapaDispositivosPorPlaca } from "@/lib/systemTrackGps";
-import { etiquetaEstadoGps } from "@/lib/systemTrackGps";
 import {
+  etiquetaEstadoGps,
   etiquetaProveedorGps,
   gpsConectadoFuncional,
   preferirDispositivoGps,
@@ -29,7 +29,7 @@ export const ESTADO_GPS_SIN_DISPOSITIVO: EstadoGpsPlaca = {
 };
 
 function gpsMotoDesdeProveedor(proveedor: ProveedorGps): string {
-  return proveedor === "iopgps" ? "iop gps" : "system track";
+  return proveedor === "iopgps" ? "iop gps" : "ds track";
 }
 
 function estadoDesdeDispositivo(gps: UbicacionGpsMoto): EstadoGpsPlaca {
@@ -48,7 +48,7 @@ export async function cargarMapaGpsUnificado(): Promise<
 > {
   const unificado = new Map<string, UbicacionGpsMoto>();
   const resultados = await Promise.allSettled([
-    mapaDispositivosPorPlaca(),
+    mapaDispositivosPorPlacaDs(),
     mapaDispositivosPorPlacaIop(),
   ]);
 

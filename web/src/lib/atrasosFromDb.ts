@@ -1,5 +1,9 @@
 import { getDatabaseUrls } from "@/lib/dbUrls";
 import {
+  analizarPatronPago,
+  type PatronPago,
+} from "@/lib/analisisMorosidad";
+import {
   calcularMetricasExtracto,
   parseDiasCredito,
   type RegistroExtracto,
@@ -38,7 +42,7 @@ export type ResultadoAtraso = {
   total_pagado: number;
   ultimo_pago: string;
   pago_hoy: boolean;
-};
+} & PatronPago;
 
 export type ResumenAtrasos = {
   total: number;
@@ -154,6 +158,8 @@ export function analizarAtraso(
     return null;
   }
 
+  const patron = analizarPatronPago(registros);
+
   return {
     placa: cliente.placa,
     cedula: cliente.cedula,
@@ -169,6 +175,7 @@ export function analizarAtraso(
     total_pagado: Math.round(metricas.total_pagado),
     ultimo_pago: metricas.ultimo_pago,
     pago_hoy: pagoEnFecha(registros, hoy),
+    ...patron,
   };
 }
 

@@ -1,0 +1,152 @@
+import type { PatronPago } from "@/lib/analisisMorosidad";
+import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
+import { DEUDA_MIN_ASIGNADA_COP } from "@/lib/eliminarAsignacionBajaDeuda";
+import {
+  cargarMapaGpsUnificado,
+  ESTADO_GPS_SIN_DISPOSITIVO,
+  resolverEstadoGpsPlaca,
+  type EstadoGpsPlaca,
+} from "@/lib/gpsEstadoPlacas";
+import { variantesPlaca } from "@/lib/placaGps";
+import {
+  preferirDispositivoGps,
+  type UbicacionGpsMoto,
+} from "@/lib/ubicacionGps";
+
+export const ORIGEN_RECOGER_BOGOTA = {
+  lat: 4.6672493278147655,
+  lng: -74.06232387116462,
+} as const;
+
+/** Piso de la página (sigue viniendo de atrasos filtrados). */
+export const DEUDA_MIN_RECOGER_BOGOTA_COP = DEUDA_MIN_ASIGNADA_COP;
+
+/** Deuda para ir a campo; debajo es lista de llamadas. */
+export const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
+
+export type MotoRecogerBogota = {
+  placa: string;
+  nombre: string;
+  telefono: string;
+  cedula: string;
+  deuda_total: number;
+  cuotas_pendientes: number;
+  valor_cuota: number;
+  pago_hoy: boolean;
+  lat: number | null;
+  lng: number | null;
+  distancia_km: number | null;
+  gps: EstadoGpsPlaca;
+} & PatronPago;
+
+export type ResumenRecogerBogota = {
+  total: number;
+  con_gps: number;
+  deuda_total: number;
+  generado_en: string;
+};
+
+/** Distancia Haversine en km. */
+export function distanciaKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function resolverUbicacionGps(
+  placa: string,
+  mapa: Map<string, UbicacionGpsMoto>,
+): UbicacionGpsMoto | null {
+  let mejor: UbicacionGpsMoto | null = null;
+  for (const clave of variantesPlaca(placa)) {
+    const hit = mapa.get(clave);
+    if (!hit) continue;
+    mejor = mejor ? preferirDispositivoGps(mejor, hit) : hit;
+  }
+  return mejor;
+}
+
+export async function listarMotosRecogerBogota(
+  refresh = false,
+): Promise<{
+  motos: MotoRecogerBogota[];
+  resumen: ResumenRecogerBogota;
+  origen: typeof ORIGEN_RECOGER_BOGOTA;
+}> {
+  const [{ atrasos }, mapa] = await Promise.all([
+    fetchAtrasosDesdeDb(refresh),
+    cargarMapaGpsUnificado(),
+  ]);
+
+  const candidatas = atrasos.filter(
+    (a) => a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP,
+  );
+
+  const motos: MotoRecogerBogota[] = candidatas.map((a) => {
+    const ubicacion = resolverUbicacionGps(a.placa, mapa);
+    const gps = ubicacion
+      ? resolverEstadoGpsPlaca(a.placa, mapa)
+      : ESTADO_GPS_SIN_DISPOSITIVO;
+
+    const lat = ubicacion?.lat ?? null;
+    const lng = ubicacion?.lng ?? null;
+    const distancia_km =
+      lat != null && lng != null
+        ? distanciaKm(ORIGEN_RECOGER_BOGOTA, { lat, lng })
+        : null;
+
+    return {
+      placa: a.placa,
+      nombre: a.nombre,
+      telefono: a.telefono,
+      cedula: a.cedula,
+      deuda_total: a.deuda_total,
+      cuotas_pendientes: a.cuotas_pendientes,
+      valor_cuota: a.valor_cuota,
+      pago_hoy: a.pago_hoy,
+      lat,
+      lng,
+      distancia_km,
+      gps,
+      frecuencia_principal: a.frecuencia_principal,
+      frecuencia_etiqueta: a.frecuencia_etiqueta,
+      frecuencia_confianza: a.frecuencia_confianza,
+      dias_promedio_entre_pagos: a.dias_promedio_entre_pagos,
+      regularidad_score: a.regularidad_score,
+      pagos_irregulares: a.pagos_irregulares,
+    };
+  });
+
+  motos.sort((x, y) => {
+    const dx = x.distancia_km;
+    const dy = y.distancia_km;
+    if (dx != null && dy != null) return dx - dy;
+    if (dx != null) return -1;
+    if (dy != null) return 1;
+    return y.deuda_total - x.deuda_total;
+  });
+
+  const con_gps = motos.filter((m) => m.distancia_km != null).length;
+  const deuda_total = motos.reduce((s, m) => s + m.deuda_total, 0);
+
+  return {
+    motos,
+    resumen: {
+      total: motos.length,
+      con_gps,
+      deuda_total,
+      generado_en: new Date().toISOString(),
+    },
+    origen: ORIGEN_RECOGER_BOGOTA,
+  };
+}

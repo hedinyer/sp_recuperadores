@@ -52,7 +52,7 @@ function esPendiente(estado: string | null | undefined): boolean {
   return !e || e === "pendiente";
 }
 
-const OPCIONES_GPS_MOTO = ["iop gps", "system track"] as const;
+const OPCIONES_GPS_MOTO = ["iop gps", "ds track"] as const;
 
 function formatearCOP(val: string | number | undefined): string {
   if (val == null || val === "") return "—";

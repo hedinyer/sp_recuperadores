@@ -1,10 +1,10 @@
-export type ProveedorGps = "system_track" | "iopgps";
+export type ProveedorGps = "dstrack" | "iopgps";
 
 export type AccionMotorGps = "bloquear" | "desbloquear";
 
 export type UbicacionGpsMoto = {
   proveedor: ProveedorGps;
-  /** ID numérico (System Track) o derivado del IMEI (IOP). */
+  /** ID numérico (DS Track / System Track legacy) o derivado del IMEI (IOP). */
   deviceId: number;
   imei: string;
   lat: number;
@@ -22,15 +22,16 @@ export type UbicacionGpsMoto = {
 
 export function resolverProveedorGps(raw: string | null | undefined): ProveedorGps {
   const s = String(raw ?? "").trim().toLowerCase();
-  if (s.includes("system")) return "system_track";
+  // "system track" legacy → nueva plataforma DS Track
+  if (s.includes("ds") || s.includes("system")) return "dstrack";
   return "iopgps";
 }
 
 export function etiquetaProveedorGps(proveedor: ProveedorGps): string {
-  return proveedor === "iopgps" ? "IOP GPS" : "System Track";
+  return proveedor === "iopgps" ? "IOP GPS" : "DS Track";
 }
 
-/** Intervalo de consulta en vivo (ms). System Track suele refrescar más rápido que IOP. */
+/** Intervalo de consulta en vivo (ms). */
 export function intervaloPollGpsEnVivo(proveedor: ProveedorGps): number {
   return proveedor === "iopgps" ? 3000 : 2000;
 }
@@ -79,4 +80,28 @@ export function preferirDispositivoGps(
     prioridadConexionGps(actual.online);
   if (diff !== 0) return diff > 0 ? candidato : actual;
   return candidato.time >= actual.time ? candidato : actual;
+}
+
+export function etiquetaEstadoGps(online: string): string {
+  switch (online.toLowerCase()) {
+    case "online":
+      return "En línea";
+    case "ack":
+      return "Conectado";
+    case "offline":
+      return "Sin señal";
+    default:
+      return online || "Desconocido";
+  }
+}
+
+export function enlaceMapaEmbebido(gps: UbicacionGpsMoto): string {
+  const delta = 0.012;
+  const bbox = [
+    gps.lng - delta,
+    gps.lat - delta,
+    gps.lng + delta,
+    gps.lat + delta,
+  ].join(",");
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${gps.lat}%2C${gps.lng}`;
 }

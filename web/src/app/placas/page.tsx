@@ -351,7 +351,7 @@ export default function PlacasMorososPage() {
           ) : (
             <>
               Todos los clientes con deuda pendiente (extracto), hayan pagado
-              hoy o no. Por defecto solo placas con GPS activo (System Track o
+              hoy o no. Por defecto solo placas con GPS activo (DS Track o
               IOP GPS en línea).
             </>
           )}
@@ -650,7 +650,7 @@ export default function PlacasMorososPage() {
                       title={
                         m.gps?.funcional
                           ? undefined
-                          : "Solo se puede asignar con GPS activo (System Track o IOP GPS)"
+                          : "Solo se puede asignar con GPS activo (DS Track o IOP GPS)"
                       }
                     >
                       {enviando === m.placa ? "…" : "Asignar"}
