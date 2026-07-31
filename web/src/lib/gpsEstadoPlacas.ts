@@ -43,13 +43,14 @@ function estadoDesdeDispositivo(gps: UbicacionGpsMoto): EstadoGpsPlaca {
   };
 }
 
-export async function cargarMapaGpsUnificado(): Promise<
-  Map<string, UbicacionGpsMoto>
-> {
+export async function cargarMapaGpsUnificado(
+  enVivo = false,
+): Promise<Map<string, UbicacionGpsMoto>> {
   const unificado = new Map<string, UbicacionGpsMoto>();
+  const opts = enVivo ? { enVivo: true as const } : undefined;
   const resultados = await Promise.allSettled([
-    mapaDispositivosPorPlacaDs(),
-    mapaDispositivosPorPlacaIop(),
+    mapaDispositivosPorPlacaDs(opts),
+    mapaDispositivosPorPlacaIop(opts),
   ]);
 
   for (const r of resultados) {

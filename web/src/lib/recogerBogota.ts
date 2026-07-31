@@ -21,8 +21,11 @@ export const ORIGEN_RECOGER_BOGOTA = {
 /** Piso de la página (sigue viniendo de atrasos filtrados). */
 export const DEUDA_MIN_RECOGER_BOGOTA_COP = DEUDA_MIN_ASIGNADA_COP;
 
-/** Deuda para ir a campo; debajo es lista de llamadas. */
-export const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
+/** Deuda mínima para ir a campo (≥ $500k); debajo es lista de llamadas. */
+export const DEUDA_MIN_RECOGER_CAMPO_COP = 500_000;
+
+/** Radio máximo desde ORIGEN_RECOGER_BOGOTA para la pestaña Recoger. */
+export const DISTANCIA_MAX_RECOGER_KM = 25;
 
 export type MotoRecogerBogota = {
   placa: string;
@@ -74,6 +77,47 @@ function resolverUbicacionGps(
     mejor = mejor ? preferirDispositivoGps(mejor, hit) : hit;
   }
   return mejor;
+}
+
+export type PosicionLiveRecoger = {
+  placa: string;
+  lat: number | null;
+  lng: number | null;
+  distancia_km: number | null;
+  gps: EstadoGpsPlaca;
+};
+
+/** Solo GPS fresco (sin recalcular deudas). */
+export async function posicionesLiveRecogerBogota(
+  placas: string[],
+): Promise<{ posiciones: PosicionLiveRecoger[]; actualizadoEn: string }> {
+  const mapa = await cargarMapaGpsUnificado(true);
+  const vistas = new Set<string>();
+  const posiciones: PosicionLiveRecoger[] = [];
+
+  for (const raw of placas) {
+    const placa = String(raw ?? "").trim().toUpperCase();
+    if (!placa || vistas.has(placa)) continue;
+    vistas.add(placa);
+
+    const ubicacion = resolverUbicacionGps(placa, mapa);
+    const lat = ubicacion?.lat ?? null;
+    const lng = ubicacion?.lng ?? null;
+    posiciones.push({
+      placa,
+      lat,
+      lng,
+      distancia_km:
+        lat != null && lng != null
+          ? distanciaKm(ORIGEN_RECOGER_BOGOTA, { lat, lng })
+          : null,
+      gps: ubicacion
+        ? resolverEstadoGpsPlaca(placa, mapa)
+        : ESTADO_GPS_SIN_DISPOSITIVO,
+    });
+  }
+
+  return { posiciones, actualizadoEn: new Date().toISOString() };
 }
 
 export async function listarMotosRecogerBogota(

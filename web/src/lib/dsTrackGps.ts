@@ -213,10 +213,10 @@ export type ResultadoBusquedaGps =
   | { ok: true; gps: UbicacionGpsMoto }
   | { ok: false; motivo: "sin_dispositivo" | "error_proveedor" };
 
-export async function mapaDispositivosPorPlacaDs(): Promise<
-  Map<string, UbicacionGpsMoto>
-> {
-  const { porPlaca } = await cargarDispositivos();
+export async function mapaDispositivosPorPlacaDs(
+  opciones?: OpcionesCargaGps,
+): Promise<Map<string, UbicacionGpsMoto>> {
+  const { porPlaca } = await cargarDispositivos(opciones);
   return porPlaca;
 }
 

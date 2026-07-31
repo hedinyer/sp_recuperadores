@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/api/calendario_marisol/calendar.ics",
   "/recoger-bogota",
   "/api/placas/recoger-bogota",
+  "/geo",
 ];
 
 function isPublicPath(pathname: string): boolean {

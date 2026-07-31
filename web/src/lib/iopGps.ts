@@ -405,10 +405,10 @@ function cuentaPorAppid(appid: string): CuentaIop | undefined {
   return CUENTAS_IOP.find((c) => c.appid === appid);
 }
 
-export async function mapaDispositivosPorPlacaIop(): Promise<
-  Map<string, UbicacionGpsMoto>
-> {
-  const { porPlaca } = await cargarDispositivos();
+export async function mapaDispositivosPorPlacaIop(
+  opciones?: OpcionesCargaIop,
+): Promise<Map<string, UbicacionGpsMoto>> {
+  const { porPlaca } = await cargarDispositivos(opciones);
   return porPlaca;
 }
 
