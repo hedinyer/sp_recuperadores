@@ -8,14 +8,31 @@ import {
   type EstadoGpsPlaca,
 } from "@/lib/gpsEstadoPlacas";
 import { variantesPlaca } from "@/lib/placaGps";
+import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
   preferirDispositivoGps,
   type UbicacionGpsMoto,
 } from "@/lib/ubicacionGps";
 
+/** Placas que no deben salir en Recoger Bogotá. */
+const PLACAS_EXCLUIDAS_RECOGER = new Set(
+  [
+    "CHU69I",
+    "ZOT51H",
+    "TSQ44H",
+    "DTW01I",
+    "TRT89H",
+    "ZOT45H",
+    "DOW24I",
+    "ZOT44H",
+    "DVF01I",
+    "ZOK44H",
+  ].map(normalizarPlaca),
+);
+
 export const ORIGEN_RECOGER_BOGOTA = {
-  lat: 4.6672493278147655,
-  lng: -74.06232387116462,
+  lat: 4.667372044635534,
+  lng: -74.06239794213879,
 } as const;
 
 /** Piso de la página (sigue viniendo de atrasos filtrados). */
@@ -133,7 +150,9 @@ export async function listarMotosRecogerBogota(
   ]);
 
   const candidatas = atrasos.filter(
-    (a) => a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP,
+    (a) =>
+      a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP &&
+      !PLACAS_EXCLUIDAS_RECOGER.has(normalizarPlaca(a.placa)),
   );
 
   const motos: MotoRecogerBogota[] = candidatas.map((a) => {
