@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 import { hasAdminSession } from "@/lib/adminAuth";
 import {
-  MULTA_PUBLICACION_COP,
+  montoMultaPorCiudad,
   registrarMultaPublicacionPlaca,
+  type CiudadPublicacion,
 } from "@/lib/multaPublicacion";
 import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
@@ -57,6 +58,12 @@ export async function POST(request: Request) {
       gpsMotoRaw === "ds track" || gpsMotoRaw === "system track"
         ? "ds track"
         : "iop gps";
+    const ciudadRaw = String(body.ciudad ?? "").trim().toLowerCase();
+    const ciudad: CiudadPublicacion =
+      ciudadRaw === "bogota" || ciudadRaw === "bogotá"
+        ? "bogota"
+        : "bucaramanga";
+    const montoMulta = montoMultaPorCiudad(ciudad);
     if (!/^[A-Z0-9]{6}$/.test(placa)) {
       return NextResponse.json(
         { error: "La placa debe tener 6 caracteres alfanuméricos" },
@@ -114,15 +121,16 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
-    const multa = await registrarMultaPublicacionPlaca(placa);
+    const multa = await registrarMultaPublicacionPlaca(placa, montoMulta);
 
     return NextResponse.json(
       {
         placa: data,
         multa: {
-          monto: MULTA_PUBLICACION_COP,
+          monto: multa.monto,
           creada: multa.creada,
           motivo: multa.motivo ?? null,
+          ciudad,
         },
       },
       { status: 201 },

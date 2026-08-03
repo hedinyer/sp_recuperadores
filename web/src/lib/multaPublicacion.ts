@@ -3,8 +3,18 @@ import { queryPg } from "@/lib/pgPool";
 import { invalidarCachePlaca } from "@/lib/vehiculoPorPlaca";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 
-/** Multa estándar al publicar placa para recuperación (ERP). */
+/** Multa al publicar placa — Bucaramanga (default). */
 export const MULTA_PUBLICACION_COP = 25_000;
+/** Multa al publicar placa — Bogotá. */
+export const MULTA_PUBLICACION_BOGOTA_COP = 100_000;
+
+export type CiudadPublicacion = "bucaramanga" | "bogota";
+
+export function montoMultaPorCiudad(ciudad: CiudadPublicacion): number {
+  return ciudad === "bogota"
+    ? MULTA_PUBLICACION_BOGOTA_COP
+    : MULTA_PUBLICACION_COP;
+}
 
 const OBSERVACION_MULTA = "Publicación recuperación";
 
@@ -33,14 +43,20 @@ export type ResultadoMultaPublicacion = {
   multa_id?: number;
 };
 
-/** Registra multa de $25.000 en el ERP al publicar placa. */
+/** Registra multa de publicación en el ERP ($25.000 o $100.000 según ciudad). */
 export async function registrarMultaPublicacionPlaca(
   placa: string,
+  monto: number = MULTA_PUBLICACION_COP,
 ): Promise<ResultadoMultaPublicacion> {
   const placaNorm = normalizarPlaca(placa);
   if (!placaNorm) {
     return { creada: false, monto: 0, motivo: "placa_invalida" };
   }
+
+  const montoFinal =
+    Number.isFinite(monto) && monto > 0
+      ? Math.round(monto)
+      : MULTA_PUBLICACION_COP;
 
   let lastError: string | undefined;
 
@@ -57,13 +73,13 @@ export async function registrarMultaPublicacionPlaca(
       const inserted = await queryPg<{ id: string | number }>(
         url,
         SQL_INSERT_MULTA,
-        [MULTA_PUBLICACION_COP, OBSERVACION_MULTA, contratoId],
+        [montoFinal, OBSERVACION_MULTA, contratoId],
       );
 
       invalidarCachePlaca(placaNorm);
       return {
         creada: true,
-        monto: MULTA_PUBLICACION_COP,
+        monto: montoFinal,
         multa_id: Number(inserted[0]?.id),
       };
     } catch (e) {
@@ -74,7 +90,7 @@ export async function registrarMultaPublicacionPlaca(
 
   return {
     creada: false,
-    monto: MULTA_PUBLICACION_COP,
+    monto: montoFinal,
     motivo: lastError ?? "contrato_no_encontrado",
   };
 }

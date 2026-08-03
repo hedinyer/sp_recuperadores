@@ -53,6 +53,11 @@ function esPendiente(estado: string | null | undefined): boolean {
 }
 
 const OPCIONES_GPS_MOTO = ["iop gps", "ds track"] as const;
+const OPCIONES_CIUDAD = [
+  { value: "bucaramanga", label: "Bucaramanga", multa: 25_000 },
+  { value: "bogota", label: "Bogotá", multa: 100_000 },
+] as const;
+type CiudadPublicacionUi = (typeof OPCIONES_CIUDAD)[number]["value"];
 
 function formatearCOP(val: string | number | undefined): string {
   if (val == null || val === "") return "—";
@@ -175,6 +180,9 @@ function NicolasAdminPanel() {
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   const [nuevaPlaca, setNuevaPlaca] = useState("");
+  const [nuevaCiudad, setNuevaCiudad] = useState<CiudadPublicacionUi | null>(
+    null,
+  );
   const [nuevoGpsMoto, setNuevoGpsMoto] = useState<(typeof OPCIONES_GPS_MOTO)[number]>("iop gps");
   const [asignarPlaca, setAsignarPlaca] = useState("");
   const [asignarRecup, setAsignarRecup] = useState("");
@@ -232,8 +240,11 @@ function NicolasAdminPanel() {
   const nuevaPlacaNorm = nuevaPlaca.trim().toUpperCase().replace(/\s/g, "");
   const nuevaPlacaYaPendiente =
     nuevaPlacaNorm.length === 6 && placasEnPendiente.has(nuevaPlacaNorm);
+  const nuevaPlacaFormatoOk = /^[A-Z0-9]{6}$/.test(nuevaPlacaNorm);
   const nuevaPlacaValida =
-    /^[A-Z0-9]{6}$/.test(nuevaPlacaNorm) && !nuevaPlacaYaPendiente;
+    nuevaPlacaFormatoOk && !nuevaPlacaYaPendiente && nuevaCiudad != null;
+  const multaPublicacion =
+    OPCIONES_CIUDAD.find((c) => c.value === nuevaCiudad)?.multa ?? null;
 
   useEffect(() => {
     cargarDatos();
@@ -302,15 +313,24 @@ function NicolasAdminPanel() {
       setMensaje("Esta placa ya está pendiente (publicada o asignada sin gestionar)");
       return;
     }
+    if (!nuevaCiudad) {
+      setMensaje("Selecciona si la placa es de Bogotá o Bucaramanga");
+      return;
+    }
     setMensaje(null);
     const res = await fetch("/api/placas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ placa: p, gps_moto: nuevoGpsMoto }),
+      body: JSON.stringify({
+        placa: p,
+        gps_moto: nuevoGpsMoto,
+        ciudad: nuevaCiudad,
+      }),
     });
     if (res.ok) {
       const data = await res.json();
       setNuevaPlaca("");
+      setNuevaCiudad(null);
       setNuevoGpsMoto("iop gps");
       const multa = data.multa as
         | { creada?: boolean; monto?: number; motivo?: string | null }
@@ -328,7 +348,7 @@ function NicolasAdminPanel() {
       const data = await res.json();
       setMensaje(data.error || "Error al publicar");
     }
-  }, [nuevaPlaca, nuevoGpsMoto, cargarDatos, placasEnPendiente]);
+  }, [nuevaPlaca, nuevaCiudad, nuevoGpsMoto, cargarDatos, placasEnPendiente]);
 
   const asignar = useCallback(async () => {
     if (!asignarPlaca || !asignarRecup) return;
@@ -583,7 +603,9 @@ function NicolasAdminPanel() {
             Publicar nueva placa
           </label>
           <p className="text-[11px] text-zinc-500 pl-0.5">
-            Al publicar se registra multa de $25.000 en el ERP.
+            {multaPublicacion != null
+              ? `Al publicar se registra multa de $${multaPublicacion.toLocaleString("es-CO")} en el ERP.`
+              : "Al publicar se registra multa en el ERP según la ciudad."}
           </p>
           <select
             value={nuevoGpsMoto}
@@ -606,7 +628,10 @@ function NicolasAdminPanel() {
               spellCheck={false}
               placeholder="Ej. TIJ66H"
               value={nuevaPlaca}
-              onChange={(e) => setNuevaPlaca(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setNuevaPlaca(e.target.value.toUpperCase());
+                setNuevaCiudad(null);
+              }}
               onKeyDown={(e) => e.key === "Enter" && nuevaPlacaValida && agregarPlaca()}
               className={`flex-1 min-h-[50px] rounded-xl bg-zinc-900 border px-3.5 text-lg font-semibold tracking-[0.12em] text-white placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-normal focus:outline-none focus:ring-2 ${
                 nuevaPlacaYaPendiente
@@ -623,6 +648,35 @@ function NicolasAdminPanel() {
               Publicar
             </button>
           </div>
+          {nuevaPlacaFormatoOk && !nuevaPlacaYaPendiente ? (
+            <div className="flex flex-col gap-1.5 pt-0.5">
+              <p className="text-xs text-zinc-300 pl-0.5">
+                ¿La placa es de Bogotá o Bucaramanga?
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {OPCIONES_CIUDAD.map((op) => {
+                  const activa = nuevaCiudad === op.value;
+                  return (
+                    <button
+                      key={op.value}
+                      type="button"
+                      onClick={() => setNuevaCiudad(op.value)}
+                      className={`min-h-[44px] rounded-xl border px-3 text-sm font-medium touch-manipulation active:scale-[0.98] transition-colors ${
+                        activa
+                          ? "border-blue-500 bg-blue-950/50 text-blue-100"
+                          : "border-zinc-700 bg-zinc-900 text-zinc-300"
+                      }`}
+                    >
+                      {op.label}
+                      <span className="block text-[11px] font-normal text-zinc-500">
+                        Multa ${op.multa.toLocaleString("es-CO")}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           {nuevaPlacaYaPendiente ? (
             <p className="text-xs text-amber-400 pl-0.5">
               Ya está pendiente en placas o con un recuperador asignado
