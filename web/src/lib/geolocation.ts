@@ -136,3 +136,34 @@ export function mensajeErrorGps(motivo: MotivoGpsError): string {
 export function enlaceGoogleMaps(gps: string): string {
   return `https://www.google.com/maps?q=${encodeURIComponent(gps)}`;
 }
+
+export function enlaceGoogleMapsRuta(
+  origen: { lat: number; lng: number },
+  destino: { lat: number; lng: number },
+): string {
+  const o = `${origen.lat},${origen.lng}`;
+  const d = `${destino.lat},${destino.lng}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o)}&destination=${encodeURIComponent(d)}&travelmode=driving`;
+}
+
+/**
+ * Vigila la ubicación del celular en tiempo real.
+ * Devuelve una función para detener el watch.
+ */
+export function vigilarGps(
+  onUpdate: (gps: GpsPreciso) => void,
+  onError?: (motivo: MotivoGpsError) => void,
+): () => void {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    onError?.("no_soporte");
+    return () => {};
+  }
+
+  const watchId = navigator.geolocation.watchPosition(
+    (pos) => onUpdate(desdePosition(pos)),
+    (err) => onError?.(motivoDeError(err)),
+    { enableHighAccuracy: true, timeout: 20_000, maximumAge: 2_000 },
+  );
+
+  return () => navigator.geolocation.clearWatch(watchId);
+}

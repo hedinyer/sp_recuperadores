@@ -14,6 +14,8 @@ const PUBLIC_PATHS = [
   "/api/calendario_marisol/calendar.ics",
   "/recoger-bogota",
   "/api/placas/recoger-bogota",
+  "/seguir",
+  "/api/seguir",
   "/geo",
 ];
 

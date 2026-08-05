@@ -8,12 +8,20 @@ import { formatearCOP } from "@/lib/formatoDinero";
 import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
 
 /** Umbrales — espejo de recogerBogota.ts */
-const DEUDA_MIN_RECOGER_CAMPO_COP = 500_000;
-const DISTANCIA_MAX_RECOGER_KM = 25;
+const DEUDA_MIN_RECOGER_CAMPO_COP = 450_000;
+const DISTANCIA_MAX_RECOGER_KM = 30;
+/** Origen por defecto (espejo de ORIGEN_RECOGER_BOGOTA; no importar lib con pg). */
+const ORIGEN_DEFAULT = {
+  lat: 4.667372044635534,
+  lng: -74.06239794213879,
+} as const;
+const STORAGE_ORIGEN_KEY = "recoger-bogota-origen";
 /** Poll GPS en vivo (mismo ritmo que IOP individual). */
 const POLL_GPS_VIVO_MS = 3_000;
 
 type VistaTab = "recoger" | "llamar";
+
+type OrigenGps = { lat: number; lng: number };
 
 type MotoRecogerBogota = {
   placa: string;
@@ -39,6 +47,69 @@ type ResumenRecogerBogota = {
   deuda_total: number;
   generado_en: string;
 };
+
+function distanciaKm(a: OrigenGps, b: OrigenGps): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function formatearOrigenInput(o: OrigenGps): string {
+  return `${o.lat}, ${o.lng}`;
+}
+
+/** Acepta "7.067708382493969, -73.84310297441053" */
+function parseOrigenCoords(raw: string): OrigenGps | null {
+  const m = String(raw)
+    .trim()
+    .match(
+      /^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)$/,
+    );
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    return null;
+  }
+  return { lat, lng };
+}
+
+function leerOrigenGuardado(): OrigenGps {
+  try {
+    const raw = localStorage.getItem(STORAGE_ORIGEN_KEY);
+    if (!raw) return { ...ORIGEN_DEFAULT };
+    const parsed = JSON.parse(raw) as { lat?: unknown; lng?: unknown };
+    const lat = Number(parsed.lat);
+    const lng = Number(parsed.lng);
+    if (
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180
+    ) {
+      return { lat, lng };
+    }
+  } catch {
+    // ponytail: fallback al origen por defecto
+  }
+  return { ...ORIGEN_DEFAULT };
+}
 
 function BadgeGps({ gps }: { gps: EstadoGpsPlaca }) {
   if (gps.funcional) {
@@ -78,6 +149,11 @@ function enlaceMaps(lat: number, lng: number): string {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
+function enlaceSeguirPlaca(placa: string): string {
+  if (typeof window === "undefined") return `/seguir/${placa}`;
+  return `${window.location.origin}/seguir/${encodeURIComponent(placa)}`;
+}
+
 function digitosTelefono(telefono: string): string {
   return telefono.replace(/\D/g, "");
 }
@@ -99,7 +175,35 @@ function ContenidoRecogerBogota() {
   const [actualizadoEnVivo, setActualizadoEnVivo] = useState<string | null>(
     null,
   );
+  const [origen, setOrigen] = useState<OrigenGps>({ ...ORIGEN_DEFAULT });
+  const [coordsInput, setCoordsInput] = useState(
+    formatearOrigenInput(ORIGEN_DEFAULT),
+  );
+  const [origenError, setOrigenError] = useState<string | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState<string | null>(null);
   const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
+
+  useEffect(() => {
+    const guardado = leerOrigenGuardado();
+    setOrigen(guardado);
+    setCoordsInput(formatearOrigenInput(guardado));
+  }, []);
+
+  const aplicarOrigen = useCallback(() => {
+    const next = parseOrigenCoords(coordsInput);
+    if (!next) {
+      setOrigenError("Usa el formato: 7.067708382493969, -73.84310297441053");
+      return;
+    }
+    setOrigen(next);
+    setCoordsInput(formatearOrigenInput(next));
+    setOrigenError(null);
+    try {
+      localStorage.setItem(STORAGE_ORIGEN_KEY, JSON.stringify(next));
+    } catch {
+      // ponytail: sin persistencia si localStorage falla
+    }
+  }, [coordsInput]);
 
   const cargar = useCallback(async (force = false) => {
     const q = force ? "?refresh=1" : "";
@@ -179,6 +283,7 @@ function ContenidoRecogerBogota() {
               ...m,
               lat: live.lat,
               lng: live.lng,
+              // distancia se recalcula en cliente según el origen elegido
               distancia_km: live.distancia_km,
               gps: live.gps,
             };
@@ -210,21 +315,30 @@ function ContenidoRecogerBogota() {
     const recoger: MotoRecogerBogota[] = [];
     const llamar: MotoRecogerBogota[] = [];
     for (const m of motos) {
+      const dist =
+        m.lat != null && m.lng != null
+          ? distanciaKm(origen, { lat: m.lat, lng: m.lng })
+          : null;
+      const conDist = { ...m, distancia_km: dist };
+
       if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
-        // Solo campo si GPS está en línea/conectado (no coords viejas offline).
-        if (
-          m.gps.funcional &&
-          m.distancia_km != null &&
-          m.distancia_km <= DISTANCIA_MAX_RECOGER_KM
-        ) {
-          recoger.push(m);
+        // Incluye última posición GPS aunque esté offline (sirve para ir a campo).
+        if (dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
+          recoger.push(conDist);
         }
       } else {
-        llamar.push(m);
+        llamar.push(conDist);
       }
     }
+    recoger.sort((a, b) => {
+      const da = a.distancia_km ?? Infinity;
+      const db = b.distancia_km ?? Infinity;
+      if (da !== db) return da - db;
+      // En línea primero a igual distancia.
+      return Number(b.gps.funcional) - Number(a.gps.funcional);
+    });
     return { paraRecoger: recoger, paraLlamar: llamar };
-  }, [motos]);
+  }, [motos, origen]);
 
   const puntosMapa = useMemo(
     () =>
@@ -260,6 +374,32 @@ function ContenidoRecogerBogota() {
     el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, []);
 
+  const compartirSeguimiento = useCallback(async (placa: string) => {
+    const url = enlaceSeguirPlaca(placa);
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({
+          title: `Seguir ${placa}`,
+          text: `Sigue la placa ${placa} en vivo`,
+          url,
+        });
+        return;
+      }
+    } catch (e) {
+      // Usuario canceló el share nativo → caer a copiar
+      if (e instanceof DOMException && e.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopiado(placa);
+      window.setTimeout(() => {
+        setLinkCopiado((prev) => (prev === placa ? null : prev));
+      }, 2000);
+    } catch {
+      window.prompt("Copia este link:", url);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <header className="shrink-0 px-4 pt-3 pb-2 border-b border-zinc-800/80 space-y-2">
@@ -269,8 +409,8 @@ function ContenidoRecogerBogota() {
               Recoger Bogotá
             </h1>
             <p className="text-[11px] text-zinc-500 leading-snug mt-0.5">
-              Recoger: ≥ $500k, GPS en línea y ≤ {DISTANCIA_MAX_RECOGER_KM} km ·
-              Llamar: $200k–$500k
+              Recoger: ≥ $450k, con GPS y ≤ {DISTANCIA_MAX_RECOGER_KM} km ·
+              Llamar: $200k–$450k
             </p>
           </div>
           <button
@@ -311,7 +451,7 @@ function ContenidoRecogerBogota() {
               {paraRecoger.length}
             </p>
             <p className="text-[9px] text-zinc-500">
-              ≥ $500k · GPS ok · ≤ {DISTANCIA_MAX_RECOGER_KM} km
+              ≥ $450k · con GPS · ≤ {DISTANCIA_MAX_RECOGER_KM} km
             </p>
           </button>
           <button
@@ -331,9 +471,53 @@ function ContenidoRecogerBogota() {
             <p className="text-sm font-bold tabular-nums text-sky-300">
               {paraLlamar.length}
             </p>
-            <p className="text-[9px] text-zinc-500">&lt; $500k</p>
+            <p className="text-[9px] text-zinc-500">&lt; $450k</p>
           </button>
         </div>
+
+        {vista === "recoger" && (
+          <form
+            className="space-y-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              aplicarOrigen();
+            }}
+          >
+            <label
+              htmlFor="origen-coords"
+              className="block text-[10px] font-medium text-zinc-400"
+            >
+              Coordenadas GPS · radio {DISTANCIA_MAX_RECOGER_KM} km
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                id="origen-coords"
+                type="text"
+                inputMode="decimal"
+                value={coordsInput}
+                onChange={(e) => {
+                  setCoordsInput(e.target.value);
+                  setOrigenError(null);
+                }}
+                placeholder="7.067708382493969, -73.84310297441053"
+                autoComplete="off"
+                spellCheck={false}
+                className="flex-1 min-h-[40px] min-w-0 rounded-lg bg-zinc-900 border border-zinc-700 px-2.5 text-xs tabular-nums text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40"
+              />
+              <button
+                type="submit"
+                className="shrink-0 min-h-[40px] px-3 rounded-lg bg-sky-950/70 border border-sky-700 text-[11px] font-semibold text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+              >
+                Aplicar
+              </button>
+            </div>
+            {origenError ? (
+              <p className="text-[10px] text-rose-400" role="alert">
+                {origenError}
+              </p>
+            ) : null}
+          </form>
+        )}
 
         <p className="text-[10px] text-zinc-500 tabular-nums" role="status">
           {vista === "recoger"
@@ -366,6 +550,8 @@ function ContenidoRecogerBogota() {
       {vista === "recoger" && !loading && !error && (
         <MapaRecogerBogota
           motos={puntosMapa}
+          origen={origen}
+          radioKm={DISTANCIA_MAX_RECOGER_KM}
           seleccionada={seleccionada}
           onSeleccionar={seleccionarPlaca}
         />
@@ -391,8 +577,8 @@ function ContenidoRecogerBogota() {
         {!loading && !error && lista.length === 0 && (
           <p className="text-center text-sm text-zinc-500 py-12">
             {vista === "recoger"
-              ? `No hay motos ≥ $500.000 con GPS en línea a ≤ ${DISTANCIA_MAX_RECOGER_KM} km.`
-              : "No hay motos entre $200.000 y $500.000."}
+              ? `No hay motos ≥ $450.000 con GPS a ≤ ${DISTANCIA_MAX_RECOGER_KM} km del origen.`
+              : "No hay motos entre $200.000 y $450.000."}
           </p>
         )}
         {!loading && !error && lista.length > 0 && (
@@ -506,14 +692,33 @@ function ContenidoRecogerBogota() {
                         </span>
                       </div>
                       {vista === "recoger" && m.lat != null && m.lng != null && (
-                        <a
-                          href={enlaceMaps(m.lat, m.lng)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-emerald-400 hover:text-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 rounded"
-                        >
-                          Abrir en Maps →
-                        </a>
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => void compartirSeguimiento(m.placa)}
+                            className="inline-flex min-h-[44px] items-center px-2.5 rounded-lg border border-sky-800 bg-sky-950/50 text-[11px] font-semibold text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+                          >
+                            {linkCopiado === m.placa
+                              ? "Link copiado"
+                              : "Compartir seguimiento"}
+                          </button>
+                          <a
+                            href={enlaceSeguirPlaca(m.placa)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-sky-300 hover:text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 rounded"
+                          >
+                            Abrir seguimiento →
+                          </a>
+                          <a
+                            href={enlaceMaps(m.lat, m.lng)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-emerald-400 hover:text-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 rounded"
+                          >
+                            Maps →
+                          </a>
+                        </div>
                       )}
                     </div>
                   </div>

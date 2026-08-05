@@ -4,10 +4,6 @@ import "leaflet/dist/leaflet.css";
 
 import { useEffect, useRef, useState } from "react";
 
-/** Espejo de recogerBogota.ts — no importar ese módulo (trae pg → fs). */
-const ORIGEN = { lat: 4.6672493278147655, lng: -74.06232387116462 } as const;
-const RADIO_KM = 25;
-
 export type PuntoMotoMapa = {
   placa: string;
   lat: number;
@@ -17,8 +13,12 @@ export type PuntoMotoMapa = {
   online: boolean;
 };
 
+type OrigenMapa = { lat: number; lng: number };
+
 type MapaRecogerBogotaProps = {
   motos: PuntoMotoMapa[];
+  origen: OrigenMapa;
+  radioKm: number;
   seleccionada: string | null;
   onSeleccionar: (placa: string) => void;
 };
@@ -30,12 +30,16 @@ function htmlMarcador(placa: string, activa: boolean, online: boolean): string {
 
 export function MapaRecogerBogota({
   motos,
+  origen,
+  radioKm,
   seleccionada,
   onSeleccionar,
 }: MapaRecogerBogotaProps) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<import("leaflet").Map | null>(null);
   const capaMotosRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const circuloRef = useRef<import("leaflet").Circle | null>(null);
+  const origenMarkerRef = useRef<import("leaflet").CircleMarker | null>(null);
   const marcadoresRef = useRef<
     Map<string, import("leaflet").Marker>
   >(new Map());
@@ -56,7 +60,7 @@ export function MapaRecogerBogota({
         zoomControl: true,
         attributionControl: true,
         scrollWheelZoom: true,
-      }).setView([ORIGEN.lat, ORIGEN.lng], 12);
+      }).setView([origen.lat, origen.lng], 11);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -87,8 +91,8 @@ export function MapaRecogerBogota({
         // ponytail: mapa útil sin localidades si falla el geojson
       }
 
-      L.circle([ORIGEN.lat, ORIGEN.lng], {
-        radius: RADIO_KM * 1000,
+      circuloRef.current = L.circle([origen.lat, origen.lng], {
+        radius: radioKm * 1000,
         color: "#38bdf8",
         weight: 1.5,
         fillColor: "#0ea5e9",
@@ -96,7 +100,7 @@ export function MapaRecogerBogota({
         interactive: false,
       }).addTo(mapa);
 
-      L.circleMarker([ORIGEN.lat, ORIGEN.lng], {
+      origenMarkerRef.current = L.circleMarker([origen.lat, origen.lng], {
         radius: 7,
         color: "#fff",
         weight: 2,
@@ -118,13 +122,26 @@ export function MapaRecogerBogota({
       cancelado = true;
       setMapaListo(false);
       marcadoresRef.current.clear();
+      circuloRef.current = null;
+      origenMarkerRef.current = null;
       if (mapaRef.current) {
         mapaRef.current.remove();
         mapaRef.current = null;
         capaMotosRef.current = null;
       }
     };
+    // Solo montar el mapa una vez; origen/radio se actualizan en otro efecto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!mapaListo) return;
+    circuloRef.current?.setLatLng([origen.lat, origen.lng]);
+    circuloRef.current?.setRadius(radioKm * 1000);
+    origenMarkerRef.current?.setLatLng([origen.lat, origen.lng]);
+    mapaRef.current?.panTo([origen.lat, origen.lng], { animate: true });
+    ajusteInicialRef.current = false;
+  }, [mapaListo, origen.lat, origen.lng, radioKm]);
 
   useEffect(() => {
     const mapa = mapaRef.current;
@@ -144,7 +161,7 @@ export function MapaRecogerBogota({
         }
       }
 
-      const bounds: [number, number][] = [[ORIGEN.lat, ORIGEN.lng]];
+      const bounds: [number, number][] = [[origen.lat, origen.lng]];
 
       for (const m of motos) {
         const activa = m.placa === seleccionada;
@@ -185,7 +202,7 @@ export function MapaRecogerBogota({
     return () => {
       cancelado = true;
     };
-  }, [mapaListo, motos, seleccionada]);
+  }, [mapaListo, motos, seleccionada, origen.lat, origen.lng]);
 
   return (
     <div
@@ -195,7 +212,7 @@ export function MapaRecogerBogota({
     >
       <div ref={contenedorRef} className="absolute inset-0 z-0" />
       <p className="pointer-events-none absolute bottom-2 left-2 z-[400] rounded-md bg-zinc-950/80 px-2 py-1 text-[10px] font-medium text-zinc-300">
-        En vivo · radio {RADIO_KM} km · {motos.length} motos
+        En vivo · radio {radioKm} km · {motos.length} motos
       </p>
     </div>
   );

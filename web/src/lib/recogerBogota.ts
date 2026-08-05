@@ -38,11 +38,11 @@ export const ORIGEN_RECOGER_BOGOTA = {
 /** Piso de la página (sigue viniendo de atrasos filtrados). */
 export const DEUDA_MIN_RECOGER_BOGOTA_COP = DEUDA_MIN_ASIGNADA_COP;
 
-/** Deuda mínima para ir a campo (≥ $500k); debajo es lista de llamadas. */
-export const DEUDA_MIN_RECOGER_CAMPO_COP = 500_000;
+/** Deuda mínima para ir a campo (≥ $450k); debajo es lista de llamadas. */
+export const DEUDA_MIN_RECOGER_CAMPO_COP = 450_000;
 
-/** Radio máximo desde ORIGEN_RECOGER_BOGOTA para la pestaña Recoger. */
-export const DISTANCIA_MAX_RECOGER_KM = 25;
+/** Radio máximo desde el punto de origen para la pestaña Recoger. */
+export const DISTANCIA_MAX_RECOGER_KM = 30;
 
 export type MotoRecogerBogota = {
   placa: string;
