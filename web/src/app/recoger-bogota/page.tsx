@@ -322,8 +322,12 @@ function ContenidoRecogerBogota() {
       const conDist = { ...m, distancia_km: dist };
 
       if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
-        // Incluye última posición GPS aunque esté offline (sirve para ir a campo).
-        if (dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
+        // Solo GPS activo (online/ack en DS Track o IOP) — no última posición offline.
+        if (
+          m.gps.funcional &&
+          dist != null &&
+          dist <= DISTANCIA_MAX_RECOGER_KM
+        ) {
           recoger.push(conDist);
         }
       } else {
@@ -409,7 +413,7 @@ function ContenidoRecogerBogota() {
               Recoger Bogotá
             </h1>
             <p className="text-[11px] text-zinc-500 leading-snug mt-0.5">
-              Recoger: ≥ $450k, con GPS y ≤ {DISTANCIA_MAX_RECOGER_KM} km ·
+              Recoger: ≥ $450k, GPS activo y ≤ {DISTANCIA_MAX_RECOGER_KM} km ·
               Llamar: $200k–$450k
             </p>
           </div>
@@ -451,7 +455,7 @@ function ContenidoRecogerBogota() {
               {paraRecoger.length}
             </p>
             <p className="text-[9px] text-zinc-500">
-              ≥ $450k · con GPS · ≤ {DISTANCIA_MAX_RECOGER_KM} km
+              ≥ $450k · GPS activo · ≤ {DISTANCIA_MAX_RECOGER_KM} km
             </p>
           </button>
           <button
@@ -577,7 +581,7 @@ function ContenidoRecogerBogota() {
         {!loading && !error && lista.length === 0 && (
           <p className="text-center text-sm text-zinc-500 py-12">
             {vista === "recoger"
-              ? `No hay motos ≥ $450.000 con GPS a ≤ ${DISTANCIA_MAX_RECOGER_KM} km del origen.`
+              ? `No hay motos ≥ $450.000 con GPS activo a ≤ ${DISTANCIA_MAX_RECOGER_KM} km del origen.`
               : "No hay motos entre $200.000 y $450.000."}
           </p>
         )}

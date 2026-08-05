@@ -199,7 +199,7 @@ export async function listarMotosRecogerBogota(
     return y.deuda_total - x.deuda_total;
   });
 
-  const con_gps = motos.filter((m) => m.distancia_km != null).length;
+  const con_gps = motos.filter((m) => m.gps.funcional).length;
   const deuda_total = motos.reduce((s, m) => s + m.deuda_total, 0);
 
   return {

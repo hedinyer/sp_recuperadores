@@ -241,8 +241,7 @@ function NicolasAdminPanel() {
   const nuevaPlacaYaPendiente =
     nuevaPlacaNorm.length === 6 && placasEnPendiente.has(nuevaPlacaNorm);
   const nuevaPlacaFormatoOk = /^[A-Z0-9]{6}$/.test(nuevaPlacaNorm);
-  const nuevaPlacaValida =
-    nuevaPlacaFormatoOk && !nuevaPlacaYaPendiente && nuevaCiudad != null;
+  const nuevaPlacaValida = nuevaPlacaFormatoOk && nuevaCiudad != null;
   const multaPublicacion =
     OPCIONES_CIUDAD.find((c) => c.value === nuevaCiudad)?.multa ?? null;
 
@@ -309,10 +308,6 @@ function NicolasAdminPanel() {
       setMensaje("La placa debe tener exactamente 6 caracteres");
       return;
     }
-    if (placasEnPendiente.has(p)) {
-      setMensaje("Esta placa ya está pendiente (publicada o asignada sin gestionar)");
-      return;
-    }
     if (!nuevaCiudad) {
       setMensaje("Selecciona si la placa es de Bogotá o Bucaramanga");
       return;
@@ -327,28 +322,38 @@ function NicolasAdminPanel() {
         ciudad: nuevaCiudad,
       }),
     });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      const data = await res.json();
       setNuevaPlaca("");
       setNuevaCiudad(null);
       setNuevoGpsMoto("iop gps");
       const multa = data.multa as
         | { creada?: boolean; monto?: number; motivo?: string | null }
         | undefined;
-      let texto = `Placa ${p} publicada (${nuevoGpsMoto})`;
-      if (multa?.creada) {
-        texto += `. Multa de $${(multa.monto ?? 25000).toLocaleString("es-CO")} registrada en el ERP`;
-      } else if (multa && !multa.creada) {
-        texto +=
-          ". Aviso: no se pudo registrar la multa en el ERP; revisa manualmente";
+      const publicada = Boolean(data.publicada);
+      const partes: string[] = [];
+      if (publicada) {
+        partes.push(`Placa ${p} publicada (${nuevoGpsMoto})`);
+      } else {
+        partes.push(
+          `Placa ${p} no se volvió a publicar (ya pendiente, recuperada o publicada hoy)`,
+        );
       }
-      setMensaje(texto);
+      if (multa?.creada) {
+        partes.push(
+          `Multa de $${(multa.monto ?? 25000).toLocaleString("es-CO")} registrada en el ERP`,
+        );
+      } else if (multa && !multa.creada) {
+        partes.push(
+          "Aviso: no se pudo registrar la multa en el ERP; revisa manualmente",
+        );
+      }
+      setMensaje(partes.join(". "));
       cargarDatos();
     } else {
-      const data = await res.json();
       setMensaje(data.error || "Error al publicar");
     }
-  }, [nuevaPlaca, nuevaCiudad, nuevoGpsMoto, cargarDatos, placasEnPendiente]);
+  }, [nuevaPlaca, nuevaCiudad, nuevoGpsMoto, cargarDatos]);
 
   const asignar = useCallback(async () => {
     if (!asignarPlaca || !asignarRecup) return;
@@ -604,8 +609,8 @@ function NicolasAdminPanel() {
           </label>
           <p className="text-[11px] text-zinc-500 pl-0.5">
             {multaPublicacion != null
-              ? `Al publicar se registra multa de $${multaPublicacion.toLocaleString("es-CO")} en el ERP.`
-              : "Al publicar se registra multa en el ERP según la ciudad."}
+              ? `Se registra multa de $${multaPublicacion.toLocaleString("es-CO")} en el ERP (aunque la moto ya esté pendiente o recuperada).`
+              : "La multa se sube al ERP aunque la moto ya esté pendiente o recuperada."}
           </p>
           <select
             value={nuevoGpsMoto}
@@ -648,7 +653,7 @@ function NicolasAdminPanel() {
               Publicar
             </button>
           </div>
-          {nuevaPlacaFormatoOk && !nuevaPlacaYaPendiente ? (
+          {nuevaPlacaFormatoOk ? (
             <div className="flex flex-col gap-1.5 pt-0.5">
               <p className="text-xs text-zinc-300 pl-0.5">
                 ¿La placa es de Bogotá o Bucaramanga?
@@ -679,7 +684,7 @@ function NicolasAdminPanel() {
           ) : null}
           {nuevaPlacaYaPendiente ? (
             <p className="text-xs text-amber-400 pl-0.5">
-              Ya está pendiente en placas o con un recuperador asignado
+              Ya está pendiente o asignada: puedes registrar la multa igual
             </p>
           ) : null}
         </section>

@@ -8,10 +8,7 @@ import {
 } from "@/lib/multaPublicacion";
 import { existePlacaActiva } from "@/lib/vehiculoPorPlaca";
 import { supabase } from "@/lib/supabase";
-import {
-  mensajePlacaPendiente,
-  placaEstaPendiente,
-} from "@/lib/syncPlacaEstado";
+import { placaEstaPendiente } from "@/lib/syncPlacaEstado";
 
 export const runtime = "nodejs";
 
@@ -79,13 +76,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { pendiente, origen } = await placaEstaPendiente(placa);
-    if (pendiente && origen) {
-      return NextResponse.json(
-        { error: mensajePlacaPendiente(origen) },
-        { status: 409 },
-      );
-    }
+    // La multa siempre se registra, aunque la moto esté pendiente, publicada o recuperada.
+    const multa = await registrarMultaPublicacionPlaca(placa, montoMulta);
 
     const today = new Date();
     const y = today.getFullYear();
@@ -95,37 +87,63 @@ export async function POST(request: Request) {
 
     const { data: existenteHoy, error: existeError } = await supabase
       .from("placas")
-      .select("id")
+      .select("id, status")
       .eq("placa", placa)
       .gte("fecha", fechaStr)
       .lt("fecha", `${fechaStr}T23:59:59`)
       .maybeSingle();
     if (existeError) throw existeError;
+
+    const { pendiente } = await placaEstaPendiente(placa);
+
+    let placaData = existenteHoy
+      ? { id: existenteHoy.id, placa, status: existenteHoy.status, gps_moto }
+      : null;
+    let publicada = false;
+    let motivoPublicacion: string | null = null;
+
     if (existenteHoy) {
+      motivoPublicacion = "ya_publicada_hoy";
+    } else if (pendiente) {
+      motivoPublicacion = "ya_pendiente";
+    } else {
+      const { data, error } = await supabase
+        .from("placas")
+        .insert({
+          placa,
+          status: "pendiente",
+          fecha: new Date().toISOString(),
+          gps_moto,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      placaData = data;
+      publicada = true;
+    }
+
+    if (!multa.creada && !publicada) {
       return NextResponse.json(
-        { error: "La placa ya fue publicada hoy" },
-        { status: 409 },
+        {
+          error:
+            "No se pudo registrar la multa en el ERP ni publicar la placa",
+          multa: {
+            monto: multa.monto,
+            creada: false,
+            motivo: multa.motivo ?? null,
+            ciudad,
+          },
+        },
+        { status: 500 },
       );
     }
 
-    const { data, error } = await supabase
-      .from("placas")
-      .insert({
-        placa,
-        status: "pendiente",
-        fecha: new Date().toISOString(),
-        gps_moto,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    const multa = await registrarMultaPublicacionPlaca(placa, montoMulta);
-
     return NextResponse.json(
       {
-        placa: data,
+        placa: placaData,
+        publicada,
+        motivo_publicacion: motivoPublicacion,
         multa: {
           monto: multa.monto,
           creada: multa.creada,
@@ -133,7 +151,7 @@ export async function POST(request: Request) {
           ciudad,
         },
       },
-      { status: 201 },
+      { status: publicada ? 201 : 200 },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al crear placa";

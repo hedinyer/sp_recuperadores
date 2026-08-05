@@ -127,7 +127,7 @@ function mapearEstadoOnline(status: string, signalTime?: number): string {
   }
   if (signalTime && signalTime > 0) {
     const hace = Date.now() / 1000 - signalTime;
-    if (hace > 900) return "offline";
+    if (hace > 86_400) return "offline"; // >24 h sin señal
   }
   if (st.includes("运动") || st.includes("行驶")) return "online";
   return "ack";

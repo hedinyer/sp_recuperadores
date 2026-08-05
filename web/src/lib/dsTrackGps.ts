@@ -26,6 +26,7 @@ type TraccarDevice = {
   status?: string;
   lastUpdate?: string | null;
   disabled?: boolean;
+  attributes?: Record<string, unknown>;
 };
 
 type TraccarPosition = {
@@ -69,7 +70,12 @@ async function traccarGet<T>(path: string): Promise<T> {
 }
 
 function clavesPlacaDispositivo(device: TraccarDevice): string[] {
-  return extraerPlacasDeTexto(String(device.name ?? ""));
+  // Muchos equipos se llaman "DS10404" y la placa va en attributes.plate.
+  const textos = [
+    String(device.name ?? ""),
+    String(device.attributes?.plate ?? ""),
+  ];
+  return [...new Set(textos.flatMap((t) => extraerPlacasDeTexto(t)))];
 }
 
 function leerBloqueo(pos: TraccarPosition | undefined): boolean {
@@ -89,6 +95,22 @@ function formatearTiempo(iso: string | undefined): string {
   return d.toLocaleString("es-CO", { timeZone: "America/Bogota" });
 }
 
+/** Sin señal reciente (>24 h) = offline, mismo criterio que IOP. */
+const SENAL_MAX_SEG = 86_400;
+
+function estadoOnlineDs(
+  device: TraccarDevice,
+  pos: TraccarPosition | undefined,
+): string {
+  const online = String(device.status ?? "").trim().toLowerCase() || "offline";
+  if (online !== "online" && online !== "ack") return online;
+  const iso = pos?.deviceTime || pos?.fixTime || device.lastUpdate || undefined;
+  if (!iso) return online;
+  const hace = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (Number.isFinite(hace) && hace > SENAL_MAX_SEG) return "offline";
+  return online;
+}
+
 function mapearDispositivo(
   device: TraccarDevice,
   pos: TraccarPosition | undefined,
@@ -103,7 +125,7 @@ function mapearDispositivo(
   if (lat === 0 && lng === 0) return null;
 
   const speedNudos = Number(pos?.speed) || 0;
-  const online = String(device.status ?? "").trim().toLowerCase() || "offline";
+  const online = estadoOnlineDs(device, pos);
 
   return {
     proveedor: "dstrack",
