@@ -552,22 +552,42 @@ function ContenidoRecogerBogota() {
       </header>
 
       {vista === "recoger" && !loading && !error && (
-        <MapaRecogerBogota
-          motos={puntosMapa}
-          origen={origen}
-          radioKm={DISTANCIA_MAX_RECOGER_KM}
-          seleccionada={seleccionada}
-          onSeleccionar={seleccionarPlaca}
-        />
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden md:flex-row">
+          <MapaRecogerBogota
+            motos={puntosMapa}
+            origen={origen}
+            radioKm={DISTANCIA_MAX_RECOGER_KM}
+            seleccionada={seleccionada}
+            onSeleccionar={seleccionarPlaca}
+          />
+
+          <main
+            id="lista-recoger-bogota"
+            className="flex-1 min-h-0 overflow-y-auto px-4 py-3 pb-2 md:w-[min(100%,420px)] md:shrink-0 md:border-l md:border-zinc-800"
+            aria-label="Lista de motos para recoger"
+          >
+            {renderLista()}
+          </main>
+        </div>
       )}
 
-      <main
-        id="lista-recoger-bogota"
-        className="flex-1 overflow-y-auto px-4 py-3 pb-2"
-        aria-label={
-          vista === "recoger" ? "Lista de motos para recoger" : "Lista para llamar"
-        }
-      >
+      {(vista === "llamar" || loading || error) && (
+        <main
+          id="lista-recoger-bogota"
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-3 pb-2"
+          aria-label={
+            vista === "recoger" ? "Lista de motos para recoger" : "Lista para llamar"
+          }
+        >
+          {renderLista()}
+        </main>
+      )}
+    </div>
+  );
+
+  function renderLista() {
+    return (
+      <>
         {loading && (
           <p className="text-center text-sm text-zinc-500 py-12" role="status">
             Cargando motos y GPS…
@@ -731,14 +751,14 @@ function ContenidoRecogerBogota() {
             })}
           </ul>
         )}
-      </main>
-    </div>
-  );
+      </>
+    );
+  }
 }
 
 export default function RecogerBogotaPage() {
   return (
-    <div className="flex flex-col h-dvh max-w-[414px] mx-auto bg-zinc-950 text-zinc-100 pt-[max(0.5rem,env(safe-area-inset-top))]">
+    <div className="flex flex-col h-dvh max-w-[414px] md:max-w-none mx-auto bg-zinc-950 text-zinc-100 pt-[max(0.5rem,env(safe-area-inset-top))]">
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <ContenidoRecogerBogota />
       </div>

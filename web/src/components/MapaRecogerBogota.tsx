@@ -204,11 +204,22 @@ export function MapaRecogerBogota({
     };
   }, [mapaListo, motos, seleccionada, origen.lat, origen.lng]);
 
+  useEffect(() => {
+    const mapa = mapaRef.current;
+    const el = contenedorRef.current?.parentElement;
+    if (!mapa || !el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      mapa.invalidateSize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mapaListo]);
+
   return (
     <div
       role="region"
       aria-label="Mapa de motos para recoger en Bogotá y alrededores"
-      className="relative h-[min(48vh,360px)] min-h-[240px] w-full overflow-hidden border-b border-zinc-800 bg-zinc-900 outline outline-1 outline-white/10"
+      className="relative h-[min(48vh,360px)] min-h-[240px] w-full overflow-hidden border-b border-zinc-800 bg-zinc-900 outline outline-1 outline-white/10 md:h-full md:min-h-0 md:flex-1 md:border-b-0 md:border-r"
     >
       <div ref={contenedorRef} className="absolute inset-0 z-0" />
       <p className="pointer-events-none absolute bottom-2 left-2 z-[400] rounded-md bg-zinc-950/80 px-2 py-1 text-[10px] font-medium text-zinc-300">
