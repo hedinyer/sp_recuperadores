@@ -131,7 +131,7 @@ DELETE /api/calendario_marisol/eventos/{id}
 ## UI humana
 
 `https://sp-recuperadores.vercel.app/calendario_marisol`  
-Pedir el token al entrar; no está en la navegación principal.
+Solo pide el token del calendario (no la clave de la app). No está en la navegación principal.
 
 ---
 
