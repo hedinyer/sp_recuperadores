@@ -371,3 +371,174 @@ export async function deleteSkylightCalendarEvent(id: string): Promise<void> {
     `/api/frames/${SKYLIGHT_FRAME_ID}/calendar_events/${id}`,
   );
 }
+
+export type SkylightListKind = "shopping" | "to_do";
+
+export type SkylightList = {
+  id: string;
+  label: string;
+  kind: string;
+  color: string;
+  default_grocery_list: boolean;
+};
+
+export type SkylightListItem = {
+  id: string;
+  label: string;
+  status: string;
+  section: string | null;
+  position: number | null;
+};
+
+const LIST_COLORS: Record<SkylightListKind, string> = {
+  shopping: "#B6E085",
+  to_do: "#A8D4D3",
+};
+
+function parseList(row: {
+  id: string;
+  attributes?: Record<string, unknown>;
+}): SkylightList {
+  const a = row.attributes ?? {};
+  return {
+    id: String(row.id),
+    label: String(a.label ?? ""),
+    kind: String(a.kind ?? ""),
+    color: String(a.color ?? ""),
+    default_grocery_list: Boolean(a.default_grocery_list),
+  };
+}
+
+function parseListItem(row: {
+  id: string;
+  attributes?: Record<string, unknown>;
+}): SkylightListItem {
+  const a = row.attributes ?? {};
+  return {
+    id: String(row.id),
+    label: String(a.label ?? ""),
+    status: String(a.status ?? "pending"),
+    section: a.section == null ? null : String(a.section),
+    position: a.position == null ? null : Number(a.position),
+  };
+}
+
+export async function listSkylightLists(): Promise<SkylightList[]> {
+  const data = await skylightApi<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>(
+    "GET",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/lists`,
+  );
+  return (data.data ?? []).map(parseList);
+}
+
+export async function resolveSkylightListId(input: {
+  list_id?: string;
+  list_name?: string;
+  kind?: string;
+}): Promise<string> {
+  if (input.list_id?.trim()) return input.list_id.trim();
+  const lists = await listSkylightLists();
+  const name = input.list_name?.trim().toLowerCase();
+  if (name) {
+    const byName = lists.find((l) => l.label.toLowerCase() === name);
+    if (byName) return byName.id;
+    const partial = lists.find((l) => l.label.toLowerCase().includes(name));
+    if (partial) return partial.id;
+  }
+  const kind = (input.kind?.trim() || "shopping") as SkylightListKind;
+  const byKind = lists.find((l) => l.kind === kind);
+  if (byKind) return byKind.id;
+  throw new Error(`Lista no encontrada (${input.list_name || kind})`);
+}
+
+export async function createSkylightList(input: {
+  label: string;
+  kind?: SkylightListKind;
+  color?: string;
+}): Promise<SkylightList> {
+  const label = input.label.trim();
+  if (!label) throw new Error("label requerido");
+  const kind = input.kind ?? "shopping";
+  const color = input.color?.trim() || LIST_COLORS[kind];
+  const data = await skylightApi<{ data: { id: string; attributes?: Record<string, unknown> } }>(
+    "POST",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/lists`,
+    { label, kind, color },
+  );
+  return parseList(data.data);
+}
+
+export async function listSkylightListItems(listId: string): Promise<SkylightListItem[]> {
+  const data = await skylightApi<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>(
+    "GET",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/lists/${listId}/list_items`,
+  );
+  return (data.data ?? []).map(parseListItem);
+}
+
+export async function addSkylightListItem(
+  listId: string,
+  input: { label: string; section?: string },
+): Promise<SkylightListItem> {
+  const label = input.label.trim();
+  if (!label) throw new Error("label requerido");
+  const body: Record<string, unknown> = { label };
+  if (input.section?.trim()) body.section = input.section.trim();
+  const data = await skylightApi<{ data: { id: string; attributes?: Record<string, unknown> } }>(
+    "POST",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/lists/${listId}/list_items`,
+    body,
+  );
+  return parseListItem(data.data);
+}
+
+export async function addSkylightListItems(
+  listId: string,
+  labels: string[],
+): Promise<SkylightListItem[]> {
+  const out: SkylightListItem[] = [];
+  for (const raw of labels) {
+    const label = raw.trim();
+    if (!label) continue;
+    out.push(await addSkylightListItem(listId, { label }));
+  }
+  if (out.length === 0) throw new Error("items vacíos");
+  return out;
+}
+
+export async function updateSkylightListItem(
+  listId: string,
+  itemId: string,
+  patch: { label?: string; completed?: boolean },
+): Promise<SkylightListItem> {
+  const body: Record<string, unknown> = {};
+  if (patch.label !== undefined) {
+    const label = patch.label.trim();
+    if (!label) throw new Error("label vacío");
+    body.label = label;
+  }
+  if (patch.completed !== undefined) {
+    body.status = patch.completed ? "completed" : "pending";
+  }
+  if (Object.keys(body).length === 0) throw new Error("Nada que actualizar");
+  const data = await skylightApi<{ data: { id: string; attributes?: Record<string, unknown> } }>(
+    "PUT",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/lists/${listId}/list_items/${itemId}`,
+    body,
+  );
+  return parseListItem(data.data);
+}
+
+export async function deleteSkylightListItem(
+  listId: string,
+  itemId: string,
+): Promise<void> {
+  await skylightApi(
+    "DELETE",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/lists/${listId}/list_items/${itemId}`,
+  );
+}
+
+export async function deleteSkylightList(listId: string): Promise<void> {
+  await skylightApi("DELETE", `/api/frames/${SKYLIGHT_FRAME_ID}/lists/${listId}`);
+}

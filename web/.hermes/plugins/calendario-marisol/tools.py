@@ -370,3 +370,183 @@ def register_tools(ctx) -> None:
         handler=handle_borrar_task,
         description="Borrar task de Skylight.",
     )
+
+    def handle_listar_listas(_params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        data = _request("GET", "/api/calendario_marisol/listas")
+        listas = data.get("listas", [])
+        return _tool_result({"success": True, "count": len(listas), "listas": listas})
+
+    ctx.register_tool(
+        name="skylight_listar_listas",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_listar_listas",
+            "description": "Lista las listas nativas de Skylight (compras, to-do, etc.) con su id.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+        handler=handle_listar_listas,
+        description="Listar listas nativas de Skylight.",
+    )
+
+    def handle_crear_lista(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        if params.get("items"):
+            body: dict[str, Any] = {"items": params["items"]}
+            for key in ("list_id", "list_name", "nombre_lista", "kind"):
+                if params.get(key) is not None:
+                    body[key if key != "nombre_lista" else "list_name"] = params[key]
+            data = _request("POST", "/api/calendario_marisol/listas", body)
+            return _tool_result({"success": True, **data})
+        body = {
+            "label": params["label"],
+            "kind": params.get("kind", "shopping"),
+        }
+        if params.get("color"):
+            body["color"] = params["color"]
+        data = _request("POST", "/api/calendario_marisol/listas", body)
+        return _tool_result({"success": True, "lista": data.get("lista")})
+
+    ctx.register_tool(
+        name="skylight_crear_lista",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_crear_lista",
+            "description": (
+                "Crea una lista nativa en Skylight o agrega ítems a una existente. "
+                "kind: shopping (compras) o to_do (pendientes). "
+                "Si pasas items, los agrega a la lista indicada (o a Grocery List por defecto)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": "Nombre de lista nueva (solo al crear).",
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": ["shopping", "to_do"],
+                        "description": "Tipo: shopping=compras, to_do=pendientes.",
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Ítems a agregar (ej. leche, pan).",
+                    },
+                    "list_id": {"type": "string", "description": "ID de lista existente."},
+                    "list_name": {
+                        "type": "string",
+                        "description": "Nombre parcial de lista existente (ej. Grocery).",
+                    },
+                    "nombre_lista": {
+                        "type": "string",
+                        "description": "Alias de list_name.",
+                    },
+                    "color": {"type": "string", "description": "Color hex al crear lista."},
+                },
+                "required": [],
+            },
+        },
+        handler=handle_crear_lista,
+        description="Crear lista nativa o agregar ítems en Skylight.",
+    )
+
+    def handle_listar_items_lista(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        list_id = params.get("list_id")
+        if not list_id:
+            listas = _request("GET", "/api/calendario_marisol/listas").get("listas", [])
+            name = (params.get("list_name") or params.get("nombre_lista") or "").lower()
+            kind = params.get("kind") or "shopping"
+            for lista in listas:
+                if name and name in str(lista.get("label", "")).lower():
+                    list_id = lista["id"]
+                    break
+            if not list_id:
+                for lista in listas:
+                    if lista.get("kind") == kind:
+                        list_id = lista["id"]
+                        break
+        if not list_id:
+            raise RuntimeError("list_id o list_name/kind requerido")
+        data = _request("GET", f"/api/calendario_marisol/listas/{list_id}")
+        return _tool_result({"success": True, **data})
+
+    ctx.register_tool(
+        name="skylight_listar_items_lista",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_listar_items_lista",
+            "description": "Lista los ítems de una lista de Skylight.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_id": {"type": "string"},
+                    "list_name": {"type": "string", "description": "Ej. Grocery List"},
+                    "kind": {"type": "string", "enum": ["shopping", "to_do"]},
+                },
+                "required": [],
+            },
+        },
+        handler=handle_listar_items_lista,
+        description="Listar ítems de una lista Skylight.",
+    )
+
+    def handle_completar_item_lista(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        list_id = params["list_id"]
+        item_id = params["item_id"]
+        completed = params.get("completed", True)
+        data = _request(
+            "PATCH",
+            f"/api/calendario_marisol/listas/{list_id}/items/{item_id}",
+            {"completed": completed},
+        )
+        return _tool_result({"success": True, "item": data.get("item")})
+
+    ctx.register_tool(
+        name="skylight_completar_item_lista",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_completar_item_lista",
+            "description": "Marca un ítem de lista como hecho o pendiente.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_id": {"type": "string"},
+                    "item_id": {"type": "string"},
+                    "completed": {"type": "boolean", "description": "true=hecho, false=pendiente"},
+                },
+                "required": ["list_id", "item_id"],
+            },
+        },
+        handler=handle_completar_item_lista,
+        description="Completar ítem de lista Skylight.",
+    )
+
+    def handle_borrar_item_lista(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        list_id = params["list_id"]
+        item_id = params["item_id"]
+        _request("DELETE", f"/api/calendario_marisol/listas/{list_id}/items/{item_id}")
+        return _tool_result({"success": True, "list_id": list_id, "item_id": item_id, "deleted": True})
+
+    ctx.register_tool(
+        name="skylight_borrar_item_lista",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_borrar_item_lista",
+            "description": "Elimina un ítem de una lista de Skylight.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_id": {"type": "string"},
+                    "item_id": {"type": "string"},
+                },
+                "required": ["list_id", "item_id"],
+            },
+        },
+        handler=handle_borrar_item_lista,
+        description="Borrar ítem de lista Skylight.",
+    )

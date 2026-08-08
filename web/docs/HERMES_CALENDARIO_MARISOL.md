@@ -72,6 +72,11 @@ Reiniciar Hermes / gateway WhatsApp. Tools disponibles:
 | `skylight_crear_task` | Crea task nativa en Skylight (sección Tasks) |
 | `skylight_actualizar_task` | Edita task por `id` |
 | `skylight_borrar_task` | Elimina task por `id` |
+| `skylight_listar_listas` | Lista listas nativas (compras, to-do) |
+| `skylight_crear_lista` | Crea lista o agrega ítems (compras/pendientes) |
+| `skylight_listar_items_lista` | Ve ítems de una lista |
+| `skylight_completar_item_lista` | Tilda ítem como hecho |
+| `skylight_borrar_item_lista` | Borra ítem de lista |
 
 ### WhatsApp
 
@@ -80,7 +85,8 @@ Cualquiera que escriba al número conectado a Hermes puede pedir agendar cosas. 
 - «Agenda dentista el martes 3pm»
 - «Qué hay en el calendario esta semana?»
 - «Cancela la cita del dentista»
-- «Lista de compras: leche, pan, huevos para hoy»
+- «Agrega a la lista de compras: leche, pan, huevos» → `skylight_crear_lista`
+- «Qué hay en la lista del súper?» → `skylight_listar_items_lista`
 - «Agrega task: sacar la basura» (Task Box nativo de Skylight)
 - «Qué tasks hay en Skylight?»
 
@@ -141,11 +147,40 @@ Body crear: `{ "summary": "Comprar leche" }`
 
 ---
 
+### Listas nativas de Skylight
+
+Aparecen en la sección **Lists** del frame (compras, to-do). Instantáneas vía API.
+
+```http
+GET /api/calendario_marisol/listas
+POST /api/calendario_marisol/listas
+GET /api/calendario_marisol/listas/{id}
+POST /api/calendario_marisol/listas/{id}
+DELETE /api/calendario_marisol/listas/{id}
+PATCH /api/calendario_marisol/listas/{id}/items/{itemId}
+DELETE /api/calendario_marisol/listas/{id}/items/{itemId}
+```
+
+Agregar ítems a Grocery List (compras):
+
+```json
+POST /api/calendario_marisol/listas
+{ "kind": "shopping", "items": ["leche", "pan", "huevos"] }
+```
+
+Crear lista nueva:
+
+```json
+{ "label": "Farmacia", "kind": "to_do" }
+```
+
+---
+
 ## Skylight vs listas nativas
 
 - **Eventos** → Skylight los muestra vía feed ICS (compatible Calendar URL).
-- **Listas nativas de Skylight** (compras, chores) **no** se sincronizan por ICS.
-- Para listas vía WhatsApp usá `calendario_crear_lista`: se publica como evento de día completo con ítems en la descripción.
+- **Listas nativas** → `skylight_crear_lista` / `skylight_listar_items_lista` (sección Lists, instantáneo).
+- **Legacy:** `calendario_crear_lista` publica como evento de día completo en el calendario (usar solo si hace falta).
 
 ---
 
