@@ -243,3 +243,130 @@ def register_tools(ctx) -> None:
         handler=handle_crear_lista_evento,
         description="Crear lista visible en Skylight como evento.",
     )
+
+    def handle_listar_tasks(_params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        data = _request("GET", "/api/calendario_marisol/tasks")
+        tasks = data.get("tasks", [])
+        return _tool_result({"success": True, "count": len(tasks), "tasks": tasks})
+
+    ctx.register_tool(
+        name="skylight_listar_tasks",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_listar_tasks",
+            "description": (
+                "Lista las tasks nativas del Task Box de Skylight Calendar (frame Marisol)."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+        handler=handle_listar_tasks,
+        description="Listar tasks de Skylight.",
+    )
+
+    def handle_crear_task(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        body: dict[str, Any] = {"summary": params["summary"]}
+        if params.get("emoji_icon"):
+            body["emoji_icon"] = params["emoji_icon"]
+        if params.get("routine") is not None:
+            body["routine"] = params["routine"]
+        if params.get("reward_points") is not None:
+            body["reward_points"] = params["reward_points"]
+        data = _request("POST", "/api/calendario_marisol/tasks", body)
+        return _tool_result({"success": True, "task": data.get("task")})
+
+    ctx.register_tool(
+        name="skylight_crear_task",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_crear_task",
+            "description": (
+                "Crea una task nativa en el Task Box de Skylight Calendar. "
+                "Aparece en la sección Tasks del frame, no solo en el calendario."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "Texto de la task (ej. Comprar leche, Lavar ropa).",
+                    },
+                    "emoji_icon": {
+                        "type": "string",
+                        "description": "Emoji opcional.",
+                    },
+                    "routine": {
+                        "type": "boolean",
+                        "description": "Si es rutina recurrente.",
+                    },
+                    "reward_points": {
+                        "type": "integer",
+                        "description": "Puntos de recompensa opcionales.",
+                    },
+                },
+                "required": ["summary"],
+            },
+        },
+        handler=handle_crear_task,
+        description="Crear task nativa en Skylight.",
+    )
+
+    def handle_actualizar_task(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        task_id = params["id"]
+        body = {
+            k: params[k]
+            for k in ("summary", "emoji_icon", "routine", "reward_points")
+            if k in params
+        }
+        if not body:
+            raise RuntimeError("Indica al menos un campo a actualizar")
+        data = _request("PATCH", f"/api/calendario_marisol/tasks/{task_id}", body)
+        return _tool_result({"success": True, "task": data.get("task")})
+
+    ctx.register_tool(
+        name="skylight_actualizar_task",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_actualizar_task",
+            "description": "Renombra o edita una task de Skylight por id.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "ID de la task."},
+                    "summary": {"type": "string", "description": "Nuevo texto."},
+                    "emoji_icon": {"type": "string"},
+                    "routine": {"type": "boolean"},
+                    "reward_points": {"type": "integer"},
+                },
+                "required": ["id"],
+            },
+        },
+        handler=handle_actualizar_task,
+        description="Actualizar task de Skylight.",
+    )
+
+    def handle_borrar_task(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        task_id = params["id"]
+        _request("DELETE", f"/api/calendario_marisol/tasks/{task_id}")
+        return _tool_result({"success": True, "id": task_id, "deleted": True})
+
+    ctx.register_tool(
+        name="skylight_borrar_task",
+        toolset=TOOLSET,
+        schema={
+            "name": "skylight_borrar_task",
+            "description": "Elimina una task del Task Box de Skylight por id.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "ID de la task a borrar."},
+                },
+                "required": ["id"],
+            },
+        },
+        handler=handle_borrar_task,
+        description="Borrar task de Skylight.",
+    )

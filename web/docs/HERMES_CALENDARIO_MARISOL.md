@@ -67,7 +67,11 @@ Reiniciar Hermes / gateway WhatsApp. Tools disponibles:
 | `calendario_crear_evento` | Crea cita/evento con fecha/hora |
 | `calendario_actualizar_evento` | Mueve o renombra por `id` |
 | `calendario_borrar_evento` | Cancela evento por `id` |
-| `calendario_crear_lista` | Lista de compras/tareas como evento de día completo (visible en Skylight) |
+| `calendario_crear_lista` | Lista como evento de día completo (calendario ICS) |
+| `skylight_listar_tasks` | Lista tasks nativas del Task Box |
+| `skylight_crear_task` | Crea task nativa en Skylight (sección Tasks) |
+| `skylight_actualizar_task` | Edita task por `id` |
+| `skylight_borrar_task` | Elimina task por `id` |
 
 ### WhatsApp
 
@@ -77,6 +81,8 @@ Cualquiera que escriba al número conectado a Hermes puede pedir agendar cosas. 
 - «Qué hay en el calendario esta semana?»
 - «Cancela la cita del dentista»
 - «Lista de compras: leche, pan, huevos para hoy»
+- «Agrega task: sacar la basura» (Task Box nativo de Skylight)
+- «Qué tasks hay en Skylight?»
 
 ---
 
@@ -117,6 +123,21 @@ Content-Type: application/json
 PATCH /api/calendario_marisol/eventos/{id}
 DELETE /api/calendario_marisol/eventos/{id}
 ```
+
+---
+
+### Tasks nativas de Skylight (Task Box)
+
+Hermes escribe directo al frame `5519401` vía API no oficial de Skylight (credenciales hardcodeadas en el servidor).
+
+```http
+GET /api/calendario_marisol/tasks
+POST /api/calendario_marisol/tasks
+PATCH /api/calendario_marisol/tasks/{id}
+DELETE /api/calendario_marisol/tasks/{id}
+```
+
+Body crear: `{ "summary": "Comprar leche" }`
 
 ---
 
