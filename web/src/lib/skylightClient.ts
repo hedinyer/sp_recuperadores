@@ -4,18 +4,12 @@ const SKYLIGHT_BASE = "https://app.ourskylight.com";
 const SKYLIGHT_FRAME_ID = "5519401";
 const SKYLIGHT_EMAIL = "marisolpinilla@hotmail.com";
 const SKYLIGHT_PASSWORD = "Bera8484!!";
+/** Perfil default en el frame (Marisol). */
+const SKYLIGHT_DEFAULT_CATEGORY_ID = "21995038";
 
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const API_UA = "calendario-marisol-skylight/1.0";
-
-export type SkylightTask = {
-  id: string;
-  summary: string;
-  emoji_icon: string | null;
-  routine: boolean;
-  reward_points: number | null;
-};
 
 type TokenCache = {
   accessToken: string;
@@ -241,14 +235,63 @@ async function skylightApi<T>(
   return JSON.parse(text) as T;
 }
 
-function parseTask(row: {
+export type SkylightTask = {
   id: string;
-  attributes?: Record<string, unknown>;
-}): SkylightTask {
+  summary: string;
+  status: string;
+  start: string;
+  category_id: string | null;
+  category_label: string | null;
+  emoji_icon: string | null;
+  routine: boolean;
+  reward_points: number | null;
+};
+
+function todayBogota(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+  }).format(new Date());
+}
+
+async function resolveCategoryId(input?: {
+  category_id?: string;
+  profile?: string;
+  category_name?: string;
+}): Promise<string> {
+  if (input?.category_id?.trim()) return input.category_id.trim();
+  const name = (input?.profile ?? input?.category_name ?? "").trim().toLowerCase();
+  if (name) {
+    const data = await skylightApi<{
+      data?: Array<{ id: string; attributes?: Record<string, unknown> }>;
+    }>("GET", `/api/frames/${SKYLIGHT_FRAME_ID}/categories`);
+    const match = (data.data ?? []).find((row) =>
+      String(row.attributes?.label ?? "").toLowerCase().includes(name),
+    );
+    if (match) return String(match.id);
+  }
+  return SKYLIGHT_DEFAULT_CATEGORY_ID;
+}
+
+function parseChore(
+  row: {
+    id: string;
+    attributes?: Record<string, unknown>;
+    relationships?: { category?: { data?: { id?: string } } };
+  },
+  included?: Array<{ id: string; type: string; attributes?: Record<string, unknown> }>,
+): SkylightTask {
   const a = row.attributes ?? {};
+  const categoryId = row.relationships?.category?.data?.id
+    ? String(row.relationships.category.data.id)
+    : null;
+  const cat = included?.find((x) => x.id === categoryId);
   return {
     id: String(row.id),
     summary: String(a.summary ?? ""),
+    status: String(a.status ?? "pending"),
+    start: String(a.start ?? ""),
+    category_id: categoryId,
+    category_label: cat ? String(cat.attributes?.label ?? "") : null,
     emoji_icon: a.emoji_icon == null ? null : String(a.emoji_icon),
     routine: Boolean(a.routine),
     reward_points:
@@ -256,32 +299,67 @@ function parseTask(row: {
   };
 }
 
-export async function listSkylightTasks(): Promise<SkylightTask[]> {
-  const data = await skylightApi<{ data?: Array<{ id: string; attributes?: Record<string, unknown> }> }>(
+export async function listSkylightTasks(input?: {
+  date?: string;
+  after?: string;
+  before?: string;
+}): Promise<SkylightTask[]> {
+  const date = input?.date ?? todayBogota();
+  const after = input?.after ?? date;
+  const before = input?.before ?? date;
+  const data = await skylightApi<{
+    data?: Array<{ id: string; attributes?: Record<string, unknown> }>;
+    included?: Array<{ id: string; type: string; attributes?: Record<string, unknown> }>;
+  }>(
     "GET",
-    `/api/frames/${SKYLIGHT_FRAME_ID}/task_box/items`,
+    `/api/frames/${SKYLIGHT_FRAME_ID}/chores?after=${after}&before=${before}&include_late=true`,
   );
-  return (data.data ?? []).map(parseTask);
+  return (data.data ?? []).map((row) => parseChore(row, data.included));
+}
+
+async function findChoreById(id: string): Promise<SkylightTask | null> {
+  const today = todayBogota();
+  const d = new Date(`${today}T12:00:00`);
+  const from = new Date(d);
+  from.setDate(from.getDate() - 30);
+  const to = new Date(d);
+  to.setDate(to.getDate() + 30);
+  const fmt = (x: Date) => x.toISOString().slice(0, 10);
+  const chores = await listSkylightTasks({
+    after: fmt(from),
+    before: fmt(to),
+  });
+  return chores.find((c) => c.id === id) ?? null;
 }
 
 export async function createSkylightTask(input: {
   summary: string;
+  start?: string;
+  category_id?: string;
+  profile?: string;
+  category_name?: string;
   emoji_icon?: string;
   routine?: boolean;
   reward_points?: number;
+  start_time?: string;
 }): Promise<SkylightTask> {
   const summary = input.summary.trim();
   if (!summary) throw new Error("summary requerido");
-  const body: Record<string, unknown> = { summary };
+  const category_id = await resolveCategoryId(input);
+  const body: Record<string, unknown> = {
+    summary,
+    start: input.start?.trim() || todayBogota(),
+    category_id,
+  };
   if (input.emoji_icon) body.emoji_icon = input.emoji_icon;
   if (input.routine != null) body.routine = input.routine;
   if (input.reward_points != null) body.reward_points = input.reward_points;
-  const data = await skylightApi<{ data: { id: string; attributes?: Record<string, unknown> } }>(
-    "POST",
-    `/api/frames/${SKYLIGHT_FRAME_ID}/task_box/items`,
-    body,
-  );
-  return parseTask(data.data);
+  if (input.start_time) body.start_time = input.start_time;
+  const data = await skylightApi<{
+    data: { id: string; attributes?: Record<string, unknown> };
+    included?: Array<{ id: string; type: string; attributes?: Record<string, unknown> }>;
+  }>("POST", `/api/frames/${SKYLIGHT_FRAME_ID}/chores`, body);
+  return parseChore(data.data, data.included);
 }
 
 export async function updateSkylightTask(
@@ -291,8 +369,33 @@ export async function updateSkylightTask(
     emoji_icon?: string;
     routine?: boolean;
     reward_points?: number;
+    completed?: boolean;
+    start?: string;
+    category_id?: string;
   },
 ): Promise<SkylightTask> {
+  if (patch.completed !== undefined) {
+    const chore = await findChoreById(id);
+    const category_id = patch.category_id ?? chore?.category_id ?? SKYLIGHT_DEFAULT_CATEGORY_ID;
+    await skylightApi(
+      "PUT",
+      `/api/frames/${SKYLIGHT_FRAME_ID}/chores/${id}/completions`,
+      {
+        status: patch.completed ? "complete" : "pending",
+        instance_date: chore?.start || patch.start || todayBogota(),
+        category_id,
+      },
+    );
+    if (Object.keys(patch).length === 1) {
+      const refreshed = await listSkylightTasks({
+        after: chore?.start ?? todayBogota(),
+        before: chore?.start ?? todayBogota(),
+      });
+      const updated = refreshed.find((c) => c.id === id);
+      if (updated) return updated;
+    }
+  }
+
   const body: Record<string, unknown> = {};
   if (patch.summary !== undefined) {
     const summary = patch.summary.trim();
@@ -302,17 +405,19 @@ export async function updateSkylightTask(
   if (patch.emoji_icon !== undefined) body.emoji_icon = patch.emoji_icon;
   if (patch.routine !== undefined) body.routine = patch.routine;
   if (patch.reward_points !== undefined) body.reward_points = patch.reward_points;
+  if (patch.start !== undefined) body.start = patch.start;
+  if (patch.category_id !== undefined) body.category_id = patch.category_id;
   if (Object.keys(body).length === 0) throw new Error("Nada que actualizar");
-  const data = await skylightApi<{ data: { id: string; attributes?: Record<string, unknown> } }>(
-    "PATCH",
-    `/api/frames/${SKYLIGHT_FRAME_ID}/task_box/items/${id}`,
-    body,
-  );
-  return parseTask(data.data);
+
+  const data = await skylightApi<{
+    data: { id: string; attributes?: Record<string, unknown> };
+    included?: Array<{ id: string; type: string; attributes?: Record<string, unknown> }>;
+  }>("PUT", `/api/frames/${SKYLIGHT_FRAME_ID}/chores/${id}`, body);
+  return parseChore(data.data, data.included);
 }
 
 export async function deleteSkylightTask(id: string): Promise<void> {
-  await skylightApi("DELETE", `/api/frames/${SKYLIGHT_FRAME_ID}/task_box/items/${id}`);
+  await skylightApi("DELETE", `/api/frames/${SKYLIGHT_FRAME_ID}/chores/${id}`);
 }
 
 export type SkylightCalendarEventInput = {

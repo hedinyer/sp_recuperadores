@@ -68,8 +68,8 @@ Reiniciar Hermes / gateway WhatsApp. Tools disponibles:
 | `calendario_actualizar_evento` | Mueve o renombra por `id` |
 | `calendario_borrar_evento` | Cancela evento por `id` |
 | `calendario_crear_lista` | Lista como evento de día completo (calendario ICS) |
-| `skylight_listar_tasks` | Lista tasks nativas del Task Box |
-| `skylight_crear_task` | Crea task nativa en Skylight (sección Tasks) |
+| `skylight_listar_tasks` | Lista chores visibles hoy en el frame |
+| `skylight_crear_task` | Crea chore visible hoy (perfil Marisol) |
 | `skylight_actualizar_task` | Edita task por `id` |
 | `skylight_borrar_task` | Elimina task por `id` |
 | `skylight_listar_listas` | Lista listas nativas (compras, to-do) |
@@ -132,18 +132,17 @@ DELETE /api/calendario_marisol/eventos/{id}
 
 ---
 
-### Tasks nativas de Skylight (Task Box)
+### Tasks visibles en el frame (chores)
 
-Hermes escribe directo al frame `5519401` vía API no oficial de Skylight (credenciales hardcodeadas en el servidor).
+Las tasks se crean como **chores** asignados a un perfil (default: Marisol) para la fecha indicada (default: hoy). Aparecen al instante en la pestaña **Tasks** del frame.
 
 ```http
-GET /api/calendario_marisol/tasks
+GET /api/calendario_marisol/tasks?date=2026-08-08
 POST /api/calendario_marisol/tasks
-PATCH /api/calendario_marisol/tasks/{id}
-DELETE /api/calendario_marisol/tasks/{id}
+{ "summary": "Sacar basura", "profile": "Marisol", "start": "2026-08-08" }
 ```
 
-Body crear: `{ "summary": "Comprar leche" }`
+No confundir con el Task Box de Skylight (solo plantillas guardadas, no visibles en el frame hasta asignarlas manualmente).
 
 ---
 

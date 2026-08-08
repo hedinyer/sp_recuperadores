@@ -26,7 +26,11 @@ export async function GET(request: Request) {
   try {
     if (!calendarioTokenConfigured()) return misconfigured();
     if (!calendarioTokenOk(request)) return unauthorized();
-    const tasks = await listSkylightTasks();
+    const url = new URL(request.url);
+    const date = url.searchParams.get("date") ?? undefined;
+    const after = url.searchParams.get("after") ?? undefined;
+    const before = url.searchParams.get("before") ?? undefined;
+    const tasks = await listSkylightTasks({ date, after, before });
     return NextResponse.json({ tasks });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al listar tasks";

@@ -244,9 +244,12 @@ def register_tools(ctx) -> None:
         description="Crear lista visible en Skylight como evento.",
     )
 
-    def handle_listar_tasks(_params: dict[str, Any], **_kwargs) -> str:
+    def handle_listar_tasks(params: dict[str, Any], **_kwargs) -> str:
         del _kwargs
-        data = _request("GET", "/api/calendario_marisol/tasks")
+        q = ""
+        if params.get("date"):
+            q = f"?date={params['date']}"
+        data = _request("GET", f"/api/calendario_marisol/tasks{q}")
         tasks = data.get("tasks", [])
         return _tool_result({"success": True, "count": len(tasks), "tasks": tasks})
 
@@ -256,9 +259,19 @@ def register_tools(ctx) -> None:
         schema={
             "name": "skylight_listar_tasks",
             "description": (
-                "Lista las tasks nativas del Task Box de Skylight Calendar (frame Marisol)."
+                "Lista tasks/chores visibles en el frame Skylight para una fecha "
+                "(default hoy, perfil Marisol y otros)."
             ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Fecha YYYY-MM-DD (default hoy Bogotá).",
+                    },
+                },
+                "required": [],
+            },
         },
         handler=handle_listar_tasks,
         description="Listar tasks de Skylight.",
@@ -267,12 +280,9 @@ def register_tools(ctx) -> None:
     def handle_crear_task(params: dict[str, Any], **_kwargs) -> str:
         del _kwargs
         body: dict[str, Any] = {"summary": params["summary"]}
-        if params.get("emoji_icon"):
-            body["emoji_icon"] = params["emoji_icon"]
-        if params.get("routine") is not None:
-            body["routine"] = params["routine"]
-        if params.get("reward_points") is not None:
-            body["reward_points"] = params["reward_points"]
+        for key in ("start", "profile", "category_name", "emoji_icon", "routine", "reward_points", "start_time"):
+            if params.get(key) is not None:
+                body[key] = params[key]
         data = _request("POST", "/api/calendario_marisol/tasks", body)
         return _tool_result({"success": True, "task": data.get("task")})
 
@@ -282,28 +292,28 @@ def register_tools(ctx) -> None:
         schema={
             "name": "skylight_crear_task",
             "description": (
-                "Crea una task nativa en el Task Box de Skylight Calendar. "
-                "Aparece en la sección Tasks del frame, no solo en el calendario."
+                "Crea una task visible HOY en el frame Skylight (chore asignado a un perfil). "
+                "Por defecto perfil Marisol y fecha de hoy (Bogotá). "
+                "NO uses task_box: eso solo guarda plantillas y no se ven en el frame."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "summary": {
                         "type": "string",
-                        "description": "Texto de la task (ej. Comprar leche, Lavar ropa).",
+                        "description": "Texto de la task (ej. Sacar basura).",
                     },
-                    "emoji_icon": {
+                    "start": {
                         "type": "string",
-                        "description": "Emoji opcional.",
+                        "description": "Fecha YYYY-MM-DD (default hoy).",
                     },
-                    "routine": {
-                        "type": "boolean",
-                        "description": "Si es rutina recurrente.",
+                    "profile": {
+                        "type": "string",
+                        "description": "Perfil: Marisol, bot, etc. Default Marisol.",
                     },
-                    "reward_points": {
-                        "type": "integer",
-                        "description": "Puntos de recompensa opcionales.",
-                    },
+                    "emoji_icon": {"type": "string"},
+                    "routine": {"type": "boolean"},
+                    "reward_points": {"type": "integer"},
                 },
                 "required": ["summary"],
             },
