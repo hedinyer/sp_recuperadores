@@ -185,6 +185,8 @@ export function eventosToIcs(eventos: CalendarioEvento[]): string {
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "X-WR-CALNAME:Calendario Marisol",
+    "X-WR-TIMEZONE:America/Bogota",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
   ];
   for (const e of eventos) {
     lines.push(

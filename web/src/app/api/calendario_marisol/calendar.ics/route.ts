@@ -24,7 +24,8 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
-        "Cache-Control": "no-store",
+        "Content-Disposition": 'inline; filename="calendario-marisol.ics"',
+        "Cache-Control": "no-store, max-age=0",
       },
     });
   } catch (e) {

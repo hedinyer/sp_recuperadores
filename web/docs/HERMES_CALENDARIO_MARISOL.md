@@ -1,47 +1,100 @@
-# Calendario Marisol — API para Hermes Agent
+# Calendario Marisol — Hermes Agent + Skylight Calendar 2
 
 Base URL: `https://sp-recuperadores.vercel.app`
 
-Auth en **todas** las rutas: header  
-`Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293`  
-
-(El feed ICS también acepta `?token=…` porque Skylight no manda headers.)
-
-Token (hardcodeado): `15c903ed719abb5f3eb16e102300a0ed692fe8305319c293`
-
-Zona horaria de ejemplo: America/Bogota (`-05:00`). Podés mandar ISO con offset o UTC (`Z`).
+Repositorio: https://github.com/hedinyer/sp_recuperadores/tree/main/web
 
 ---
 
-## Listar eventos
+## Enlaces listos para copiar
+
+### Skylight Calendar 2 (feed ICS — solo lectura)
+
+Pegar en la app Skylight → **My Skylight** → **Synced Calendars** → **Sync new calendar** → **Calendar URL**:
+
+```
+https://sp-recuperadores.vercel.app/api/calendario_marisol/calendar.ics?token=15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
+```
+
+Skylight hace polling cada ~15 min (`REFRESH-INTERVAL` en el ICS). Hermes escribe eventos vía API; Skylight los lee del feed.
+
+### Hermes Agent (API REST)
+
+Token (Bearer):
+
+```
+15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
+```
+
+Header en todas las peticiones:
+
+```
+Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
+```
+
+---
+
+## Instalar plugin Hermes (tools)
+
+Desde la carpeta del proyecto web (donde está `.hermes/plugins/`):
+
+```bash
+export HERMES_ENABLE_PROJECT_PLUGINS=true
+export CALENDARIO_MARISOL_TOKEN=15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
+export CALENDARIO_MARISOL_BASE_URL=https://sp-recuperadores.vercel.app
+```
+
+En `~/.hermes/config.yaml`:
+
+```yaml
+plugins:
+  enabled:
+    - calendario-marisol
+```
+
+O copiar el plugin a Hermes global:
+
+```bash
+cp -r web/.hermes/plugins/calendario-marisol ~/.hermes/plugins/
+hermes plugins enable calendario-marisol
+```
+
+Reiniciar Hermes / gateway WhatsApp. Tools disponibles:
+
+| Tool | Qué hace |
+|------|----------|
+| `calendario_listar_eventos` | Lista todos los eventos |
+| `calendario_crear_evento` | Crea cita/evento con fecha/hora |
+| `calendario_actualizar_evento` | Mueve o renombra por `id` |
+| `calendario_borrar_evento` | Cancela evento por `id` |
+| `calendario_crear_lista` | Lista de compras/tareas como evento de día completo (visible en Skylight) |
+
+### WhatsApp
+
+Cualquiera que escriba al número conectado a Hermes puede pedir agendar cosas. Hermes interpreta el mensaje y llama las tools. Ejemplos:
+
+- «Agenda dentista el martes 3pm»
+- «Qué hay en el calendario esta semana?»
+- «Cancela la cita del dentista»
+- «Lista de compras: leche, pan, huevos para hoy»
+
+---
+
+## API REST (referencia)
+
+Auth: `Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293`  
+(El feed ICS también acepta `?token=…` porque Skylight no manda headers.)
+
+Zona horaria: America/Bogota (`-05:00`). Podés mandar ISO con offset o UTC (`Z`).
+
+### Listar eventos
 
 ```http
 GET /api/calendario_marisol/eventos
 Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
 ```
 
-Respuesta `200`:
-
-```json
-{
-  "eventos": [
-    {
-      "id": "uuid",
-      "uid": "…@calendario-marisol",
-      "summary": "Dentista",
-      "description": "",
-      "dtstart": "2026-07-23T20:00:00.000Z",
-      "dtend": "2026-07-23T21:00:00.000Z",
-      "created_at": "…",
-      "updated_at": "…"
-    }
-  ]
-}
-```
-
----
-
-## Crear evento
+### Crear evento
 
 ```http
 POST /api/calendario_marisol/eventos
@@ -58,87 +111,34 @@ Content-Type: application/json
 }
 ```
 
-- `summary` y fechas: obligatorios.
-- `description`: opcional (default `""`).
-- `uid`: opcional; si no viene, el servidor lo genera.
-- `dtend` debe ser `>= dtstart`.
-
-Respuesta `201`: `{ "evento": { … } }`
-
-curl:
-
-```bash
-curl -sS -X POST "https://sp-recuperadores.vercel.app/api/calendario_marisol/eventos" \
-  -H "Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293" \
-  -H "Content-Type: application/json" \
-  -d '{"summary":"Dentista","description":"","dtstart":"2026-07-23T15:00:00-05:00","dtend":"2026-07-23T16:00:00-05:00"}'
-```
-
----
-
-## Actualizar evento
+### Actualizar / borrar
 
 ```http
 PATCH /api/calendario_marisol/eventos/{id}
-Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
-Content-Type: application/json
-```
-
-Body: solo campos a cambiar (`summary`, `description`, `dtstart`, `dtend`).
-
-Respuesta `200`: `{ "evento": { … } }`  
-`404` si el `id` no existe.
-
----
-
-## Borrar evento
-
-```http
 DELETE /api/calendario_marisol/eventos/{id}
-Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
 ```
 
-Respuesta `200`: `{ "ok": true }`
+---
+
+## Skylight vs listas nativas
+
+- **Eventos** → Skylight los muestra vía feed ICS (compatible Calendar URL).
+- **Listas nativas de Skylight** (compras, chores) **no** se sincronizan por ICS.
+- Para listas vía WhatsApp usá `calendario_crear_lista`: se publica como evento de día completo con ítems en la descripción.
 
 ---
 
-## Feed ICS (Skylight — solo lectura)
-
-```http
-GET /api/calendario_marisol/calendar.ics?token=15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
-```
-
-`Content-Type: text/calendar`. Skylight hace polling a esta URL.  
-Hermes **no** escribe al ICS: escribe con POST/PATCH/DELETE; Skylight lee el feed.
-
-URL lista para Skylight:
-
-`https://sp-recuperadores.vercel.app/api/calendario_marisol/calendar.ics?token=15c903ed719abb5f3eb16e102300a0ed692fe8305319c293`
-
----
-
-## Errores
-
-| Status | Significado |
-|--------|-------------|
-| 401 | Token ausente o incorrecto |
-| 400 | Body inválido (summary vacío, fechas mal, etc.) |
-| 404 | Evento no encontrado |
-| 500 | Error de servidor / DB |
-
----
-
-## UI humana (no para Hermes)
+## UI humana
 
 `https://sp-recuperadores.vercel.app/calendario_marisol`  
-Misma token al entrar; no está en la navegación de la app.
+Pedir el token al entrar; no está en la navegación principal.
 
 ---
 
 ## Reglas para Hermes
 
-1. Siempre mandar `Authorization: Bearer 15c903ed719abb5f3eb16e102300a0ed692fe8305319c293`.
-2. Para agendar: `POST` con `summary` + `dtstart` + `dtend`.
-3. Para mover/renombrar: `PATCH` con el `id` de un `GET` previo.
-4. Para cancelar: `DELETE` con el `id`.
-5. No inventar sync desde Skylight: el frame solo consume el `.ics`.
+1. Siempre usar las tools del plugin o Bearer token en API.
+2. Para agendar: `calendario_crear_evento` con `summary` + `dtstart` + `dtend`.
+3. Para mover/renombrar: `calendario_actualizar_evento` con `id` de un listado previo.
+4. Para cancelar: `calendario_borrar_evento`.
+5. No escribir al `.ics`: Skylight solo lo lee.

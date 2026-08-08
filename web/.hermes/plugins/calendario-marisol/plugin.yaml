@@ -1,0 +1,7 @@
+name: calendario-marisol
+version: "1.0.0"
+description: >
+  Calendario Marisol — crear, listar, mover y borrar eventos vía WhatsApp/Hermes.
+  Skylight Calendar 2 lee el feed ICS (solo lectura).
+requires_env:
+  - CALENDARIO_MARISOL_TOKEN
