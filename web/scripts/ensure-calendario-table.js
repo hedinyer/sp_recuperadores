@@ -35,8 +35,13 @@ async function main() {
         dtstart timestamptz not null,
         dtend timestamptz not null,
         created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
+        updated_at timestamptz not null default now(),
+        skylight_event_id text
       )
+    `);
+    await pool.query(`
+      alter table public.calendario_marisol_eventos
+        add column if not exists skylight_event_id text
     `);
     const r = await pool.query(
       "select count(*)::int as n from public.calendario_marisol_eventos",

@@ -314,3 +314,60 @@ export async function updateSkylightTask(
 export async function deleteSkylightTask(id: string): Promise<void> {
   await skylightApi("DELETE", `/api/frames/${SKYLIGHT_FRAME_ID}/task_box/items/${id}`);
 }
+
+export type SkylightCalendarEventInput = {
+  summary: string;
+  description?: string;
+  starts_at: string;
+  ends_at: string;
+  all_day?: boolean;
+};
+
+export async function createSkylightCalendarEvent(
+  input: SkylightCalendarEventInput,
+): Promise<string> {
+  const summary = input.summary.trim();
+  if (!summary) throw new Error("summary requerido");
+  const body: Record<string, unknown> = {
+    summary,
+    starts_at: input.starts_at,
+    ends_at: input.ends_at,
+    all_day: input.all_day ?? false,
+  };
+  if (input.description?.trim()) body.description = input.description.trim();
+  const data = await skylightApi<{ data: { id: string } }>(
+    "POST",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/calendar_events`,
+    body,
+  );
+  return String(data.data.id);
+}
+
+export async function updateSkylightCalendarEvent(
+  id: string,
+  patch: Partial<SkylightCalendarEventInput>,
+): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (patch.summary !== undefined) {
+    const summary = patch.summary.trim();
+    if (!summary) throw new Error("summary vacío");
+    body.summary = summary;
+  }
+  if (patch.description !== undefined) body.description = patch.description.trim();
+  if (patch.starts_at !== undefined) body.starts_at = patch.starts_at;
+  if (patch.ends_at !== undefined) body.ends_at = patch.ends_at;
+  if (patch.all_day !== undefined) body.all_day = patch.all_day;
+  if (Object.keys(body).length === 0) throw new Error("Nada que actualizar");
+  await skylightApi(
+    "PUT",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/calendar_events/${id}`,
+    body,
+  );
+}
+
+export async function deleteSkylightCalendarEvent(id: string): Promise<void> {
+  await skylightApi(
+    "DELETE",
+    `/api/frames/${SKYLIGHT_FRAME_ID}/calendar_events/${id}`,
+  );
+}

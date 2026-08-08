@@ -1,6 +1,11 @@
 import { randomUUID, timingSafeEqual } from "crypto";
 
 import { supabase } from "@/lib/supabase";
+import {
+  createSkylightCalendarEvent,
+  deleteSkylightCalendarEvent,
+  updateSkylightCalendarEvent,
+} from "@/lib/skylightClient";
 
 export type CalendarioEvento = {
   id: string;
@@ -94,6 +99,65 @@ function parsePatch(body: EventoInput) {
   return out;
 }
 
+function isAllDayEvent(dtstart: string, dtend: string): boolean {
+  const s = new Date(dtstart);
+  const e = new Date(dtend);
+  const dur = e.getTime() - s.getTime();
+  return dur >= 23 * 60 * 60 * 1000;
+}
+
+async function pushEventoToSkylight(row: Record<string, unknown>): Promise<string | null> {
+  try {
+    const dtstart = new Date(String(row.dtstart)).toISOString();
+    const dtend = new Date(String(row.dtend)).toISOString();
+    const id = await createSkylightCalendarEvent({
+      summary: String(row.summary),
+      description: String(row.description ?? ""),
+      starts_at: dtstart,
+      ends_at: dtend,
+      all_day: isAllDayEvent(dtstart, dtend),
+    });
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+async function syncEventoUpdateToSkylight(
+  skylightId: string | null,
+  patch: Record<string, string>,
+  full: Record<string, unknown>,
+): Promise<string | null> {
+  const payload = {
+    summary: String(patch.summary ?? full.summary),
+    description: String(patch.description ?? full.description ?? ""),
+    starts_at: new Date(String(patch.dtstart ?? full.dtstart)).toISOString(),
+    ends_at: new Date(String(patch.dtend ?? full.dtend)).toISOString(),
+    all_day: isAllDayEvent(
+      new Date(String(patch.dtstart ?? full.dtstart)).toISOString(),
+      new Date(String(patch.dtend ?? full.dtend)).toISOString(),
+    ),
+  };
+  try {
+    if (skylightId) {
+      await updateSkylightCalendarEvent(skylightId, payload);
+      return skylightId;
+    }
+    return await createSkylightCalendarEvent(payload);
+  } catch {
+    return skylightId;
+  }
+}
+
+async function syncEventoDeleteFromSkylight(skylightId: string | null): Promise<void> {
+  if (!skylightId) return;
+  try {
+    await deleteSkylightCalendarEvent(skylightId);
+  } catch {
+    /* best-effort */
+  }
+}
+
 function rowToEvento(row: Record<string, unknown>): CalendarioEvento {
   return {
     id: String(row.id),
@@ -129,10 +193,18 @@ export async function createEvento(
       dtstart: e.dtstart,
       dtend: e.dtend,
     })
-    .select("id, uid, summary, description, dtstart, dtend, created_at, updated_at")
+    .select("id, uid, summary, description, dtstart, dtend, created_at, updated_at, skylight_event_id")
     .single();
   if (error) throw new Error(error.message);
-  return rowToEvento(data as Record<string, unknown>);
+  const row = data as Record<string, unknown>;
+  const skylightId = await pushEventoToSkylight(row);
+  if (skylightId) {
+    await supabase
+      .from(TABLE)
+      .update({ skylight_event_id: skylightId })
+      .eq("id", row.id);
+  }
+  return rowToEvento(row);
 }
 
 export async function updateEvento(
@@ -140,17 +212,46 @@ export async function updateEvento(
   body: EventoInput,
 ): Promise<CalendarioEvento | null> {
   const patch = parsePatch(body);
+  const { data: prev } = await supabase
+    .from(TABLE)
+    .select("id, uid, summary, description, dtstart, dtend, skylight_event_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!prev) return null;
+
   const { data, error } = await supabase
     .from(TABLE)
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select("id, uid, summary, description, dtstart, dtend, created_at, updated_at")
+    .select("id, uid, summary, description, dtstart, dtend, created_at, updated_at, skylight_event_id")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? rowToEvento(data as Record<string, unknown>) : null;
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  const prevRow = prev as Record<string, unknown>;
+  const skylightId = await syncEventoUpdateToSkylight(
+    prevRow.skylight_event_id ? String(prevRow.skylight_event_id) : null,
+    patch,
+    row,
+  );
+  if (skylightId && skylightId !== String(prevRow.skylight_event_id ?? "")) {
+    await supabase
+      .from(TABLE)
+      .update({ skylight_event_id: skylightId })
+      .eq("id", id);
+  }
+  return rowToEvento(row);
 }
 
 export async function deleteEvento(id: string): Promise<boolean> {
+  const { data: prev } = await supabase
+    .from(TABLE)
+    .select("id, skylight_event_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!prev) return false;
+
   const { data, error } = await supabase
     .from(TABLE)
     .delete()
@@ -158,7 +259,13 @@ export async function deleteEvento(id: string): Promise<boolean> {
     .select("id")
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return Boolean(data);
+  if (!data) return false;
+
+  const skylightId = (prev as Record<string, unknown>).skylight_event_id;
+  await syncEventoDeleteFromSkylight(
+    skylightId ? String(skylightId) : null,
+  );
+  return true;
 }
 
 function icsEscape(text: string): string {
@@ -186,7 +293,8 @@ export function eventosToIcs(eventos: CalendarioEvento[]): string {
     "METHOD:PUBLISH",
     "X-WR-CALNAME:Calendario Marisol",
     "X-WR-TIMEZONE:America/Bogota",
-    "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT1M",
+    "X-PUBLISHED-TTL:PT1M",
   ];
   for (const e of eventos) {
     lines.push(

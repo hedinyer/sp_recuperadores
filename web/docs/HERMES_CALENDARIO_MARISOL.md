@@ -16,7 +16,7 @@ Pegar en la app Skylight → **My Skylight** → **Synced Calendars** → **Sync
 https://sp-recuperadores.vercel.app/api/calendario_marisol/calendar.ics?token=15c903ed719abb5f3eb16e102300a0ed692fe8305319c293
 ```
 
-Skylight hace polling cada ~15 min (`REFRESH-INTERVAL` en el ICS). Hermes escribe eventos vía API; Skylight los lee del feed.
+Skylight hace polling del ICS (sugerimos cada 1 min, pero Skylight **no garantiza** esa frecuencia). Los eventos nuevos también se **empujan al instante** vía API nativa de Skylight al crear/editar/borrar.
 
 ### Hermes Agent (API REST)
 
