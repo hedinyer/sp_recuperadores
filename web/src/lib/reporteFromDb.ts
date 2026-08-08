@@ -31,6 +31,7 @@ WHERE ct.estado = 'Activo'
 
 /**
  * Pagos que abonan cuotas (contratos activos).
+ * Solo facturas con ítem `tarifa` (excluye pago_inicial / abono_credito).
  * Resta multas vía `pagomulta` y excluye cargos DALE de $25.000.
  */
 export const SQL_REGISTROS_EXTRACTO = `
@@ -67,6 +68,12 @@ FROM (
   WHERE ct.estado = 'Activo'
     AND ct.fecha_inicio IS NOT NULL
     AND lower(f.estado) <> 'anulada'
+    AND EXISTS (
+      SELECT 1
+      FROM terminal_pagos_itemfactura i
+      WHERE i.factura_id = f.id
+        AND i.tipo_item = 'tarifa'
+    )
     AND NOT (
       pf.valor::numeric = 25000
       AND lower(COALESCE(mp.nombre, '')) = 'dale'

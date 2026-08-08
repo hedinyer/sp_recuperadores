@@ -79,6 +79,7 @@ LIMIT 1
 
 /**
  * Pagos que abonan cuotas del arriendo.
+ * - Solo facturas con ítem `tarifa` (excluye pago_inicial / abono_credito).
  * - Resta lo aplicado a multas (`terminal_pagos_pagomulta`).
  * - Excluye cargos DALE de $25.000 (publicación/GPS), que no son cuota.
  */
@@ -113,6 +114,12 @@ FROM (
   ) pm ON pm.factura_id = f.id
   WHERE ct.id = $1
     AND lower(f.estado) <> 'anulada'
+    AND EXISTS (
+      SELECT 1
+      FROM terminal_pagos_itemfactura i
+      WHERE i.factura_id = f.id
+        AND i.tipo_item = 'tarifa'
+    )
     AND NOT (
       pf.valor::numeric = 25000
       AND lower(COALESCE(mp.nombre, '')) = 'dale'
