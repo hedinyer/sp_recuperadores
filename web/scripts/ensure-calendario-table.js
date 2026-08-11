@@ -2,21 +2,27 @@ const { Pool } = require("pg");
 const fs = require("fs");
 const path = require("path");
 
+/**
+ * La tabla de producción vive en Supabase (hvtbzx…), NO en Railway.
+ * Usa SUPABASE_DB_URL (connection string del proyecto web) o DATABASE_URL
+ * apuntando a ese Postgres. El default de dbDefaults.ts es Railway y NO sirve.
+ */
 function loadUrl() {
+  if (process.env.SUPABASE_DB_URL) return process.env.SUPABASE_DB_URL.trim();
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL.trim();
   for (const p of [path.join("..", ".env"), ".env.local"]) {
     try {
       const t = fs.readFileSync(p, "utf8");
-      const m = t.match(/^DATABASE_URL=(.+)$/m);
+      const m = t.match(/^(?:SUPABASE_DB_URL|DATABASE_URL)=(.+)$/m);
       if (m) return m[1].trim();
     } catch {
       /* skip */
     }
   }
-  const t = fs.readFileSync(path.join("src", "lib", "dbDefaults.ts"), "utf8");
-  const m = t.match(/postgresql:\/\/[^"']+/);
-  if (!m) throw new Error("No DATABASE_URL");
-  return m[0];
+  throw new Error(
+    "Define SUPABASE_DB_URL (Postgres de hvtbzxifzkbvmqpshmqw). " +
+      "No uses el default de Railway: el calendario vive en Supabase.",
+  );
 }
 
 async function main() {
