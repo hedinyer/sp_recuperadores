@@ -28,9 +28,8 @@ type EventoInput = {
 
 const TABLE = "calendario_marisol_eventos";
 const EVENT_COLS =
-  "id, uid, summary, description, dtstart, dtend, created_at, updated_at";
-const EVENT_COLS_WITH_SKY = `${EVENT_COLS}, skylight_event_id`;
-/** Fallback si la columna aún no existe en prod. */
+  "id, uid, summary, description, dtstart, dtend, created_at, updated_at" as const;
+/** Fallback si la columna skylight_event_id aún no existe en prod. */
 const SKY_MARKER_RE = /\n?\[skylight:([^\]]+)\]\s*$/;
 
 // ponytail: personal calendar; token hardcoded on purpose
@@ -137,21 +136,25 @@ function readSkylightId(row: Record<string, unknown>): string | null {
 
 async function hasSkyColumn(): Promise<boolean> {
   if (skyColumnAvailable !== null) return skyColumnAvailable;
-  const { error } = await supabase
-    .from(TABLE)
-    .select("skylight_event_id")
-    .limit(1);
-  if (!error) {
-    skyColumnAvailable = true;
-    return true;
-  }
-  if (isMissingSkyColumnError(error.message)) {
-    skyColumnAvailable = false;
-    return false;
-  }
-  // Otro error (RLS, red…): asumir sin columna para no tumbar el CRUD.
-  skyColumnAvailable = false;
-  return false;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    "sb_publishable_ZeTnYMfkIBdQB-jg9gXi2Q_tEQDQwM7";
+  const base =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    "https://hvtbzxifzkbvmqpshmqw.supabase.co";
+  // Select tipado evitado: la columna puede no existir en el schema de tipos/prod.
+  const res = await fetch(
+    `${base}/rest/v1/${TABLE}?select=skylight_event_id&limit=1`,
+    {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+    },
+  );
+  skyColumnAvailable = res.ok;
+  return skyColumnAvailable;
 }
 
 async function persistSkylightId(
@@ -162,7 +165,7 @@ async function persistSkylightId(
   if (await hasSkyColumn()) {
     const { error } = await supabase
       .from(TABLE)
-      .update({ skylight_event_id: skylightId })
+      .update({ skylight_event_id: skylightId } as never)
       .eq("id", id);
     if (!error) return;
     if (!isMissingSkyColumnError(error.message)) {
@@ -184,7 +187,9 @@ function isAllDayEvent(dtstart: string, dtend: string): boolean {
   return dur >= 23 * 60 * 60 * 1000;
 }
 
-async function pushEventoToSkylight(row: Record<string, unknown>): Promise<string | null> {
+async function pushEventoToSkylight(
+  row: Record<string, unknown>,
+): Promise<string | null> {
   try {
     const dtstart = new Date(String(row.dtstart)).toISOString();
     const dtend = new Date(String(row.dtend)).toISOString();
@@ -229,7 +234,9 @@ async function syncEventoUpdateToSkylight(
   }
 }
 
-async function syncEventoDeleteFromSkylight(skylightId: string | null): Promise<void> {
+async function syncEventoDeleteFromSkylight(
+  skylightId: string | null,
+): Promise<void> {
   if (!skylightId) return;
   try {
     await deleteSkylightCalendarEvent(skylightId);
@@ -295,20 +302,17 @@ export async function updateEvento(
   body: EventoInput,
 ): Promise<CalendarioEvento | null> {
   const patch = parsePatch(body);
-  const useSky = await hasSkyColumn();
   const { data: prev, error: prevErr } = await supabase
     .from(TABLE)
-    .select(useSky ? `id, uid, summary, description, dtstart, dtend, skylight_event_id` : "id, uid, summary, description, dtstart, dtend")
+    .select("id, uid, summary, description, dtstart, dtend")
     .eq("id", id)
     .maybeSingle();
-  if (prevErr && isMissingSkyColumnError(prevErr.message)) {
-    skyColumnAvailable = false;
-    return updateEvento(id, body);
-  }
+  if (prevErr) throw new Error(prevErr.message);
   if (!prev) return null;
 
   const prevRow = prev as Record<string, unknown>;
   const prevSky = readSkylightId(prevRow);
+  const useSky = await hasSkyColumn();
 
   // Si el cliente parchea description, conservar el marcador interno.
   if (patch.description !== undefined && !useSky && prevSky) {
@@ -319,15 +323,9 @@ export async function updateEvento(
     .from(TABLE)
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .select(useSky ? EVENT_COLS_WITH_SKY : EVENT_COLS)
+    .select(EVENT_COLS)
     .maybeSingle();
-  if (error) {
-    if (isMissingSkyColumnError(error.message)) {
-      skyColumnAvailable = false;
-      return updateEvento(id, body);
-    }
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -351,16 +349,12 @@ export async function updateEvento(
 }
 
 export async function deleteEvento(id: string): Promise<boolean> {
-  const useSky = await hasSkyColumn();
   const { data: prev, error: prevErr } = await supabase
     .from(TABLE)
-    .select(useSky ? "id, description, skylight_event_id" : "id, description")
+    .select("id, description")
     .eq("id", id)
     .maybeSingle();
-  if (prevErr && isMissingSkyColumnError(prevErr.message)) {
-    skyColumnAvailable = false;
-    return deleteEvento(id);
-  }
+  if (prevErr) throw new Error(prevErr.message);
   if (!prev) return false;
 
   const skylightId = readSkylightId(prev as Record<string, unknown>);
