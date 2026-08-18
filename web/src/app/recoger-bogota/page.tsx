@@ -164,6 +164,25 @@ function enlaceTel(telefono: string): string | null {
   return `tel:${digits}`;
 }
 
+function mensajeAvisoUrgente(nombre: string, monto: number): string {
+  const n = nombre.trim() || "cliente";
+  const montoFmt = formatearCOP(monto);
+  return `⚠️ AVISO URGENTE — Sr. ${n}
+Su crédito de motocicleta presenta un saldo vencido de:
+💰 ${montoFmt}
+Este es su último aviso. De no recibir su pago en las próximas 8 horas, su caso pasará automáticamente a:
+🔴 Cobro de multa por mora
+🔴 Apagado de moto
+🔴 Recogida de su moto
+🔴 Incremento del saldo por multa
+✅ Evite todo esto hoy mismo:
+Pago por Nequi, Davivienda, Bancolombia, o Efectivo.
+📲 Enviame comprobante de pago por este medio.
+La decisión está en sus manos, Sr. ${n}.
+Resolverlo hoy le cuesta ${montoFmt}. No resolverlo puede costarle más.
+Quedo atento a su respuesta. 🙏`;
+}
+
 function ContenidoRecogerBogota() {
   const [motos, setMotos] = useState<MotoRecogerBogota[]>([]);
   const [resumen, setResumen] = useState<ResumenRecogerBogota | null>(null);
@@ -181,6 +200,7 @@ function ContenidoRecogerBogota() {
   );
   const [origenError, setOrigenError] = useState<string | null>(null);
   const [linkCopiado, setLinkCopiado] = useState<string | null>(null);
+  const [avisoCopiado, setAvisoCopiado] = useState<string | null>(null);
   const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   useEffect(() => {
@@ -376,6 +396,19 @@ function ContenidoRecogerBogota() {
     setSeleccionada(placa);
     const el = itemRefs.current.get(placa);
     el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+
+  const copiarAviso = useCallback(async (m: MotoRecogerBogota) => {
+    const texto = mensajeAvisoUrgente(m.nombre, m.deuda_total);
+    try {
+      await navigator.clipboard.writeText(texto);
+      setAvisoCopiado(m.placa);
+      window.setTimeout(() => {
+        setAvisoCopiado((prev) => (prev === m.placa ? null : prev));
+      }, 2000);
+    } catch {
+      window.prompt("Copia este mensaje:", texto);
+    }
   }, []);
 
   const compartirSeguimiento = useCallback(async (placa: string) => {
@@ -715,35 +748,50 @@ function ContenidoRecogerBogota() {
                           {m.cuotas_pendientes} cuotas
                         </span>
                       </div>
-                      {vista === "recoger" && m.lat != null && m.lng != null && (
-                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={() => void compartirSeguimiento(m.placa)}
-                            className="inline-flex min-h-[44px] items-center px-2.5 rounded-lg border border-sky-800 bg-sky-950/50 text-[11px] font-semibold text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
-                          >
-                            {linkCopiado === m.placa
-                              ? "Link copiado"
-                              : "Compartir seguimiento"}
-                          </button>
-                          <a
-                            href={enlaceSeguirPlaca(m.placa)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-sky-300 hover:text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 rounded"
-                          >
-                            Abrir seguimiento →
-                          </a>
-                          <a
-                            href={enlaceMaps(m.lat, m.lng)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-emerald-400 hover:text-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 rounded"
-                          >
-                            Maps →
-                          </a>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => void copiarAviso(m)}
+                          className="inline-flex min-h-[44px] items-center px-2.5 rounded-lg border border-[#25D366]/35 bg-[#25D366]/12 text-[11px] font-semibold text-[#25D366] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                        >
+                          {avisoCopiado === m.placa
+                            ? "Aviso copiado"
+                            : "Copiar aviso"}
+                        </button>
+                        {vista === "recoger" &&
+                          m.lat != null &&
+                          m.lng != null && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void compartirSeguimiento(m.placa)
+                                }
+                                className="inline-flex min-h-[44px] items-center px-2.5 rounded-lg border border-sky-800 bg-sky-950/50 text-[11px] font-semibold text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+                              >
+                                {linkCopiado === m.placa
+                                  ? "Link copiado"
+                                  : "Compartir seguimiento"}
+                              </button>
+                              <a
+                                href={enlaceSeguirPlaca(m.placa)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-sky-300 hover:text-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 rounded"
+                              >
+                                Abrir seguimiento →
+                              </a>
+                              <a
+                                href={enlaceMaps(m.lat, m.lng)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex min-h-[44px] items-center text-[11px] font-medium text-emerald-400 hover:text-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 rounded"
+                              >
+                                Maps →
+                              </a>
+                            </>
+                          )}
+                      </div>
                     </div>
                   </div>
                 </li>
