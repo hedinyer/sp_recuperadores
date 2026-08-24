@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { HistorialPlaca } from "@/components/HistorialPlaca";
 import { NavFooter } from "@/components/NavFooter";
@@ -30,6 +30,8 @@ import {
   dataUrlToBlob,
 } from "@/lib/reciboImagen";
 import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/ubicacionGps";
+import { verificarClaveMaster } from "@/lib/consultaMaster";
+import { useMasterSession } from "@/components/MasterGate";
 
 type Vehiculo = Record<string, string>;
 type TipoRecibo = "pago" | "recuperada";
@@ -156,10 +158,13 @@ export default function Home() {
   const [historialItems, setHistorialItems] = useState<ItemHistorialPlaca[]>([]);
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialError, setHistorialError] = useState<string | null>(null);
+  const { masterOk: modoMaster, setMasterOk } = useMasterSession();
+  const [pedirClaveMaster, setPedirClaveMaster] = useState(false);
+  const [claveMaster, setClaveMaster] = useState("");
+  const [errorMaster, setErrorMaster] = useState<string | null>(null);
 
   const reciboRef = useRef<HTMLDivElement>(null);
   const inputFotoRef = useRef<HTMLInputElement>(null);
-
   const cerrarWizardPago = useCallback(() => {
     setPagoPaso(null);
     setMontoPago("");
@@ -339,6 +344,33 @@ export default function Home() {
       setHistorialLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!v?.placa || modoMaster) return;
+    setMostrarHistorial(true);
+    void cargarHistorial(v.placa);
+  }, [v?.placa, modoMaster, cargarHistorial]);
+
+  const activarMaster = useCallback(() => {
+    if (modoMaster) {
+      setMasterOk(false);
+      return;
+    }
+    setPedirClaveMaster(true);
+    setClaveMaster("");
+    setErrorMaster(null);
+  }, [modoMaster, setMasterOk]);
+
+  const confirmarMaster = useCallback(() => {
+    if (!verificarClaveMaster(claveMaster)) {
+      setErrorMaster("Clave incorrecta");
+      return;
+    }
+    setMasterOk(true);
+    setPedirClaveMaster(false);
+    setClaveMaster("");
+    setErrorMaster(null);
+  }, [claveMaster, setMasterOk]);
 
   const alternarHistorial = useCallback(() => {
     if (!v?.placa) return;
@@ -649,13 +681,28 @@ export default function Home() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80">
-        <h1 className="text-base font-semibold tracking-tight text-white">
-          Consulta por placa
-        </h1>
-        <p className="text-[11px] text-zinc-500 mt-0.5">
-          Deuda y contacto del cliente
-        </p>
+      <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold tracking-tight text-white">
+            Consulta por placa
+          </h1>
+          <p className="text-[11px] text-zinc-500 mt-0.5">
+            {modoMaster
+              ? "Modo master — vista completa"
+              : "Deuda, nombre e historial de pagos"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={activarMaster}
+          className={`shrink-0 min-h-[36px] px-3 rounded-lg border text-xs font-semibold touch-manipulation ${
+            modoMaster
+              ? "border-amber-600/70 bg-amber-950/50 text-amber-200"
+              : "border-zinc-700 bg-zinc-900 text-zinc-400"
+          }`}
+        >
+          {modoMaster ? "Master ON" : "Master"}
+        </button>
       </header>
 
       <main className="flex-1 w-full max-w-[414px] mx-auto px-3 sm:px-4 pt-3 flex flex-col gap-3 min-h-0">
@@ -716,7 +763,8 @@ export default function Home() {
                 </span>
               </div>
 
-              {v.estado_contrato &&
+              {modoMaster &&
+              v.estado_contrato &&
               v.estado_contrato.trim().toLowerCase() !== "activo" ? (
                 <div
                   role="status"
@@ -733,69 +781,71 @@ export default function Home() {
                   <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
                     Valor para estar al día
                   </p>
-                  <div className="flex items-center gap-1.5 shrink-0 -mt-0.5">
-                    <button
-                      type="button"
-                      onClick={alternarGps}
-                      aria-expanded={mostrarGps}
-                      aria-label={
-                        mostrarGps
-                          ? "Ocultar ubicación GPS"
-                          : "Ver ubicación GPS"
-                      }
-                      className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
-                        mostrarGps
-                          ? "border-emerald-600/60 bg-emerald-950/50 text-emerald-200"
-                          : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
-                      }`}
-                    >
-                      <svg
-                        aria-hidden
-                        className="w-5 h-5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                  {modoMaster ? (
+                    <div className="flex items-center gap-1.5 shrink-0 -mt-0.5">
+                      <button
+                        type="button"
+                        onClick={alternarGps}
+                        aria-expanded={mostrarGps}
+                        aria-label={
+                          mostrarGps
+                            ? "Ocultar ubicación GPS"
+                            : "Ver ubicación GPS"
+                        }
+                        className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
+                          mostrarGps
+                            ? "border-emerald-600/60 bg-emerald-950/50 text-emerald-200"
+                            : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
+                        }`}
                       >
-                        <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
-                        <circle cx="12" cy="10" r="2.5" />
-                      </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={alternarHistorial}
-                      aria-expanded={mostrarHistorial}
-                      aria-label={
-                        mostrarHistorial
-                          ? "Ocultar historial de cobros y recogidas"
-                          : "Ver historial de cobros y recogidas"
-                      }
-                      className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
-                        mostrarHistorial
-                          ? "border-rose-600/60 bg-rose-950/50 text-rose-200"
-                          : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
-                      }`}
-                    >
-                      <svg
-                        aria-hidden
-                        className="w-5 h-5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
+                        <svg
+                          aria-hidden
+                          className="w-5 h-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
+                          <circle cx="12" cy="10" r="2.5" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={alternarHistorial}
+                        aria-expanded={mostrarHistorial}
+                        aria-label={
+                          mostrarHistorial
+                            ? "Ocultar historial de cobros y recogidas"
+                            : "Ver historial de cobros y recogidas"
+                        }
+                        className={`min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border touch-manipulation transition-colors ${
+                          mostrarHistorial
+                            ? "border-rose-600/60 bg-rose-950/50 text-rose-200"
+                            : "border-zinc-700/80 bg-zinc-900/60 text-zinc-400 active:bg-zinc-800"
+                        }`}
                       >
-                        <path d="M4 7h16M4 12h16M4 17h16" />
-                      </svg>
-                    </button>
-                  </div>
+                        <svg
+                          aria-hidden
+                          className="w-5 h-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        >
+                          <path d="M4 7h16M4 12h16M4 17h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-[clamp(1.75rem,8vw,2.25rem)] font-bold text-rose-400 tabular-nums leading-none tracking-tight">
                   {formatearCOP(v.deuda_total)}
                 </p>
-                {Number(v.deuda_multas ?? 0) > 0 && (
+                {modoMaster && Number(v.deuda_multas ?? 0) > 0 && (
                   <p className="mt-2 text-xs text-zinc-400 leading-snug">
                     Cuotas {formatearCOP(v.deuda_cuotas ?? "0")}
                     {" · "}
@@ -804,7 +854,7 @@ export default function Home() {
                 )}
               </section>
 
-              {mostrarGps ? (
+              {modoMaster && mostrarGps ? (
                 gpsMoto ? (
                   <UbicacionGpsMoto
                     key={`gps-${(v.placa || placa).toUpperCase().replace(/\s/g, "")}`}
@@ -825,99 +875,111 @@ export default function Home() {
                 )
               ) : null}
 
-              <section className="grid grid-cols-3 divide-x divide-zinc-800 border-b border-zinc-800 bg-zinc-900/40">
-                <StatMini
-                  label="Cuotas en mora"
-                  value={formatCuotasMora(cuotasPend)}
-                  accent={(cuotasPend ?? 0) >= 5}
-                />
-                <StatMini
-                  label="Últ. pago"
-                  value={formatFechaCorta(v.ultimo_pago)}
-                />
-                <StatMini
-                  label="Cuota"
-                  value={formatearCOP(v.valor_cuota).replace(/\s/g, "\u00a0")}
-                />
-              </section>
+              {modoMaster ? (
+                <section className="grid grid-cols-3 divide-x divide-zinc-800 border-b border-zinc-800 bg-zinc-900/40">
+                  <StatMini
+                    label="Cuotas en mora"
+                    value={formatCuotasMora(cuotasPend)}
+                    accent={(cuotasPend ?? 0) >= 5}
+                  />
+                  <StatMini
+                    label="Últ. pago"
+                    value={formatFechaCorta(v.ultimo_pago)}
+                  />
+                  <StatMini
+                    label="Cuota"
+                    value={formatearCOP(v.valor_cuota).replace(/\s/g, "\u00a0")}
+                  />
+                </section>
+              ) : null}
 
               {/* Cliente */}
-              <section className="px-4 py-3.5 border-b border-zinc-800">
+              <section
+                className={`px-4 py-3.5 ${modoMaster ? "border-b border-zinc-800" : ""}`}
+              >
                 <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 mb-1.5">
                   Cliente
                 </h2>
                 <p className="text-base font-semibold text-zinc-50 leading-snug break-words">
                   {v.nombre || "—"}
                 </p>
-                <p className="mt-1.5 text-sm text-zinc-400 tabular-nums">
-                  CC{" "}
-                  <span className="text-zinc-200 font-medium">
-                    {v.cedula || "—"}
-                  </span>
-                </p>
-                {v.visitador && v.visitador !== "-" ? (
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Visitador:{" "}
-                    <span className="text-zinc-400">{v.visitador}</span>
-                  </p>
+                {modoMaster ? (
+                  <>
+                    <p className="mt-1.5 text-sm text-zinc-400 tabular-nums">
+                      CC{" "}
+                      <span className="text-zinc-200 font-medium">
+                        {v.cedula || "—"}
+                      </span>
+                    </p>
+                    {v.visitador && v.visitador !== "-" ? (
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Visitador:{" "}
+                        <span className="text-zinc-400">{v.visitador}</span>
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
               </section>
 
-              {/* Contacto */}
-              <section className="px-4 py-3.5 flex flex-col gap-2.5">
-                <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Contacto
-                </h2>
-                {v.telefono ? (
-                  <a
-                    href={`tel:${v.telefono.replace(/\s/g, "")}`}
-                    className="flex items-center justify-center min-h-[44px] rounded-xl border border-zinc-700 bg-zinc-800/50 text-base font-medium text-zinc-100 tabular-nums active:bg-zinc-800 touch-manipulation"
-                  >
-                    {v.telefono}
-                  </a>
-                ) : (
-                  <p className="text-sm text-zinc-500 text-center py-2">
-                    Sin teléfono registrado
-                  </p>
-                )}
-                {wa ? (
-                  <a
-                    href={wa}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 min-h-[50px] w-full rounded-xl bg-[#25D366] text-base font-semibold text-white shadow-md shadow-[#25D366]/20 active:scale-[0.98] transition-transform touch-manipulation"
-                  >
-                    <svg
-                      aria-hidden
-                      className="w-5 h-5 shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                    Escribir por WhatsApp
-                  </a>
-                ) : null}
-              </section>
+              {modoMaster ? (
+                <>
+                  {/* Contacto */}
+                  <section className="px-4 py-3.5 flex flex-col gap-2.5">
+                    <h2 className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                      Contacto
+                    </h2>
+                    {v.telefono ? (
+                      <a
+                        href={`tel:${v.telefono.replace(/\s/g, "")}`}
+                        className="flex items-center justify-center min-h-[44px] rounded-xl border border-zinc-700 bg-zinc-800/50 text-base font-medium text-zinc-100 tabular-nums active:bg-zinc-800 touch-manipulation"
+                      >
+                        {v.telefono}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-zinc-500 text-center py-2">
+                        Sin teléfono registrado
+                      </p>
+                    )}
+                    {wa ? (
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 min-h-[50px] w-full rounded-xl bg-[#25D366] text-base font-semibold text-white shadow-md shadow-[#25D366]/20 active:scale-[0.98] transition-transform touch-manipulation"
+                      >
+                        <svg
+                          aria-hidden
+                          className="w-5 h-5 shrink-0"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                        </svg>
+                        Escribir por WhatsApp
+                      </a>
+                    ) : null}
+                  </section>
 
-              {/* Contrato */}
-              <footer className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 bg-zinc-950/60 border-t border-zinc-800 text-xs">
-                <div>
-                  <span className="text-zinc-500">Inicio contrato</span>
-                  <p className="mt-0.5 font-medium text-zinc-300 tabular-nums">
-                    {formatFechaCorta(v.fecha_inicio)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-zinc-500">Cuotas pagadas</span>
-                  <p className="mt-0.5 font-medium text-zinc-300 tabular-nums">
-                    {v.cuotas_pagadas ?? "—"} / {v.cuotas_generadas ?? "—"}
-                  </p>
-                </div>
-              </footer>
+                  {/* Contrato */}
+                  <footer className="grid grid-cols-2 gap-x-3 gap-y-2 px-4 py-3 bg-zinc-950/60 border-t border-zinc-800 text-xs">
+                    <div>
+                      <span className="text-zinc-500">Inicio contrato</span>
+                      <p className="mt-0.5 font-medium text-zinc-300 tabular-nums">
+                        {formatFechaCorta(v.fecha_inicio)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-zinc-500">Cuotas pagadas</span>
+                      <p className="mt-0.5 font-medium text-zinc-300 tabular-nums">
+                        {v.cuotas_pagadas ?? "—"} / {v.cuotas_generadas ?? "—"}
+                      </p>
+                    </div>
+                  </footer>
+                </>
+              ) : null}
             </article>
 
-            {mostrarHistorial ? (
+            {mostrarHistorial || !modoMaster ? (
               <HistorialPlaca
                 items={historialItems}
                 loading={historialLoading}
@@ -925,26 +987,77 @@ export default function Home() {
               />
             ) : null}
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setPagoPaso("recuperador");
-                }}
-                className="flex-1 min-h-[50px] rounded-xl bg-emerald-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-emerald-900/30"
-              >
-                Generar Pago
-              </button>
-              <button
-                type="button"
-                onClick={iniciarReciboRecuperada}
-                className="flex-1 min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
-              >
-                Moto Recuperada
-              </button>
-            </div>
+            {modoMaster ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setPagoPaso("recuperador");
+                  }}
+                  className="flex-1 min-h-[50px] rounded-xl bg-emerald-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-emerald-900/30"
+                >
+                  Generar Pago
+                </button>
+                <button
+                  type="button"
+                  onClick={iniciarReciboRecuperada}
+                  className="flex-1 min-h-[50px] rounded-xl bg-blue-700 text-white font-semibold text-base active:scale-[0.98] transition-transform touch-manipulation shadow-lg shadow-blue-900/30"
+                >
+                  Moto Recuperada
+                </button>
+              </div>
+            ) : null}
           </>
+        )}
+
+        {pedirClaveMaster && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            <div className="w-full max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl flex flex-col gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  Modo master
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Escribe la clave para ver la consulta completa
+                </p>
+              </div>
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Clave"
+                value={claveMaster}
+                onChange={(e) => setClaveMaster(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && confirmarMaster()}
+                className="w-full min-h-[50px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-600"
+              />
+              {errorMaster && (
+                <p role="alert" className="text-sm text-red-300">
+                  {errorMaster}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPedirClaveMaster(false);
+                    setClaveMaster("");
+                    setErrorMaster(null);
+                  }}
+                  className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarMaster}
+                  className="flex-1 min-h-[48px] rounded-xl bg-amber-700 text-white font-semibold text-sm touch-manipulation"
+                >
+                  Activar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Recibo generado */}

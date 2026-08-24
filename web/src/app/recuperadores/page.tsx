@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ConfirmarRecuperadaModal } from "@/components/ConfirmarRecuperadaModal";
 import { DeudaResumenSection } from "@/components/DeudaResumenSection";
+import { MasterGate } from "@/components/MasterGate";
 import { NavFooter } from "@/components/NavFooter";
 import { ReciboGeneradoPanel } from "@/components/ReciboGeneradoPanel";
 import { RecuperadorFifaCard } from "@/components/RecuperadorFifaCard";
@@ -802,6 +803,7 @@ export default function RecuperadoresPage() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <MasterGate title="Recuperadores" subtitle="Requiere clave master">
       <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80">
         <h1 className="text-base font-semibold tracking-tight text-white">
           Recuperadores
@@ -1120,6 +1122,7 @@ export default function RecuperadoresPage() {
           />
         )}
       </main>
+      </MasterGate>
       <NavFooter />
     </div>
   );

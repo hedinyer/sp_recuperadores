@@ -1,0 +1,34 @@
+﻿categoria,localidad,zona,placa,nombre,telefono,cedula,deuda,cuotas_pendientes,lat,lng,estado_gps,proveedor,maps
+GPS activo,BARRIOS UNIDOS,bogota,CHU69I,Nelson Enrique Lopez Villalobos-Bogota,3232377072,5727821,1160000,29,4.667151666666666,-74.06207222222221,En línea,DS Track,"https://www.google.com/maps?q=4.667151666666666,-74.06207222222221"
+GPS activo,Chía,chia,ESV63I,Diego Fernando Requena Castañeda Chia,3142061008,1038434778,2720000,68,5.022039444444444,-73.99896722222222,En línea,DS Track,"https://www.google.com/maps?q=5.022039444444444,-73.99896722222222"
+GPS activo,Chía,chia,ESW06I,Ramiro Rodriguez Carmona Chia,3132395748,4939119,1020000,25.5,4.856555,-74.07098611111111,En línea,DS Track,"https://www.google.com/maps?q=4.856555,-74.07098611111111"
+GPS activo,FONTIBON,bogota,ZPX21H,Savier Moises Garcia Farias Bogota,3118391684,28166570,1945000,51.2,4.689142222222222,-74.12003222222222,En línea,DS Track,"https://www.google.com/maps?q=4.689142222222222,-74.12003222222222"
+GPS activo,FONTIBON,bogota,CHE38I,Yureybis Coromoto Mata Forti Bogota,3203077820,5520920,826000,21.7,4.686723333333334,-74.12998,En línea,DS Track,"https://www.google.com/maps?q=4.686723333333334,-74.12998"
+GPS activo,Fuera de Bogotá,bogota,DTV99I,Eduardo Jose Sanchez Caruci Bogota,3176278178,5138832,1598000,42.1,7.030399444444445,-73.09460833333333,En línea,DS Track,"https://www.google.com/maps?q=7.030399444444445,-73.09460833333333"
+GPS activo,Fuera de Bogotá,bogota,ESW08I,Wilbwrto Jesus Ocando Perez Bogota,3009707370,2360214,1330000,33.3,4.921137222222223,-74.02623,En línea,DS Track,"https://www.google.com/maps?q=4.921137222222223,-74.02623"
+GPS activo,Fuera de Bogotá,bogota,CHV04I,Roynel Daniel Chirinos Vargas-Bogota,3208383005,6477304,880000,22,4.721112777777778,-74.53272555555556,En línea,DS Track,"https://www.google.com/maps?q=4.721112777777778,-74.53272555555556"
+GPS activo,Fuera de Bogotá,bogota,ZPV95H,Leinever Junior Higuera Piñerez-Bogota,3209615945,6868023,720000,18,4.691503333333333,-74.18295,En línea,DS Track,"https://www.google.com/maps?q=4.691503333333333,-74.18295"
+GPS activo,KENNEDY,bogota,ZOT45H,Jose Julian Reina Caricote Bogota,3115927316,6969126,912000,24,4.640787777777778,-74.17463944444444,En línea,DS Track,"https://www.google.com/maps?q=4.640787777777778,-74.17463944444444"
+GPS activo,LOS MARTIRES,bogota,ZOK44H,Jhon Freddy Villarroel Garcia Bogota,3214983425,23946548,1998000,52.6,4.608542222222222,-74.07758166666667,En línea,DS Track,"https://www.google.com/maps?q=4.608542222222222,-74.07758166666667"
+GPS activo,SUBA,bogota,ZOT44H,Wilkerman Gabriel Seijas Velasco-Bogota,3118505908,4908548,2250000,56.3,4.734731666666667,-74.08800111111111,En línea,DS Track,"https://www.google.com/maps?q=4.734731666666667,-74.08800111111111"
+GPS activo,SUBA,bogota,TSQ44H,Carlos Pereira Aponte Bogota,3242546173,5194252,2069100,54.5,4.741996666666666,-74.09817833333334,En línea,DS Track,"https://www.google.com/maps?q=4.741996666666666,-74.09817833333334"
+GPS inactivo,ANTONIO NARIÑO,bogota,ESN09I,Alberto Jose Camacho Jimenez Bogota,3143122552,27094340,1009000,25.2,4.585176,-74.094256,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.585176,-74.094256"
+GPS inactivo,BOSA,bogota,CHU78I,Leonardo Jose Nieves Rondon Bogota,3245269418,6517733,2229000,58.7,4.639255,-74.193339,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.639255,-74.193339"
+GPS inactivo,BOSA,bogota,HAM95I,Johan Federico Marcano Alvarado Bogota,3228890152,5014075,1092000,27.3,4.596824,-74.184418,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.596824,-74.184418"
+GPS inactivo,BOSA,bogota,CHE11I,Jesus Alberto Baute Sanchez-Bogota,3134022702,6260809,870000,21.8,4.620559,-74.197769,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.620559,-74.197769"
+GPS inactivo,CIUDAD BOLIVAR,bogota,ESM84I,Kendry Jose Rivera Baez Bogota,3134655867,1254009,1976000,52,4.546721,-74.139481,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.546721,-74.139481"
+GPS inactivo,CIUDAD BOLIVAR,bogota,DUP86I,Melisa Isabel Medina Perez Bogota,3133965736,1004350378,960000,24,4.546647,-74.145571,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.546647,-74.145571"
+GPS inactivo,ENGATIVA,bogota,DTV88I,Johandry Jesus Franco Calderon Bogota,3243525811,927359,2080000,52,4.699091,-74.103888,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.699091,-74.103888"
+GPS inactivo,Fuera de Bogotá,bogota,DUP79I,Wilner Alexander Martinez Aladejo Bogota,3238233554,2255098,3220000,80.5,7.118288,-73.119877,Sin señal,IOP GPS,"https://www.google.com/maps?q=7.118288,-73.119877"
+GPS inactivo,Fuera de Bogotá,bogota,TTA05H,Juan Esteban Hinestroza Baloyes Bogota,3177139446,1032180363,1658000,43.6,4.608847,-74.076539,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.608847,-74.076539"
+GPS inactivo,USAQUEN,bogota,GXD30I,Willembert David Requena Rivas Bogota,3042557610,32714508,1240000,31,4.737449,-74.019893,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.737449,-74.019893"
+GPS inactivo,USME,bogota,ZOK31H,Jeisson Alfonzo Alcazar Serrano Bogota,3115902211,27979906,815000,21.4,4.539562,-74.117311,Sin señal,IOP GPS,"https://www.google.com/maps?q=4.539562,-74.117311"
+Sin GPS,Sin GPS,bogota,TIR70H,Ronny Rafael Valera Ramos-Bogota,3044053136,6610299,6194000,163,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,TIJ74H,Nicanor Enrique Martinez Tovar Bogota,3242537064,1073189477,3720000,97.9,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,TTL17H,Gabriel Eduardo Rondon Carbajalino-Bogota,3244405493,4290390,2226000,58.6,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,DTV70I,Jerferson Manuel  Puerta Nuñez-Bogota,3008291492,31310633,2190000,54.8,,,Sin GPS,,
+Sin GPS,Sin GPS,chia,ESM80I,Gerlis Hidalgo Chirinos-Chia,3172761581,4948906,1200000,30,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,TIJ61H,Younfran Jesus Ohep Perez Bogota,3242798234,30255323,1102000,29,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,GWL28I,Neiderson Raumir Apolinar Adarme Bogota,3005178489,6535005,1040000,26,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,GYJ60I,Alexander Salvador Rondon Navarro Bogota,3158227499,5045241,920000,23,,,Sin GPS,,
+Sin GPS,Sin GPS,bogota,ESM82I,Maikel Josue Villamizar Villamizar Bogota,3005918802,1127355803,760000,19,,,Sin GPS,,

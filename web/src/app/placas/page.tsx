@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminGate, useAdminSession } from "@/components/AdminGate";
+import { MasterGate } from "@/components/MasterGate";
 import { NavFooter } from "@/components/NavFooter";
 import { formatearCOP, minimoCobroDeuda } from "@/lib/formatoDinero";
 import type { ResultadoMoroso, RiesgoMora } from "@/lib/analisisMorosidad";
@@ -311,6 +312,10 @@ export default function PlacasMorososPage() {
 
   return (
     <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100">
+      <MasterGate
+        title="Morosos y atrasos"
+        subtitle="Requiere clave master"
+      >
       <header className="shrink-0 border-b border-zinc-800 px-4 py-4">
         <h1 className="text-lg font-bold tracking-tight">Morosos y atrasos</h1>
 
@@ -788,6 +793,7 @@ export default function PlacasMorososPage() {
           </>
         )}
       </main>
+      </MasterGate>
 
       <NavFooter />
     </div>

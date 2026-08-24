@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DetalleAsignacion } from "@/components/DetalleAsignacion";
+import { MasterGate } from "@/components/MasterGate";
 import { NavFooter } from "@/components/NavFooter";
 import { formatFechaHora } from "@/lib/fechas";
 import {
@@ -71,6 +72,20 @@ function formatearCOP(val: string | number | undefined): string {
 }
 
 export default function NicolasPage() {
+  return (
+    <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <MasterGate
+        title="Admin — Nicolas"
+        subtitle="Requiere clave master"
+      >
+        <NicolasConAdmin />
+      </MasterGate>
+      <NavFooter />
+    </div>
+  );
+}
+
+function NicolasConAdmin() {
   const [authState, setAuthState] = useState<"checking" | "login" | "ok">(
     "checking",
   );
@@ -114,18 +129,15 @@ export default function NicolasPage() {
 
   if (authState === "checking") {
     return (
-      <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <main className="flex-1 flex items-center justify-center px-4">
-          <p className="text-sm text-zinc-500">Verificando acceso…</p>
-        </main>
-        <NavFooter />
-      </div>
+      <main className="flex-1 flex items-center justify-center px-4">
+        <p className="text-sm text-zinc-500">Verificando acceso…</p>
+      </main>
     );
   }
 
   if (authState === "login") {
     return (
-      <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <>
         <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80">
           <h1 className="text-base font-semibold tracking-tight text-white">
             Admin — Nicolas
@@ -165,8 +177,7 @@ export default function NicolasPage() {
             </button>
           </section>
         </main>
-        <NavFooter />
-      </div>
+      </>
     );
   }
 
@@ -582,7 +593,7 @@ function NicolasAdminPanel() {
   }, [recuperadas]);
 
   return (
-    <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <>
       <header className="shrink-0 px-4 pb-3 border-b border-zinc-800/80">
         <h1 className="text-base font-semibold tracking-tight text-white">
           Admin — Nicolas
@@ -1180,7 +1191,6 @@ function NicolasAdminPanel() {
           </>
         )}
       </main>
-      <NavFooter />
-    </div>
+    </>
   );
 }
