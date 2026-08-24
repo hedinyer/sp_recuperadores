@@ -71,6 +71,39 @@ function BadgeGps({ funcional, etiqueta }: { funcional: boolean; etiqueta: strin
   );
 }
 
+const GESTION_RECIENTE_MS = 12 * 60 * 60 * 1000;
+
+/** Chulito visible si la gestión se actualizó en las últimas 12 horas. */
+function gestionReciente(updatedAt: string | null | undefined): boolean {
+  if (!updatedAt) return false;
+  const t = new Date(updatedAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t < GESTION_RECIENTE_MS;
+}
+
+function IconoChulito() {
+  return (
+    <span
+      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600/90 text-white shrink-0"
+      title="Gestionada en las últimas 12 horas"
+      aria-label="Gestionada en las últimas 12 horas"
+    >
+      <svg
+        aria-hidden
+        className="w-3.5 h-3.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M5 13l4 4L19 7" />
+      </svg>
+    </span>
+  );
+}
+
 function emptyCategorias(): Record<CategoriaMoroso, MorosoBandeja[]> {
   return {
     bajo_pago: [],
@@ -443,6 +476,7 @@ export default function PlacasMorososPage() {
                   const waTexto = `Hola ${m.nombre.split(" ")[0] || ""}, te escribimos por el atraso de la moto ${m.placa}. Deuda aproximada: ${formatearCOP(m.deuda_total)}.`;
                   const wa = enlaceWhatsApp(m.telefono, waTexto);
                   const status = m.caso?.status ?? "pendiente";
+                  const conChulito = gestionReciente(m.caso?.updated_at);
                   return (
                     <li
                       key={m.placa}
@@ -450,9 +484,12 @@ export default function PlacasMorososPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-lg font-bold tracking-[0.14em] text-white">
-                            {m.placa}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-lg font-bold tracking-[0.14em] text-white">
+                              {m.placa}
+                            </p>
+                            {conChulito ? <IconoChulito /> : null}
+                          </div>
                           <p className="mt-0.5 text-sm text-zinc-200 truncate">
                             {m.nombre || "—"}
                           </p>
