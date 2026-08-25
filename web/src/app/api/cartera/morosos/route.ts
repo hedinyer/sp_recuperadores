@@ -50,7 +50,17 @@ export async function GET(request: Request) {
       // Tablas aún no creadas: listado sigue sin seguimiento.
       console.warn("[api/cartera/morosos] cartera_casos:", casosRes.error.message);
     }
-    let gestionesRows = gestionesRes.data;
+    type GestionRow = {
+      id?: number | null;
+      placa?: string | null;
+      perfil_id?: string | null;
+      status?: string | null;
+      notas?: string | null;
+      created_at?: string | null;
+      monto?: number | null;
+    };
+    let gestionesRows: GestionRow[] | null =
+      gestionesRes.data as GestionRow[] | null;
     if (gestionesRes.error) {
       if (/monto/i.test(gestionesRes.error.message)) {
         const retry = await supabase
@@ -64,7 +74,7 @@ export async function GET(request: Request) {
             retry.error.message,
           );
         } else {
-          gestionesRows = retry.data;
+          gestionesRows = retry.data as GestionRow[] | null;
         }
       } else {
         console.warn(

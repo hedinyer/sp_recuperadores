@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { PaperclipIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { nombrePerfilCartera, type CarteraPerfilId } from "@/lib/carteraPerfiles";
+import { cn } from "@/lib/utils";
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -33,35 +44,35 @@ const mdComponents = {
     <p className="mb-2 last:mb-0">{children}</p>
   ),
   strong: ({ children }: { children?: React.ReactNode }) => (
-    <strong className="font-semibold text-inherit">{children}</strong>
+    <strong className="font-semibold">{children}</strong>
   ),
   em: ({ children }: { children?: React.ReactNode }) => (
     <em className="italic">{children}</em>
   ),
   ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="mb-2 last:mb-0 list-disc pl-4 space-y-0.5">{children}</ul>
+    <ul className="mb-2 list-disc space-y-0.5 pl-4 last:mb-0">{children}</ul>
   ),
   ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="mb-2 last:mb-0 list-decimal pl-4 space-y-0.5">{children}</ol>
+    <ol className="mb-2 list-decimal space-y-0.5 pl-4 last:mb-0">{children}</ol>
   ),
   li: ({ children }: { children?: React.ReactNode }) => (
     <li className="leading-snug">{children}</li>
   ),
   h1: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="text-base font-bold mb-1.5 mt-1 first:mt-0">{children}</h3>
+    <h3 className="mb-1.5 mt-1 text-base font-bold first:mt-0">{children}</h3>
   ),
   h2: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="text-sm font-bold mb-1.5 mt-1 first:mt-0">{children}</h3>
+    <h3 className="mb-1.5 mt-1 text-sm font-bold first:mt-0">{children}</h3>
   ),
   h3: ({ children }: { children?: React.ReactNode }) => (
-    <h4 className="text-sm font-semibold mb-1 mt-1 first:mt-0">{children}</h4>
+    <h4 className="mb-1 mt-1 text-sm font-semibold first:mt-0">{children}</h4>
   ),
   a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="underline text-sky-300 break-all"
+      className="break-all text-sky-300 underline"
     >
       {children}
     </a>
@@ -78,13 +89,13 @@ const mdComponents = {
       String(children).includes("\n");
     if (block) {
       return (
-        <code className="block my-2 overflow-x-auto rounded-lg bg-black/40 px-2.5 py-2 text-[11px] font-mono text-zinc-200 whitespace-pre">
+        <code className="my-2 block overflow-x-auto whitespace-pre rounded-lg bg-black/40 px-2.5 py-2 font-mono text-[11px]">
           {children}
         </code>
       );
     }
     return (
-      <code className="rounded bg-black/35 px-1 py-0.5 text-[12px] font-mono">
+      <code className="rounded bg-black/35 px-1 py-0.5 font-mono text-xs">
         {children}
       </code>
     );
@@ -95,26 +106,26 @@ const mdComponents = {
     </pre>
   ),
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="my-2 border-l-2 border-zinc-600 pl-2 text-zinc-400">
+    <blockquote className="my-2 border-l-2 border-border pl-2 text-muted-foreground">
       {children}
     </blockquote>
   ),
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
-      <table className="w-full text-left text-[11px] border-collapse">
+      <table className="w-full border-collapse text-left text-[11px]">
         {children}
       </table>
     </div>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-zinc-700 bg-zinc-800/80 px-1.5 py-1 font-semibold">
+    <th className="border border-border bg-muted px-1.5 py-1 font-semibold">
       {children}
     </th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-zinc-700 px-1.5 py-1 align-top">{children}</td>
+    <td className="border border-border px-1.5 py-1 align-top">{children}</td>
   ),
-  hr: () => <hr className="my-2 border-zinc-700" />,
+  hr: () => <hr className="my-2 border-border" />,
 };
 
 function MarkdownMsg({ text }: { text: string }) {
@@ -144,7 +155,6 @@ function displayImages(content: string | ContentPart[]): string[] {
     .map((p) => p.image_url.url);
 }
 
-/** Reduce JPEG/WebP para no reventar el body del proxy. */
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -191,8 +201,7 @@ function readTextFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const t = String(reader.result ?? "");
-      resolve(t.slice(0, MAX_TEXT_CHARS));
+      resolve(String(reader.result ?? "").slice(0, MAX_TEXT_CHARS));
     };
     reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}`));
     reader.readAsText(file);
@@ -200,7 +209,10 @@ function readTextFile(file: File): Promise<string> {
 }
 
 function isImageFile(file: File): boolean {
-  return file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(file.name);
+  return (
+    file.type.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif)$/i.test(file.name)
+  );
 }
 
 function isTextFile(file: File): boolean {
@@ -277,7 +289,7 @@ export function ChatCarteraHermes({
     const text = input.trim();
     if ((!text && !pending.length) || busy) return;
     if (!perfilId) {
-      setError("Elige tu perfil arriba para chatear");
+      setError("Elige quién eres arriba para chatear");
       return;
     }
 
@@ -336,84 +348,87 @@ export function ChatCarteraHermes({
 
   return (
     <>
-      <button
+      <Button
         type="button"
         aria-expanded={open}
         aria-controls={open ? titleId : undefined}
-        onClick={() => setOpen((v) => !v)}
-        className="fixed z-40 bottom-20 right-3 sm:right-4 min-h-[48px] px-4 rounded-full border border-amber-700/70 bg-amber-950 text-amber-100 text-sm font-semibold shadow-lg touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"
+        onClick={() => setOpen(true)}
+        className="fixed right-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 h-12 rounded-full px-4 shadow-lg active:scale-[0.96] sm:right-4"
       >
-        {open ? "Cerrar chat" : "Agente cobro"}
-      </button>
+        Ayuda con IA
+      </Button>
 
-      {open && (
-        <section
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
           id={titleId}
-          aria-label="Chat con agente de cobro"
-          className="fixed z-40 bottom-36 right-3 sm:right-4 w-[min(100vw-1.5rem,22rem)] max-h-[min(70dvh,32rem)] flex flex-col rounded-2xl border border-zinc-700 bg-zinc-950 shadow-2xl overflow-hidden"
+          side="bottom"
+          className="flex h-[min(85dvh,36rem)] max-h-[85dvh] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
         >
-          <header className="shrink-0 px-3 py-2.5 border-b border-zinc-800">
-            <h2 className="text-sm font-semibold text-white">Agente cobro</h2>
-            <p className="text-[11px] text-zinc-500 mt-0.5">
+          <SheetHeader className="shrink-0 border-b border-border px-4 py-3 text-left">
+            <SheetTitle>Ayuda con IA</SheetTitle>
+            <SheetDescription>
               {perfilId
                 ? `Como ${nombrePerfilCartera(perfilId)} · pega chat o captura`
-                : "Elige tu perfil arriba"}
-            </p>
-          </header>
+                : "Elige quién eres arriba"}
+            </SheetDescription>
+          </SheetHeader>
 
           <div
             ref={listRef}
-            className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2"
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-2"
             role="log"
             aria-live="polite"
           >
-            {messages.length === 0 && (
-              <p className="text-xs text-zinc-500 leading-relaxed py-2">
-                Ej: «busca ABC12D» · adjunta captura del WhatsApp · «cómo vamos
-                hoy»
-              </p>
-            )}
-            {messages.map((m, i) => {
-              const imgs = displayImages(m.content);
-              const text = displayText(m.content);
-              return (
-                <div
-                  key={`${m.role}-${i}`}
-                  className={`text-sm leading-relaxed break-words rounded-xl px-2.5 py-2 ${
-                    m.role === "user"
-                      ? "bg-amber-950/60 text-amber-50 ml-6"
-                      : "bg-zinc-900 text-zinc-200 mr-4"
-                  }`}
-                >
-                  {imgs.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {imgs.map((src, j) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={j}
-                          src={src}
-                          alt="Adjunto"
-                          className="max-h-28 max-w-full rounded-lg border border-zinc-700 object-contain"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {m.role === "assistant" ? (
-                    text ? <MarkdownMsg text={text} /> : null
-                  ) : text ? (
-                    <p className="whitespace-pre-wrap">{text}</p>
-                  ) : null}
-                </div>
-              );
-            })}
-            {busy && (
-              <p className="text-xs text-zinc-500 px-1">Pensando…</p>
-            )}
+            <div className="flex flex-col gap-2">
+              {messages.length === 0 && (
+                <p className="py-2 text-xs leading-relaxed text-muted-foreground">
+                  Ej: «busca ABC12D» · adjunta captura del WhatsApp · «cómo vamos
+                  hoy»
+                </p>
+              )}
+              {messages.map((m, i) => {
+                const imgs = displayImages(m.content);
+                const text = displayText(m.content);
+                return (
+                  <div
+                    key={`${m.role}-${i}`}
+                    className={cn(
+                      "break-words rounded-xl px-2.5 py-2 text-sm leading-relaxed",
+                      m.role === "user"
+                        ? "ml-6 bg-primary text-primary-foreground"
+                        : "mr-4 bg-muted text-foreground",
+                    )}
+                  >
+                    {imgs.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {imgs.map((src, j) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={j}
+                            src={src}
+                            alt="Adjunto"
+                            className="max-h-28 max-w-full rounded-lg border border-border object-contain outline outline-1 outline-white/10"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {m.role === "assistant" ? (
+                      text ? <MarkdownMsg text={text} /> : null
+                    ) : text ? (
+                      <p className="whitespace-pre-wrap">{text}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {busy && (
+                <p className="px-1 text-xs text-muted-foreground">Pensando…</p>
+              )}
+            </div>
           </div>
 
           {error && (
             <p
-              className="shrink-0 px-3 py-1.5 text-xs text-red-300 border-t border-zinc-800"
+              className="shrink-0 border-t border-border px-3 py-1.5 text-xs text-destructive"
               role="alert"
             >
               {error}
@@ -421,23 +436,25 @@ export function ChatCarteraHermes({
           )}
 
           {pending.length > 0 && (
-            <div className="shrink-0 px-2 pt-2 flex flex-wrap gap-1.5 border-t border-zinc-800">
+            <div className="flex shrink-0 flex-wrap gap-1.5 border-t border-border px-2 pt-2">
               {pending.map((f) => (
                 <div
                   key={f.id}
-                  className="relative flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-1.5 py-1 max-w-full"
+                  className="relative flex max-w-full items-center gap-1.5 rounded-lg border border-border bg-muted px-1.5 py-1"
                 >
                   {f.kind === "image" && f.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={f.previewUrl}
                       alt=""
-                      className="h-10 w-10 rounded object-cover"
+                      className="size-10 rounded object-cover"
                     />
                   ) : (
-                    <span className="text-[10px] text-zinc-400 px-1">TXT</span>
+                    <span className="px-1 text-[10px] text-muted-foreground">
+                      TXT
+                    </span>
                   )}
-                  <span className="text-[10px] text-zinc-400 truncate max-w-[7rem]">
+                  <span className="max-w-[7rem] truncate text-[10px] text-muted-foreground">
                     {f.name}
                   </span>
                   <button
@@ -446,7 +463,7 @@ export function ChatCarteraHermes({
                     onClick={() =>
                       setPending((p) => p.filter((x) => x.id !== f.id))
                     }
-                    className="text-zinc-500 hover:text-zinc-200 text-xs px-1"
+                    className="px-1 text-xs text-muted-foreground hover:text-foreground"
                   >
                     ×
                   </button>
@@ -456,7 +473,7 @@ export function ChatCarteraHermes({
           )}
 
           <form
-            className="shrink-0 border-t border-zinc-800 p-2 flex gap-2 items-end"
+            className="flex shrink-0 items-end gap-2 border-t border-border p-2"
             onSubmit={(e) => {
               e.preventDefault();
               void enviar();
@@ -473,28 +490,19 @@ export function ChatCarteraHermes({
                 e.target.value = "";
               }}
             />
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon"
               disabled={busy || pending.length >= MAX_FILES}
               onClick={() => fileRef.current?.click()}
               title="Adjuntar"
               aria-label="Adjuntar archivo"
-              className="shrink-0 min-h-[44px] min-w-[44px] rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-300 disabled:opacity-40 touch-manipulation inline-flex items-center justify-center"
+              className="size-11 shrink-0 rounded-lg"
             >
-              <svg
-                aria-hidden
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-              </svg>
-            </button>
-            <textarea
+              <PaperclipIcon />
+            </Button>
+            <Textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -514,18 +522,18 @@ export function ChatCarteraHermes({
               rows={2}
               placeholder="Escribe, pega chat o captura…"
               disabled={busy}
-              className="flex-1 min-h-[44px] resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-500"
+              className="min-h-11 flex-1 resize-none"
             />
-            <button
+            <Button
               type="submit"
               disabled={busy || (!input.trim() && !pending.length)}
-              className="self-end min-h-[44px] px-3 rounded-xl bg-amber-700 text-amber-50 text-sm font-semibold disabled:opacity-40 touch-manipulation"
+              className="h-11 shrink-0 rounded-lg active:scale-[0.96]"
             >
               Enviar
-            </button>
+            </Button>
           </form>
-        </section>
-      )}
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

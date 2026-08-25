@@ -22,7 +22,15 @@ export async function GET() {
       .limit(2000);
 
     // Si aún no existe columna monto, reintenta sin ella.
-    let rows = data;
+    type RowKpi = {
+      perfil_id?: string | null;
+      status?: string | null;
+      placa?: string | null;
+      created_at?: string | null;
+      notas?: string | null;
+      monto?: number | null;
+    };
+    let rows: RowKpi[] | null = data as RowKpi[] | null;
     if (error && /monto/i.test(error.message)) {
       const retry = await supabase
         .from("cartera_gestiones")
@@ -34,7 +42,7 @@ export async function GET() {
       if (retry.error) {
         return NextResponse.json({ error: retry.error.message }, { status: 500 });
       }
-      rows = retry.data;
+      rows = retry.data as RowKpi[] | null;
     } else if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -48,7 +56,7 @@ export async function GET() {
       created_at: String(row.created_at ?? ""),
       notas: row.notas ?? null,
       monto:
-        "monto" in row && row.monto != null && Number.isFinite(Number(row.monto))
+        row.monto != null && Number.isFinite(Number(row.monto))
           ? Number(row.monto)
           : null,
     }));

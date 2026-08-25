@@ -69,6 +69,20 @@ Reiniciar Hermes. Tools disponibles:
 | `cartera_pendientes` | Cola de bandeja (bajo_pago, sin_gps, …) |
 | `cartera_registrar` | Guarda gestión / abono + notas del chat |
 | `cartera_kpis` | Recaudo y gestiones de hoy (Dayana / Jhon) |
+| `cartera_efectividad` | Días/gestiones hasta pago, ranking de métodos, sugerencia |
+
+---
+
+## Efectividad de cobro
+
+UI: `https://sp-recuperadores.vercel.app/efectividad`
+
+```http
+GET /api/cartera/efectividad
+GET /api/cartera/efectividad?placa=ABC12D
+```
+
+Mide episodios: desde la primera gestión hasta abono en app **o** pago ERP (el primero). Reporta bucket (mismo día / día siguiente / …), # gestiones, dinero y qué método (last-touch) convirtió. En abiertos sugiere el siguiente método.
 
 ---
 

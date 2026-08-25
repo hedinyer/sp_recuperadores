@@ -269,3 +269,37 @@ def register_tools(ctx) -> None:
         handler=handle_kpis,
         description="KPIs de cobro de hoy.",
     )
+
+    def handle_efectividad(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        path = "/api/cartera/efectividad"
+        placa = str(params.get("placa") or "").strip()
+        if placa:
+            path = f"{path}?placa={urllib.parse.quote(placa)}"
+        data = _request("GET", path)
+        return _tool_result({"success": True, **data})
+
+    ctx.register_tool(
+        name="cartera_efectividad",
+        toolset=TOOLSET,
+        schema={
+            "name": "cartera_efectividad",
+            "description": (
+                "Efectividad de cobro: días y gestiones hasta el pago (abono o ERP), "
+                "ranking de métodos (WhatsApp/visita/compromiso…) y sugerencia del "
+                "siguiente método por cliente. Opcional filtrar por placa."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "placa": {
+                        "type": "string",
+                        "description": "Placa opcional para un solo cliente.",
+                    },
+                },
+                "required": [],
+            },
+        },
+        handler=handle_efectividad,
+        description="Efectividad cobro y ranking de métodos.",
+    )
