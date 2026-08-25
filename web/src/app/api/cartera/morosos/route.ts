@@ -4,7 +4,11 @@ import {
   clasificarCategoriaMoroso,
   type CategoriaMoroso,
 } from "@/lib/categoriasMorosos";
-import type { CasoCartera, MorosoBandeja } from "@/lib/carteraMorososTypes";
+import type {
+  CasoCartera,
+  GestionCartera,
+  MorosoBandeja,
+} from "@/lib/carteraMorososTypes";
 import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
 import { enriquecerConEstadoGps } from "@/lib/gpsEstadoPlacas";
 import { supabase } from "@/lib/supabase";
@@ -28,16 +32,27 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const refresh = searchParams.get("refresh") === "1";
 
-    const [{ atrasos }, casosRes] = await Promise.all([
+    const [{ atrasos }, casosRes, gestionesRes] = await Promise.all([
       fetchAtrasosDesdeDb(refresh),
       supabase.from("cartera_casos").select(
         "placa, perfil_id, categoria, status, notas, updated_at",
       ),
+      supabase
+        .from("cartera_gestiones")
+        .select("id, placa, perfil_id, status, notas, created_at")
+        .order("created_at", { ascending: false })
+        .limit(4000),
     ]);
 
     if (casosRes.error) {
       // Tablas aún no creadas: listado sigue sin seguimiento.
       console.warn("[api/cartera/morosos] cartera_casos:", casosRes.error.message);
+    }
+    if (gestionesRes.error) {
+      console.warn(
+        "[api/cartera/morosos] cartera_gestiones:",
+        gestionesRes.error.message,
+      );
     }
 
     const casosByPlaca = new Map<string, CasoCartera>();
@@ -54,6 +69,25 @@ export async function GET(request: Request) {
         notas: row.notas ?? null,
         updated_at: row.updated_at ?? null,
       });
+    }
+
+    const gestionesByPlaca = new Map<string, GestionCartera[]>();
+    for (const row of gestionesRes.data ?? []) {
+      const placa = String(row.placa ?? "")
+        .toUpperCase()
+        .replace(/\s/g, "");
+      if (!placa) continue;
+      const list = gestionesByPlaca.get(placa) ?? [];
+      if (list.length >= 8) continue;
+      list.push({
+        id: Number(row.id) || undefined,
+        placa,
+        perfil_id: String(row.perfil_id ?? ""),
+        status: String(row.status ?? ""),
+        notas: row.notas ?? null,
+        created_at: String(row.created_at ?? ""),
+      });
+      gestionesByPlaca.set(placa, list);
     }
 
     const conGps = await enriquecerConEstadoGps(atrasos);
@@ -89,6 +123,7 @@ export async function GET(request: Request) {
         categoria,
         gps: item.gps,
         caso: casosByPlaca.get(placaKey) ?? null,
+        gestiones: gestionesByPlaca.get(placaKey) ?? [],
       };
       categorias[categoria].push(fila);
     }

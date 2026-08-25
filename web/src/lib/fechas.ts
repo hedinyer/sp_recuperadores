@@ -53,3 +53,22 @@ export function formatFechaHora(iso: string | undefined | null): string {
   const min = String(parsed.getMinutes()).padStart(2, "0");
   return `${fecha} ${hh}:${min}`;
 }
+
+/** Días transcurridos desde una fecha (inicio de contrato, etc.). */
+export function diasDesde(iso: string | undefined | null): number | null {
+  if (!iso?.trim()) return null;
+  const raw = iso.trim();
+  const base = raw.split("T")[0].split(" ")[0];
+  let inicio: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(base)) {
+    const [y, m, d] = base.split("-").map(Number);
+    inicio = new Date(y, m - 1, d);
+  } else {
+    inicio = new Date(raw);
+  }
+  if (Number.isNaN(inicio.getTime())) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  inicio.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((hoy.getTime() - inicio.getTime()) / 86_400_000));
+}

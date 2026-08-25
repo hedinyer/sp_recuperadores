@@ -10,7 +10,13 @@ import {
 
 import { MasterGate } from "@/components/MasterGate";
 import { NavFooter } from "@/components/NavFooter";
-import type { MorosoBandeja } from "@/lib/carteraMorososTypes";
+import { KpisCarteraHoy } from "@/components/KpisCarteraHoy";
+import {
+  compararMorososBandeja,
+  gestionReciente,
+  type GestionCartera,
+  type MorosoBandeja,
+} from "@/lib/carteraMorososTypes";
 import {
   CATEGORIAS_MOROSO,
   type CategoriaMoroso,
@@ -25,7 +31,7 @@ import {
   type CarteraPerfilId,
   type CarteraStatus,
 } from "@/lib/carteraPerfiles";
-import { formatFechaCorta, formatFechaHora } from "@/lib/fechas";
+import { diasDesde, formatFechaHora } from "@/lib/fechas";
 import { formatearCOP } from "@/lib/formatoDinero";
 
 type ResumenApi = {
@@ -56,6 +62,20 @@ function enlaceWhatsApp(telefono: string, texto: string): string | null {
   return `https://wa.me/${conPais}?text=${encodeURIComponent(texto)}`;
 }
 
+function estadosDeMoroso(m: MorosoBandeja): GestionCartera[] {
+  if (m.gestiones?.length) return m.gestiones;
+  if (!m.caso) return [];
+  return [
+    {
+      placa: m.placa,
+      perfil_id: m.caso.perfil_id ?? "",
+      status: m.caso.status,
+      notas: m.caso.notas,
+      created_at: m.caso.updated_at ?? "",
+    },
+  ];
+}
+
 function BadgeGps({ funcional, etiqueta }: { funcional: boolean; etiqueta: string }) {
   if (funcional) {
     return (
@@ -69,16 +89,6 @@ function BadgeGps({ funcional, etiqueta }: { funcional: boolean; etiqueta: strin
       {etiqueta || "Sin GPS"}
     </span>
   );
-}
-
-const GESTION_RECIENTE_MS = 12 * 60 * 60 * 1000;
-
-/** Chulito visible si la gestión se actualizó en las últimas 12 horas. */
-function gestionReciente(updatedAt: string | null | undefined): boolean {
-  if (!updatedAt) return false;
-  const t = new Date(updatedAt).getTime();
-  if (Number.isNaN(t)) return false;
-  return Date.now() - t < GESTION_RECIENTE_MS;
 }
 
 function IconoChulito() {
@@ -127,10 +137,11 @@ export default function PlacasMorososPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [kpiTick, setKpiTick] = useState(0);
   const [busqueda, setBusqueda] = useState("");
 
   const [motoActiva, setMotoActiva] = useState<MorosoBandeja | null>(null);
-  const [statusDraft, setStatusDraft] = useState<CarteraStatus>("contactado");
+  const [statusDraft, setStatusDraft] = useState<CarteraStatus | "">("");
   const [notasDraft, setNotasDraft] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -183,13 +194,15 @@ export default function PlacasMorososPage() {
   const listaBase = categorias[categoria] ?? [];
   const lista = (() => {
     const q = busqueda.trim().toUpperCase();
-    if (!q) return listaBase;
-    return listaBase.filter(
-      (m) =>
-        m.placa.includes(q) ||
-        m.nombre.toUpperCase().includes(q) ||
-        m.cedula.includes(q),
-    );
+    const filtrada = !q
+      ? listaBase
+      : listaBase.filter(
+          (m) =>
+            m.placa.includes(q) ||
+            m.nombre.toUpperCase().includes(q) ||
+            m.cedula.includes(q),
+        );
+    return [...filtrada].sort(compararMorososBandeja);
   })();
 
   const metaCategoria = CATEGORIAS_MOROSO.find((c) => c.id === categoria);
@@ -202,13 +215,8 @@ export default function PlacasMorososPage() {
       }
       triggerRef.current = el;
       setMotoActiva(moto);
-      setStatusDraft(
-        (moto.caso?.status as CarteraStatus) &&
-          CARTERA_STATUSES.some((s) => s.id === moto.caso?.status)
-          ? (moto.caso!.status as CarteraStatus)
-          : "contactado",
-      );
-      setNotasDraft(moto.caso?.notas ?? "");
+      setStatusDraft("");
+      setNotasDraft("");
       const dlg = dialogRef.current;
       if (dlg && !dlg.open) dlg.showModal();
     },
@@ -222,7 +230,7 @@ export default function PlacasMorososPage() {
   }, []);
 
   const guardarGestion = useCallback(async () => {
-    if (!motoActiva || !perfilId) return;
+    if (!motoActiva || !perfilId || !statusDraft) return;
     setGuardando(true);
     setError(null);
     setMensaje(null);
@@ -243,6 +251,14 @@ export default function PlacasMorososPage() {
 
       setCategorias((prev) => {
         const next = { ...prev };
+        const ahora = new Date().toISOString();
+        const nueva: GestionCartera = data.gestion ?? {
+          placa: motoActiva.placa,
+          perfil_id: perfilId,
+          status: statusDraft,
+          notas: notasDraft || null,
+          created_at: ahora,
+        };
         for (const key of Object.keys(next) as CategoriaMoroso[]) {
           next[key] = next[key].map((m) =>
             m.placa === motoActiva.placa
@@ -254,8 +270,9 @@ export default function PlacasMorososPage() {
                     categoria: motoActiva.categoria,
                     status: statusDraft,
                     notas: notasDraft || null,
-                    updated_at: new Date().toISOString(),
+                    updated_at: ahora,
                   },
+                  gestiones: [nueva, ...(m.gestiones ?? [])].slice(0, 8),
                 }
               : m,
           );
@@ -263,8 +280,9 @@ export default function PlacasMorososPage() {
         return next;
       });
       setMensaje(
-        `Gestión guardada · ${motoActiva.placa} · ${etiquetaCarteraStatus(statusDraft)}`,
+        `Estado agregado · ${motoActiva.placa} · ${etiquetaCarteraStatus(statusDraft)}`,
       );
+      setKpiTick((n) => n + 1);
       cerrarGestion();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
@@ -314,7 +332,7 @@ export default function PlacasMorososPage() {
             <div className="min-w-0">
               <h1 className="text-lg font-bold tracking-tight">Morosos</h1>
               <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
-                Categorías exclusivas y seguimiento por perfil
+                Con chulito primero · el resto por deuda
               </p>
             </div>
             <button
@@ -360,9 +378,11 @@ export default function PlacasMorososPage() {
             )}
           </fieldset>
 
+          <KpisCarteraHoy tick={kpiTick} />
+
           {resumen && !loading && (
             <p className="mt-3 text-[11px] text-zinc-500 tabular-nums">
-              {resumen.total} motos · deuda {formatearCOP(resumen.deuda_total)}
+              {resumen.total} motos
             </p>
           )}
         </header>
@@ -475,8 +495,9 @@ export default function PlacasMorososPage() {
                 {lista.map((m) => {
                   const waTexto = `Hola ${m.nombre.split(" ")[0] || ""}, te escribimos por el atraso de la moto ${m.placa}. Deuda aproximada: ${formatearCOP(m.deuda_total)}.`;
                   const wa = enlaceWhatsApp(m.telefono, waTexto);
-                  const status = m.caso?.status ?? "pendiente";
                   const conChulito = gestionReciente(m.caso?.updated_at);
+                  const estados = estadosDeMoroso(m).slice(0, 4);
+                  const diasMoto = diasDesde(m.fecha_inicio);
                   return (
                     <li
                       key={m.placa}
@@ -494,16 +515,38 @@ export default function PlacasMorososPage() {
                             {m.nombre || "—"}
                           </p>
                         </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <BadgeGps
-                            funcional={m.gps.funcional}
-                            etiqueta={m.gps.estado_etiqueta}
-                          />
-                          <span className="text-[10px] font-semibold text-zinc-300 bg-zinc-800 px-1.5 py-0.5 rounded">
-                            {etiquetaCarteraStatus(status)}
-                          </span>
-                        </div>
+                        <BadgeGps
+                          funcional={m.gps.funcional}
+                          etiqueta={m.gps.estado_etiqueta}
+                        />
                       </div>
+
+                      {estados.length > 0 ? (
+                        <ol className="flex flex-col gap-1">
+                          {estados.map((g, i) => (
+                            <li
+                              key={g.id ?? `${g.status}-${g.created_at}-${i}`}
+                              className={
+                                i === 0
+                                  ? "text-sm text-zinc-100"
+                                  : "text-[12px] text-zinc-500"
+                              }
+                            >
+                              <span className="font-medium">
+                                {etiquetaCarteraStatus(g.status)}
+                              </span>
+                              {g.created_at ? (
+                                <span className="tabular-nums">
+                                  {" · "}
+                                  {formatFechaHora(g.created_at)}
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="text-sm text-zinc-500">Sin estados aún</p>
+                      )}
 
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
@@ -524,20 +567,13 @@ export default function PlacasMorososPage() {
                         </div>
                         <div>
                           <p className="text-[10px] uppercase text-zinc-500">
-                            Cumple
+                            Con moto
                           </p>
                           <p className="text-sm font-semibold tabular-nums">
-                            {m.cumplimiento_pct}%
+                            {diasMoto != null ? `${diasMoto}d` : "—"}
                           </p>
                         </div>
                       </div>
-
-                      <p className="text-[11px] text-zinc-500">
-                        Últ. pago {formatFechaCorta(m.ultimo_pago) || "—"}
-                        {m.caso?.perfil_id
-                          ? ` · ${nombrePerfilCartera(m.caso.perfil_id)}`
-                          : ""}
-                      </p>
 
                       <div className="flex flex-wrap gap-2">
                         {wa ? (
@@ -556,14 +592,14 @@ export default function PlacasMorososPage() {
                           onClick={(e) => abrirGestion(m, e.currentTarget)}
                           className="flex-1 min-h-[44px] min-w-[7rem] rounded-xl bg-emerald-700 text-sm font-semibold text-white disabled:opacity-40 touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
                         >
-                          Actualizar estado
+                          Nuevo estado
                         </button>
                         <button
                           type="button"
                           onClick={(e) => void abrirHistorial(m, e.currentTarget)}
-                          className="flex-1 min-h-[44px] min-w-[7rem] rounded-xl border border-zinc-700 bg-zinc-800 text-sm font-semibold text-zinc-200 touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+                          className="w-full min-h-[40px] rounded-xl border border-zinc-800 bg-transparent text-xs font-medium text-zinc-400 touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
                         >
-                          Ver historial
+                          Ver todos los estados
                         </button>
                       </div>
                     </li>
@@ -586,27 +622,43 @@ export default function PlacasMorososPage() {
           {motoActiva && (
             <>
               <h2 className="text-base font-semibold text-white">
-                Actualizar estado
+                Nuevo estado
               </h2>
               <p className="text-xs text-zinc-500">
                 {motoActiva.placa} · {motoActiva.nombre}
                 {perfilId ? ` · ${nombrePerfilCartera(perfilId)}` : ""}
               </p>
+              {estadosDeMoroso(motoActiva).length > 0 ? (
+                <ol className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-3 py-2 flex flex-col gap-1 max-h-28 overflow-y-auto">
+                  {estadosDeMoroso(motoActiva).slice(0, 6).map((g, i) => (
+                    <li
+                      key={g.id ?? `${g.status}-${g.created_at}-${i}`}
+                      className="text-[12px] text-zinc-400"
+                    >
+                      <span className="text-zinc-200">
+                        {etiquetaCarteraStatus(g.status)}
+                      </span>
+                      {g.created_at ? ` · ${formatFechaHora(g.created_at)}` : ""}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
               <div>
                 <label
                   htmlFor="cartera-status"
                   className="text-xs text-zinc-400 block mb-1"
                 >
-                  Estado
+                  Estado nuevo
                 </label>
                 <select
                   id="cartera-status"
                   value={statusDraft}
                   onChange={(e) =>
-                    setStatusDraft(e.target.value as CarteraStatus)
+                    setStatusDraft((e.target.value || "") as CarteraStatus | "")
                   }
                   className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3 text-base text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                 >
+                  <option value="">Elige estado</option>
                   {CARTERA_STATUSES.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.label}
@@ -641,10 +693,10 @@ export default function PlacasMorososPage() {
                 <button
                   type="button"
                   onClick={() => void guardarGestion()}
-                  disabled={guardando}
+                  disabled={guardando || !statusDraft}
                   className="flex-1 min-h-[48px] rounded-xl bg-emerald-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
                 >
-                  {guardando ? "Guardando…" : "Guardar gestión"}
+                  {guardando ? "Guardando…" : "Agregar estado"}
                 </button>
               </div>
             </>
@@ -659,7 +711,7 @@ export default function PlacasMorososPage() {
             cerrarHistorial();
           }}
         >
-          <h2 className="text-base font-semibold text-white">Historial</h2>
+          <h2 className="text-base font-semibold text-white">Estados</h2>
           <p className="text-xs text-zinc-500 tracking-widest">
             {historialPlaca}
           </p>
