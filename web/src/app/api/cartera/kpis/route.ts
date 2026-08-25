@@ -15,27 +15,49 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from("cartera_gestiones")
-      .select("perfil_id, status, placa, created_at")
+      .select("perfil_id, status, placa, created_at, notas, monto")
       .in("perfil_id", [...PERFILES_KPI])
       .gte("created_at", isoInicioDiaBogota())
       .order("created_at", { ascending: false })
       .limit(2000);
 
-    if (error) {
+    // Si aún no existe columna monto, reintenta sin ella.
+    let rows = data;
+    if (error && /monto/i.test(error.message)) {
+      const retry = await supabase
+        .from("cartera_gestiones")
+        .select("perfil_id, status, placa, created_at, notas")
+        .in("perfil_id", [...PERFILES_KPI])
+        .gte("created_at", isoInicioDiaBogota())
+        .order("created_at", { ascending: false })
+        .limit(2000);
+      if (retry.error) {
+        return NextResponse.json({ error: retry.error.message }, { status: 500 });
+      }
+      rows = retry.data;
+    } else if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const filas: FilaGestionKpi[] = (data ?? []).map((row) => ({
+    const filas: FilaGestionKpi[] = (rows ?? []).map((row) => ({
       perfil_id: String(row.perfil_id ?? ""),
       status: String(row.status ?? ""),
       placa: String(row.placa ?? "")
         .toUpperCase()
         .replace(/\s/g, ""),
       created_at: String(row.created_at ?? ""),
+      notas: row.notas ?? null,
+      monto:
+        "monto" in row && row.monto != null && Number.isFinite(Number(row.monto))
+          ? Number(row.monto)
+          : null,
     }));
 
+    const { kpis, recaudado_equipo } = kpisDesdeGestiones(filas);
+
     return NextResponse.json({
-      kpis: kpisDesdeGestiones(filas),
+      kpis,
+      recaudado_equipo,
       generado_en: new Date().toISOString(),
     });
   } catch (e) {

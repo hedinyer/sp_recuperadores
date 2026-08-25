@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { PerfilKpi } from "@/lib/carteraKpis";
+import { formatearCOP } from "@/lib/formatoDinero";
 
 const POLL_MS = 15_000;
 
@@ -37,11 +38,11 @@ function KpiCard({ kpi, vivo }: { kpi: PerfilKpi; vivo: boolean }) {
           {tiempoRelativo(kpi.ultima_at)}
         </span>
       </div>
-      <p className="text-xs text-zinc-300 tabular-nums">
-        <span className="text-base font-semibold text-white">
-          {kpi.motos_hoy}
-        </span>{" "}
-        motos · {kpi.estados_hoy} estados
+      <p className="text-base font-semibold text-emerald-300 tabular-nums leading-tight">
+        {formatearCOP(kpi.recaudado_hoy)}
+      </p>
+      <p className="text-[11px] text-zinc-400 tabular-nums">
+        {kpi.motos_hoy} motos · {kpi.estados_hoy} estados
       </p>
       {kpi.por_status.length > 0 ? (
         <p className="text-[11px] text-zinc-500 leading-snug">
@@ -56,6 +57,7 @@ function KpiCard({ kpi, vivo }: { kpi: PerfilKpi; vivo: boolean }) {
 
 export function KpisCarteraHoy({ tick = 0 }: { tick?: number }) {
   const [kpis, setKpis] = useState<PerfilKpi[]>([]);
+  const [recaudadoEquipo, setRecaudadoEquipo] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -64,6 +66,7 @@ export function KpisCarteraHoy({ tick = 0 }: { tick?: number }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo cargar");
       setKpis(data.kpis ?? []);
+      setRecaudadoEquipo(Number(data.recaudado_equipo) || 0);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error KPI");
@@ -89,17 +92,24 @@ export function KpisCarteraHoy({ tick = 0 }: { tick?: number }) {
   if (kpis.length === 0) return null;
 
   return (
-    <div
-      className="mt-4 grid grid-cols-2 gap-2"
-      aria-live="polite"
-      aria-label="Actividad de hoy Dayana y Jhon Sáenz"
-    >
-      {kpis.map((kpi) => {
-        const t = kpi.ultima_at ? new Date(kpi.ultima_at).getTime() : 0;
-        return (
-          <KpiCard key={kpi.id} kpi={kpi} vivo={t >= vivoHasta} />
-        );
-      })}
+    <div className="mt-4 flex flex-col gap-2" aria-live="polite">
+      <p className="text-xs text-zinc-400 tabular-nums">
+        Equipo hoy ·{" "}
+        <span className="font-semibold text-emerald-300">
+          {formatearCOP(recaudadoEquipo)}
+        </span>
+      </p>
+      <div
+        className="grid grid-cols-2 gap-2"
+        aria-label="Recaudo de hoy Dayana y Jhon Sáenz"
+      >
+        {kpis.map((kpi) => {
+          const t = kpi.ultima_at ? new Date(kpi.ultima_at).getTime() : 0;
+          return (
+            <KpiCard key={kpi.id} kpi={kpi} vivo={t >= vivoHasta} />
+          );
+        })}
+      </div>
     </div>
   );
 }

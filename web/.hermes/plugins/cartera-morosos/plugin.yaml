@@ -1,0 +1,7 @@
+name: cartera-morosos
+version: "1.0.0"
+description: >
+  Cobro de cartera — buscar morosos, historial, pendientes, registrar gestiones/pagos
+  y KPIs. El humano pega lo que dijo el cliente; el agente no envía WhatsApp.
+requires_env:
+  - CARTERA_HERMES_TOKEN

@@ -38,6 +38,7 @@ create table if not exists public.cartera_gestiones (
   status text not null,
   categoria text,
   notas text,
+  monto bigint,
   created_at timestamptz not null default now()
 );
 

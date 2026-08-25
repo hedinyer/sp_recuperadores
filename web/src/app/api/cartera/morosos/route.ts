@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       ),
       supabase
         .from("cartera_gestiones")
-        .select("id, placa, perfil_id, status, notas, created_at")
+        .select("id, placa, perfil_id, status, notas, monto, created_at")
         .order("created_at", { ascending: false })
         .limit(4000),
     ]);
@@ -50,11 +50,28 @@ export async function GET(request: Request) {
       // Tablas aún no creadas: listado sigue sin seguimiento.
       console.warn("[api/cartera/morosos] cartera_casos:", casosRes.error.message);
     }
+    let gestionesRows = gestionesRes.data;
     if (gestionesRes.error) {
-      console.warn(
-        "[api/cartera/morosos] cartera_gestiones:",
-        gestionesRes.error.message,
-      );
+      if (/monto/i.test(gestionesRes.error.message)) {
+        const retry = await supabase
+          .from("cartera_gestiones")
+          .select("id, placa, perfil_id, status, notas, created_at")
+          .order("created_at", { ascending: false })
+          .limit(4000);
+        if (retry.error) {
+          console.warn(
+            "[api/cartera/morosos] cartera_gestiones:",
+            retry.error.message,
+          );
+        } else {
+          gestionesRows = retry.data;
+        }
+      } else {
+        console.warn(
+          "[api/cartera/morosos] cartera_gestiones:",
+          gestionesRes.error.message,
+        );
+      }
     }
 
     const casosByPlaca = new Map<string, CasoCartera>();
@@ -74,7 +91,7 @@ export async function GET(request: Request) {
     }
 
     const gestionesByPlaca = new Map<string, GestionCartera[]>();
-    for (const row of gestionesRes.data ?? []) {
+    for (const row of gestionesRows ?? []) {
       const placa = String(row.placa ?? "")
         .toUpperCase()
         .replace(/\s/g, "");
@@ -88,6 +105,10 @@ export async function GET(request: Request) {
         status: String(row.status ?? ""),
         notas: row.notas ?? null,
         created_at: String(row.created_at ?? ""),
+        monto:
+          "monto" in row && row.monto != null && Number.isFinite(Number(row.monto))
+            ? Number(row.monto)
+            : null,
       });
       gestionesByPlaca.set(placa, list);
     }

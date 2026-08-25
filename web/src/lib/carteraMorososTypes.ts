@@ -18,6 +18,7 @@ export type GestionCartera = {
   status: string;
   notas: string | null;
   created_at: string;
+  monto?: number | null;
 };
 
 export type MorosoBandeja = {

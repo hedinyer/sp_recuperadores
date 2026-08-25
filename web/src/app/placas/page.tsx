@@ -8,12 +8,14 @@ import {
   useState,
 } from "react";
 
+import { ChatCarteraHermes } from "@/components/ChatCarteraHermes";
 import { MasterGate } from "@/components/MasterGate";
 import { NavFooter } from "@/components/NavFooter";
 import { KpisCarteraHoy } from "@/components/KpisCarteraHoy";
 import {
   compararMorososBandeja,
   gestionReciente,
+  inicioDiaBogotaMs,
   type GestionCartera,
   type MorosoBandeja,
 } from "@/lib/carteraMorososTypes";
@@ -32,7 +34,12 @@ import {
   type CarteraStatus,
 } from "@/lib/carteraPerfiles";
 import { diasDesde, formatFechaHora } from "@/lib/fechas";
-import { formatearCOP } from "@/lib/formatoDinero";
+import {
+  formatearConPuntos,
+  formatearCOP,
+  limpiarNumero,
+} from "@/lib/formatoDinero";
+import { montoDesdeGestion } from "@/lib/carteraKpis";
 
 type GestionItem = {
   id: number;
@@ -42,7 +49,18 @@ type GestionItem = {
   categoria: string | null;
   notas: string | null;
   created_at: string;
+  monto?: number | null;
 };
+
+function etiquetaEstadoConMonto(g: {
+  status: string;
+  notas?: string | null;
+  monto?: number | null;
+}): string {
+  const base = etiquetaCarteraStatus(g.status);
+  const monto = montoDesdeGestion(g);
+  return monto > 0 ? `${base} · ${formatearCOP(monto)}` : base;
+}
 
 function enlaceWhatsApp(telefono: string, texto: string): string | null {
   const digits = telefono.replace(/\D/g, "");
@@ -129,6 +147,7 @@ function congelarBandejas(
 export default function PlacasMorososPage() {
   const tabsId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const pagoRef = useRef<HTMLDialogElement>(null);
   const historialRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
@@ -145,7 +164,13 @@ export default function PlacasMorososPage() {
   const [motoActiva, setMotoActiva] = useState<MorosoBandeja | null>(null);
   const [statusDraft, setStatusDraft] = useState<CarteraStatus | "">("");
   const [notasDraft, setNotasDraft] = useState("");
+  const [montoDraft, setMontoDraft] = useState("");
   const [guardando, setGuardando] = useState(false);
+
+  const [motoPago, setMotoPago] = useState<MorosoBandeja | null>(null);
+  const [montoPago, setMontoPago] = useState("");
+  const [notasPago, setNotasPago] = useState("");
+  const [guardandoPago, setGuardandoPago] = useState(false);
 
   const [historial, setHistorial] = useState<GestionItem[]>([]);
   const [historialLoading, setHistorialLoading] = useState(false);
@@ -225,6 +250,7 @@ export default function PlacasMorososPage() {
       setMotoActiva(moto);
       setStatusDraft("");
       setNotasDraft("");
+      setMontoDraft("");
       const dlg = dialogRef.current;
       if (dlg && !dlg.open) dlg.showModal();
     },
@@ -237,8 +263,126 @@ export default function PlacasMorososPage() {
     queueMicrotask(() => triggerRef.current?.focus());
   }, []);
 
+  const abrirPago = useCallback(
+    (moto: MorosoBandeja, el: HTMLElement) => {
+      if (!perfilId) {
+        setError("Elige tu perfil para registrar el pago");
+        return;
+      }
+      triggerRef.current = el;
+      setMotoPago(moto);
+      setMontoPago("");
+      setNotasPago("");
+      const dlg = pagoRef.current;
+      if (dlg && !dlg.open) dlg.showModal();
+    },
+    [perfilId],
+  );
+
+  const cerrarPago = useCallback(() => {
+    pagoRef.current?.close();
+    setMotoPago(null);
+    queueMicrotask(() => triggerRef.current?.focus());
+  }, []);
+
+  const aplicarGestionLocal = useCallback(
+    (
+      placa: string,
+      perfil: CarteraPerfilId,
+      status: CarteraStatus,
+      categoria: CategoriaMoroso,
+      data: { gestion?: GestionCartera; caso?: MorosoBandeja["caso"] },
+      notas: string | null = null,
+    ) => {
+      const ahora = new Date().toISOString();
+      const nueva: GestionCartera = data.gestion ?? {
+        placa,
+        perfil_id: perfil,
+        status,
+        notas,
+        created_at: ahora,
+      };
+      setCategorias((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(next) as CategoriaMoroso[]) {
+          next[key] = next[key].map((m) =>
+            m.placa === placa
+              ? {
+                  ...m,
+                  caso: data.caso ?? {
+                    placa,
+                    perfil_id: perfil,
+                    categoria,
+                    status,
+                    notas,
+                    updated_at: ahora,
+                  },
+                  gestiones: [nueva, ...(m.gestiones ?? [])].slice(0, 8),
+                }
+              : m,
+          );
+        }
+        return next;
+      });
+      setKpiTick((n) => n + 1);
+    },
+    [],
+  );
+
+  const contactarWhatsApp = useCallback(
+    async (moto: MorosoBandeja, url: string) => {
+      window.open(url, "_blank", "noopener,noreferrer");
+      if (!perfilId) {
+        setError("Elige tu perfil para que WhatsApp cuente en la KPI");
+        return;
+      }
+      const desde = inicioDiaBogotaMs();
+      const yaContactadoHoy = (moto.gestiones ?? []).some((g) => {
+        if (g.perfil_id !== perfilId || g.status !== "contactado") return false;
+        const t = new Date(g.created_at).getTime();
+        return !Number.isNaN(t) && t >= desde;
+      });
+      if (yaContactadoHoy) return;
+
+      try {
+        const res = await fetch("/api/cartera/gestion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            placa: moto.placa,
+            perfil_id: perfilId,
+            status: "contactado",
+            notas: "WhatsApp",
+            categoria: moto.categoria,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "No se pudo registrar");
+        aplicarGestionLocal(
+          moto.placa,
+          perfilId,
+          "contactado",
+          moto.categoria,
+          data,
+          "WhatsApp",
+        );
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : "WhatsApp abierto, pero no se guardó",
+        );
+      }
+    },
+    [perfilId, aplicarGestionLocal],
+  );
+
   const guardarGestion = useCallback(async () => {
     if (!motoActiva || !perfilId || !statusDraft) return;
+    const montoNum =
+      statusDraft === "abono" ? Number(limpiarNumero(montoDraft)) : null;
+    if (statusDraft === "abono" && (!montoNum || montoNum <= 0)) {
+      setError("Escribe el valor del pago");
+      return;
+    }
     setGuardando(true);
     setError(null);
     setMensaje(null);
@@ -252,52 +396,84 @@ export default function PlacasMorososPage() {
           status: statusDraft,
           notas: notasDraft,
           categoria: motoActiva.categoria,
+          ...(montoNum ? { monto: montoNum } : {}),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo guardar");
 
-      setCategorias((prev) => {
-        const next = { ...prev };
-        const ahora = new Date().toISOString();
-        const nueva: GestionCartera = data.gestion ?? {
-          placa: motoActiva.placa,
-          perfil_id: perfilId,
-          status: statusDraft,
-          notas: notasDraft || null,
-          created_at: ahora,
-        };
-        for (const key of Object.keys(next) as CategoriaMoroso[]) {
-          next[key] = next[key].map((m) =>
-            m.placa === motoActiva.placa
-              ? {
-                  ...m,
-                  caso: data.caso ?? {
-                    placa: motoActiva.placa,
-                    perfil_id: perfilId,
-                    categoria: motoActiva.categoria,
-                    status: statusDraft,
-                    notas: notasDraft || null,
-                    updated_at: ahora,
-                  },
-                  gestiones: [nueva, ...(m.gestiones ?? [])].slice(0, 8),
-                }
-              : m,
-          );
-        }
-        return next;
-      });
-      setMensaje(
-        `Estado agregado · ${motoActiva.placa} · ${etiquetaCarteraStatus(statusDraft)}`,
+      aplicarGestionLocal(
+        motoActiva.placa,
+        perfilId,
+        statusDraft,
+        motoActiva.categoria,
+        data,
+        notasDraft.trim() || null,
       );
-      setKpiTick((n) => n + 1);
+      setMensaje(
+        `Estado agregado · ${motoActiva.placa} · ${etiquetaCarteraStatus(statusDraft)}${
+          montoNum ? ` · ${formatearCOP(montoNum)}` : ""
+        }`,
+      );
       cerrarGestion();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
       setGuardando(false);
     }
-  }, [motoActiva, perfilId, statusDraft, notasDraft, cerrarGestion]);
+  }, [
+    motoActiva,
+    perfilId,
+    statusDraft,
+    notasDraft,
+    montoDraft,
+    cerrarGestion,
+    aplicarGestionLocal,
+  ]);
+
+  const guardarPago = useCallback(async () => {
+    if (!motoPago || !perfilId) return;
+    const montoNum = Number(limpiarNumero(montoPago));
+    if (!montoNum || montoNum <= 0) {
+      setError("Escribe el valor del pago");
+      return;
+    }
+    setGuardandoPago(true);
+    setError(null);
+    setMensaje(null);
+    try {
+      const res = await fetch("/api/cartera/gestion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placa: motoPago.placa,
+          perfil_id: perfilId,
+          status: "abono",
+          notas: notasPago.trim() || null,
+          categoria: motoPago.categoria,
+          monto: montoNum,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo guardar el pago");
+      aplicarGestionLocal(
+        motoPago.placa,
+        perfilId,
+        "abono",
+        motoPago.categoria,
+        data,
+        notasPago.trim() || null,
+      );
+      setMensaje(
+        `Pago registrado · ${motoPago.placa} · ${formatearCOP(montoNum)}`,
+      );
+      cerrarPago();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al registrar pago");
+    } finally {
+      setGuardandoPago(false);
+    }
+  }, [motoPago, perfilId, montoPago, notasPago, aplicarGestionLocal, cerrarPago]);
 
   const abrirHistorial = useCallback(
     async (moto: MorosoBandeja, el: HTMLElement) => {
@@ -541,7 +717,7 @@ export default function PlacasMorososPage() {
                               }
                             >
                               <span className="font-medium">
-                                {etiquetaCarteraStatus(g.status)}
+                                {etiquetaEstadoConMonto(g)}
                               </span>
                               {g.created_at ? (
                                 <span className="tabular-nums">
@@ -585,14 +761,13 @@ export default function PlacasMorososPage() {
 
                       <div className="flex flex-wrap gap-2">
                         {wa ? (
-                          <a
-                            href={wa}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => void contactarWhatsApp(m, wa)}
                             className="flex-1 min-h-[44px] min-w-[7rem] inline-flex items-center justify-center rounded-xl bg-[#25D366] text-sm font-semibold text-white touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                           >
                             WhatsApp
-                          </a>
+                          </button>
                         ) : null}
                         <button
                           type="button"
@@ -601,6 +776,14 @@ export default function PlacasMorososPage() {
                           className="flex-1 min-h-[44px] min-w-[7rem] rounded-xl bg-emerald-700 text-sm font-semibold text-white disabled:opacity-40 touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
                         >
                           Nuevo estado
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!perfilId}
+                          onClick={(e) => abrirPago(m, e.currentTarget)}
+                          className="flex-1 min-h-[44px] min-w-[7rem] rounded-xl bg-amber-700 text-sm font-semibold text-white disabled:opacity-40 touch-manipulation focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+                        >
+                          Registrar pago
                         </button>
                         <button
                           type="button"
@@ -644,7 +827,7 @@ export default function PlacasMorososPage() {
                       className="text-[12px] text-zinc-400"
                     >
                       <span className="text-zinc-200">
-                        {etiquetaCarteraStatus(g.status)}
+                        {etiquetaEstadoConMonto(g)}
                       </span>
                       {g.created_at ? ` · ${formatFechaHora(g.created_at)}` : ""}
                     </li>
@@ -661,9 +844,11 @@ export default function PlacasMorososPage() {
                 <select
                   id="cartera-status"
                   value={statusDraft}
-                  onChange={(e) =>
-                    setStatusDraft((e.target.value || "") as CarteraStatus | "")
-                  }
+                  onChange={(e) => {
+                    const v = (e.target.value || "") as CarteraStatus | "";
+                    setStatusDraft(v);
+                    if (v !== "abono") setMontoDraft("");
+                  }}
                   className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3 text-base text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                 >
                   <option value="">Elige estado</option>
@@ -674,6 +859,26 @@ export default function PlacasMorososPage() {
                   ))}
                 </select>
               </div>
+              {statusDraft === "abono" ? (
+                <div>
+                  <label
+                    htmlFor="cartera-monto-estado"
+                    className="text-xs text-zinc-400 block mb-1"
+                  >
+                    Valor del pago
+                  </label>
+                  <input
+                    id="cartera-monto-estado"
+                    inputMode="numeric"
+                    placeholder="Ej. 150000"
+                    value={montoDraft}
+                    onChange={(e) =>
+                      setMontoDraft(formatearConPuntos(e.target.value))
+                    }
+                    className="w-full min-h-[48px] rounded-xl bg-zinc-800 border border-zinc-600 px-3 text-lg font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+                  />
+                </div>
+              ) : null}
               <div>
                 <label
                   htmlFor="cartera-notas"
@@ -712,6 +917,84 @@ export default function PlacasMorososPage() {
         </dialog>
 
         <dialog
+          ref={pagoRef}
+          className="w-[calc(100%-2rem)] max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100 shadow-2xl backdrop:bg-black/70 open:flex open:flex-col open:gap-3"
+          onClose={() => setMotoPago(null)}
+          onCancel={(e) => {
+            e.preventDefault();
+            cerrarPago();
+          }}
+        >
+          {motoPago && (
+            <>
+              <h2 className="text-base font-semibold text-white">
+                Registrar pago
+              </h2>
+              <p className="text-xs text-zinc-500">
+                {motoPago.placa} · {motoPago.nombre}
+                {perfilId ? ` · ${nombrePerfilCartera(perfilId)}` : ""}
+              </p>
+              <p className="text-[11px] text-zinc-500">
+                Deuda aprox. {formatearCOP(motoPago.deuda_total)}
+              </p>
+              <div>
+                <label
+                  htmlFor="cartera-monto-pago"
+                  className="text-xs text-zinc-400 block mb-1"
+                >
+                  Valor pagado
+                </label>
+                <input
+                  id="cartera-monto-pago"
+                  inputMode="numeric"
+                  autoFocus
+                  placeholder="Ej. 150000"
+                  value={montoPago}
+                  onChange={(e) =>
+                    setMontoPago(formatearConPuntos(e.target.value))
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && void guardarPago()}
+                  className="w-full min-h-[52px] rounded-xl bg-zinc-800 border border-zinc-600 px-3 text-xl font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="cartera-notas-pago"
+                  className="text-xs text-zinc-400 block mb-1"
+                >
+                  Nota (opcional)
+                </label>
+                <textarea
+                  id="cartera-notas-pago"
+                  rows={2}
+                  value={notasPago}
+                  onChange={(e) => setNotasPago(e.target.value)}
+                  placeholder="Nequi, efectivo…"
+                  className="w-full rounded-xl bg-zinc-800 border border-zinc-600 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                />
+              </div>
+              <div className="flex gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={cerrarPago}
+                  className="flex-1 min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 font-medium text-sm touch-manipulation"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void guardarPago()}
+                  disabled={guardandoPago || !limpiarNumero(montoPago)}
+                  className="flex-1 min-h-[48px] rounded-xl bg-amber-600 text-white font-semibold text-sm disabled:opacity-50 touch-manipulation"
+                >
+                  {guardandoPago ? "Guardando…" : "Guardar pago"}
+                </button>
+              </div>
+            </>
+          )}
+        </dialog>
+
+        <dialog
           ref={historialRef}
           className="w-[calc(100%-2rem)] max-w-[400px] rounded-2xl border border-zinc-700 bg-zinc-900 p-5 text-zinc-100 shadow-2xl backdrop:bg-black/70 open:flex open:flex-col open:gap-3"
           onCancel={(e) => {
@@ -741,14 +1024,18 @@ export default function PlacasMorososPage() {
                 {historial.map((g) => (
                   <li key={g.id} className="py-3">
                     <p className="text-sm font-medium text-zinc-100">
-                      {etiquetaCarteraStatus(g.status)}
+                      {etiquetaEstadoConMonto(g)}
                     </p>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       {nombrePerfilCartera(g.perfil_id)} ·{" "}
                       {formatFechaHora(g.created_at)}
                     </p>
-                    {g.notas ? (
+                    {g.notas && !/^pago:\d+/i.test(g.notas.trim()) ? (
                       <p className="text-xs text-zinc-400 mt-1">{g.notas}</p>
+                    ) : g.notas && /pago:\d+\s+(.+)/i.test(g.notas) ? (
+                      <p className="text-xs text-zinc-400 mt-1">
+                        {g.notas.replace(/^pago:\d+\s*/i, "")}
+                      </p>
                     ) : null}
                   </li>
                 ))}
@@ -763,6 +1050,13 @@ export default function PlacasMorososPage() {
             Cerrar
           </button>
         </dialog>
+        <ChatCarteraHermes
+          perfilId={perfilId}
+          onAfterReply={() => {
+            setKpiTick((n) => n + 1);
+            void cargar(false);
+          }}
+        />
       </MasterGate>
       <NavFooter />
     </div>
