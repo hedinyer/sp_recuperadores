@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState, Suspense } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { RecordarCelularCheck } from "@/components/RecordarCelularCheck";
 import {
   mensajeErrorGps,
   obtenerGpsPreciso,
@@ -18,13 +19,39 @@ function AccesoForm() {
 
   const [paso, setPaso] = useState<Paso>("clave");
   const [key, setKey] = useState("");
+  const [recordar, setRecordar] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [gps, setGps] = useState<GpsPreciso | null>(null);
+  const [yaEnSesion, setYaEnSesion] = useState<"checking" | "no" | "ok">(
+    "checking",
+  );
 
   const dest =
     nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/access/auth", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.ok) {
+          setYaEnSesion("ok");
+          router.replace(dest);
+          router.refresh();
+          return;
+        }
+        setYaEnSesion("no");
+      })
+      .catch(() => {
+        if (!cancelled) setYaEnSesion("no");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dest, router]);
 
   const enviarSesion = useCallback(
     async (gpsData: GpsPreciso, clave: string) => {
@@ -35,6 +62,7 @@ function AccesoForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           key: clave,
+          recordar,
           lat: gpsData.lat,
           lng: gpsData.lng,
           gps_coords: gpsData.coords,
@@ -64,7 +92,7 @@ function AccesoForm() {
       router.replace(dest);
       router.refresh();
     },
-    [dest, router],
+    [dest, recordar, router],
   );
 
   const entrar = useCallback(async () => {
@@ -113,6 +141,14 @@ function AccesoForm() {
     }
   }, [key, enviarSesion]);
 
+  if (yaEnSesion !== "no") {
+    return (
+      <main className="min-h-dvh flex items-center justify-center px-4 bg-zinc-950">
+        <p className="text-sm text-zinc-500">Entrando…</p>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-dvh flex items-center justify-center px-4 bg-zinc-950">
       <section className="w-full max-w-[414px] rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col gap-3">
@@ -139,6 +175,11 @@ function AccesoForm() {
               onChange={(e) => setKey(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void entrar()}
               className="w-full min-h-[50px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-600"
+            />
+            <RecordarCelularCheck
+              id="app-access-recordar"
+              checked={recordar}
+              onChange={setRecordar}
             />
             <button
               type="button"

@@ -48,6 +48,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const key = String(body.key ?? "");
+    const recordar = Boolean(body.recordar);
     if (!verifyAccessKey(key)) {
       return NextResponse.json(
         { ok: false, error: "Clave incorrecta" },
@@ -101,7 +102,11 @@ export async function POST(request: Request) {
     }
 
     const res = NextResponse.json({ ok: true, sesion: data });
-    res.cookies.set(ACCESS_COOKIE, accessSessionValue(), accessCookieOptions());
+    res.cookies.set(
+      ACCESS_COOKIE,
+      accessSessionValue(),
+      accessCookieOptions(recordar),
+    );
     return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al registrar sesión";

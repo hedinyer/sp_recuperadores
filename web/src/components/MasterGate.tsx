@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { RecordarCelularCheck } from "@/components/RecordarCelularCheck";
 import {
   guardarMasterActivo,
   leerMasterActivo,
@@ -26,6 +27,7 @@ export function MasterGate({
 }: MasterGateProps) {
   const [estado, setEstado] = useState<"checking" | "login" | "ok">("checking");
   const [clave, setClave] = useState("");
+  const [recordar, setRecordar] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,11 +43,11 @@ export function MasterGate({
       setError("Clave incorrecta");
       return;
     }
-    guardarMasterActivo(true);
+    guardarMasterActivo(true, recordar);
     setClave("");
     setError(null);
     setEstado("ok");
-  }, [clave]);
+  }, [clave, recordar]);
 
   if (estado === "checking") {
     return (
@@ -76,6 +78,11 @@ export function MasterGate({
             onKeyDown={(e) => e.key === "Enter" && entrar()}
             className="w-full min-h-[50px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-600"
           />
+          <RecordarCelularCheck
+            id="master-gate-recordar"
+            checked={recordar}
+            onChange={setRecordar}
+          />
           {error && (
             <p role="alert" className="text-sm text-red-300">
               {error}
@@ -99,7 +106,7 @@ export function MasterGate({
 /** Sesión master compartida (Consultar y otras pantallas). */
 export function useMasterSession(): {
   masterOk: boolean;
-  setMasterOk: (ok: boolean) => void;
+  setMasterOk: (ok: boolean, recordar?: boolean) => void;
 } {
   const [masterOk, setMasterOkState] = useState(false);
 
@@ -107,8 +114,8 @@ export function useMasterSession(): {
     setMasterOkState(leerMasterActivo());
   }, []);
 
-  const setMasterOk = useCallback((ok: boolean) => {
-    guardarMasterActivo(ok);
+  const setMasterOk = useCallback((ok: boolean, recordar?: boolean) => {
+    guardarMasterActivo(ok, recordar);
     setMasterOkState(ok);
   }, []);
 

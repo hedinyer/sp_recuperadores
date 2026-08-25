@@ -30,8 +30,12 @@ import {
   dataUrlToBlob,
 } from "@/lib/reciboImagen";
 import type { UbicacionGpsMoto as UbicacionGps } from "@/lib/ubicacionGps";
-import { verificarClaveMaster } from "@/lib/consultaMaster";
+import { RecordarCelularCheck } from "@/components/RecordarCelularCheck";
 import { useMasterSession } from "@/components/MasterGate";
+import {
+  dispositivoMasterRecordado,
+  verificarClaveMaster,
+} from "@/lib/consultaMaster";
 
 type Vehiculo = Record<string, string>;
 type TipoRecibo = "pago" | "recuperada";
@@ -161,6 +165,7 @@ export default function Home() {
   const { masterOk: modoMaster, setMasterOk } = useMasterSession();
   const [pedirClaveMaster, setPedirClaveMaster] = useState(false);
   const [claveMaster, setClaveMaster] = useState("");
+  const [recordarMaster, setRecordarMaster] = useState(true);
   const [errorMaster, setErrorMaster] = useState<string | null>(null);
 
   const reciboRef = useRef<HTMLDivElement>(null);
@@ -356,8 +361,13 @@ export default function Home() {
       setMasterOk(false);
       return;
     }
+    if (dispositivoMasterRecordado()) {
+      setMasterOk(true);
+      return;
+    }
     setPedirClaveMaster(true);
     setClaveMaster("");
+    setRecordarMaster(true);
     setErrorMaster(null);
   }, [modoMaster, setMasterOk]);
 
@@ -366,11 +376,11 @@ export default function Home() {
       setErrorMaster("Clave incorrecta");
       return;
     }
-    setMasterOk(true);
+    setMasterOk(true, recordarMaster);
     setPedirClaveMaster(false);
     setClaveMaster("");
     setErrorMaster(null);
-  }, [claveMaster, setMasterOk]);
+  }, [claveMaster, recordarMaster, setMasterOk]);
 
   const alternarHistorial = useCallback(() => {
     if (!v?.placa) return;
@@ -1030,6 +1040,11 @@ export default function Home() {
                 onChange={(e) => setClaveMaster(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && confirmarMaster()}
                 className="w-full min-h-[50px] rounded-xl bg-zinc-800 border border-zinc-600 px-3.5 text-lg font-semibold text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-600"
+              />
+              <RecordarCelularCheck
+                id="consulta-master-recordar"
+                checked={recordarMaster}
+                onChange={setRecordarMaster}
               />
               {errorMaster && (
                 <p role="alert" className="text-sm text-red-300">
