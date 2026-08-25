@@ -34,13 +34,6 @@ import {
 import { diasDesde, formatFechaHora } from "@/lib/fechas";
 import { formatearCOP } from "@/lib/formatoDinero";
 
-type ResumenApi = {
-  total: number;
-  counts: Record<CategoriaMoroso, number>;
-  deuda_total: number;
-  generado_en: string;
-};
-
 type GestionItem = {
   id: number;
   placa: string;
@@ -63,17 +56,7 @@ function enlaceWhatsApp(telefono: string, texto: string): string | null {
 }
 
 function estadosDeMoroso(m: MorosoBandeja): GestionCartera[] {
-  if (m.gestiones?.length) return m.gestiones;
-  if (!m.caso) return [];
-  return [
-    {
-      placa: m.placa,
-      perfil_id: m.caso.perfil_id ?? "",
-      status: m.caso.status,
-      notas: m.caso.notas,
-      created_at: m.caso.updated_at ?? "",
-    },
-  ];
+  return m.gestiones?.length ? m.gestiones : [];
 }
 
 function BadgeGps({ funcional, etiqueta }: { funcional: boolean; etiqueta: string }) {
@@ -95,8 +78,8 @@ function IconoChulito() {
   return (
     <span
       className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600/90 text-white shrink-0"
-      title="Gestionada en las últimas 12 horas"
-      aria-label="Gestionada en las últimas 12 horas"
+      title="Tú la gestionaste hoy"
+      aria-label="Tú la gestionaste hoy"
     >
       <svg
         aria-hidden
@@ -123,6 +106,26 @@ function emptyCategorias(): Record<CategoriaMoroso, MorosoBandeja[]> {
   };
 }
 
+function congelarBandejas(
+  prev: Record<CategoriaMoroso, MorosoBandeja[]>,
+  incoming: Record<CategoriaMoroso, MorosoBandeja[]>,
+): Record<CategoriaMoroso, MorosoBandeja[]> {
+  const previa = new Map<string, CategoriaMoroso>();
+  for (const id of Object.keys(prev) as CategoriaMoroso[]) {
+    for (const m of prev[id]) previa.set(m.placa, m.categoria || id);
+  }
+  if (previa.size === 0) return incoming;
+
+  const next = emptyCategorias();
+  for (const id of Object.keys(incoming) as CategoriaMoroso[]) {
+    for (const m of incoming[id]) {
+      const bandeja = previa.get(m.placa) ?? id;
+      next[bandeja].push({ ...m, categoria: bandeja });
+    }
+  }
+  return next;
+}
+
 export default function PlacasMorososPage() {
   const tabsId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -133,7 +136,6 @@ export default function PlacasMorososPage() {
   const [categoria, setCategoria] = useState<CategoriaMoroso>("bajo_pago");
   const [categorias, setCategorias] =
     useState<Record<CategoriaMoroso, MorosoBandeja[]>>(emptyCategorias);
-  const [resumen, setResumen] = useState<ResumenApi | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -176,12 +178,10 @@ export default function PlacasMorososPage() {
       const res = await fetch(`/api/cartera/morosos${q}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo cargar morosos");
-      setCategorias(data.categorias ?? emptyCategorias());
-      setResumen(data.resumen ?? null);
+      const incoming = data.categorias ?? emptyCategorias();
+      setCategorias((prev) => congelarBandejas(prev, incoming));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar");
-      setCategorias(emptyCategorias());
-      setResumen(null);
     } finally {
       setLoading(false);
     }
@@ -202,8 +202,16 @@ export default function PlacasMorososPage() {
             m.nombre.toUpperCase().includes(q) ||
             m.cedula.includes(q),
         );
-    return [...filtrada].sort(compararMorososBandeja);
+    return [...filtrada].sort((a, b) =>
+      compararMorososBandeja(a, b, perfilId),
+    );
   })();
+
+  const totalMotos =
+    categorias.bajo_pago.length +
+    categorias.sin_gps.length +
+    categorias.mora_15.length +
+    categorias.mora_4_15.length;
 
   const metaCategoria = CATEGORIAS_MOROSO.find((c) => c.id === categoria);
 
@@ -380,9 +388,9 @@ export default function PlacasMorososPage() {
 
           <KpisCarteraHoy tick={kpiTick} />
 
-          {resumen && !loading && (
+          {!loading && totalMotos > 0 && (
             <p className="mt-3 text-[11px] text-zinc-500 tabular-nums">
-              {resumen.total} motos
+              {totalMotos} motos
             </p>
           )}
         </header>
@@ -428,7 +436,7 @@ export default function PlacasMorososPage() {
             }}
           >
             {CATEGORIAS_MOROSO.map((cat) => {
-              const count = resumen?.counts?.[cat.id] ?? categorias[cat.id].length;
+              const count = categorias[cat.id]?.length ?? 0;
               const panelId = `${tabsId}-panel-${cat.id}`;
               const tabId = `${tabsId}-tab-${cat.id}`;
               return (
@@ -495,7 +503,7 @@ export default function PlacasMorososPage() {
                 {lista.map((m) => {
                   const waTexto = `Hola ${m.nombre.split(" ")[0] || ""}, te escribimos por el atraso de la moto ${m.placa}. Deuda aproximada: ${formatearCOP(m.deuda_total)}.`;
                   const wa = enlaceWhatsApp(m.telefono, waTexto);
-                  const conChulito = gestionReciente(m.caso?.updated_at);
+                  const conChulito = gestionReciente(m.gestiones, perfilId);
                   const estados = estadosDeMoroso(m).slice(0, 4);
                   const diasMoto = diasDesde(m.fecha_inicio);
                   return (

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
+  categoriaMorosoEstable,
   clasificarCategoriaMoroso,
+  esCategoriaMoroso,
   type CategoriaMoroso,
 } from "@/lib/categoriasMorosos";
 import type {
@@ -92,9 +94,14 @@ export async function GET(request: Request) {
 
     const conGps = await enriquecerConEstadoGps(atrasos);
     const categorias = emptyCategorias();
+    const bandejasNuevas: Array<{ placa: string; categoria: CategoriaMoroso }> =
+      [];
 
     for (const item of conGps) {
-      const categoria = clasificarCategoriaMoroso({
+      if (item.deuda_total <= 0) continue;
+
+      const placaKey = item.placa.toUpperCase().replace(/\s/g, "");
+      const enVivo = clasificarCategoriaMoroso({
         dias_mora: item.dias_mora,
         deuda_total: item.deuda_total,
         total_pagado: item.total_pagado,
@@ -102,9 +109,14 @@ export async function GET(request: Request) {
         ultimo_pago: item.ultimo_pago,
         gps: item.gps,
       });
+      const caso = casosByPlaca.get(placaKey) ?? null;
+      const categoria = categoriaMorosoEstable(caso?.categoria, enVivo);
       if (!categoria) continue;
 
-      const placaKey = item.placa.toUpperCase().replace(/\s/g, "");
+      if (!esCategoriaMoroso(caso?.categoria)) {
+        bandejasNuevas.push({ placa: placaKey, categoria });
+      }
+
       const fila: MorosoBandeja = {
         placa: placaKey,
         cedula: item.cedula,
@@ -122,10 +134,34 @@ export async function GET(request: Request) {
         pago_hoy: item.pago_hoy,
         categoria,
         gps: item.gps,
-        caso: casosByPlaca.get(placaKey) ?? null,
+        caso,
         gestiones: gestionesByPlaca.get(placaKey) ?? [],
       };
       categorias[categoria].push(fila);
+    }
+
+    // ponytail: congelar bandeja en cartera_casos; no se pisa en cargas siguientes
+    if (bandejasNuevas.length) {
+      for (let i = 0; i < bandejasNuevas.length; i += 100) {
+        const chunk = bandejasNuevas.slice(i, i + 100);
+        const { error: errBandejas } = await supabase
+          .from("cartera_casos")
+          .upsert(
+            chunk.map((b) => ({
+              placa: b.placa,
+              categoria: b.categoria,
+              status: "pendiente",
+            })),
+            { onConflict: "placa", ignoreDuplicates: true },
+          );
+        if (errBandejas) {
+          console.warn(
+            "[api/cartera/morosos] fijar bandejas:",
+            errBandejas.message,
+          );
+          break;
+        }
+      }
     }
 
     const counts = {

@@ -85,3 +85,18 @@ export function etiquetaCategoriaMoroso(
   if (!id) return "";
   return CATEGORIAS_MOROSO.find((c) => c.id === id)?.label ?? id;
 }
+
+export function esCategoriaMoroso(
+  value: string | null | undefined,
+): value is CategoriaMoroso {
+  return CATEGORIAS_MOROSO.some((c) => c.id === value);
+}
+
+/** Bandeja fija: si ya tiene una válida se respeta; si no, la clasificación en vivo. */
+export function categoriaMorosoEstable(
+  guardada: string | null | undefined,
+  enVivo: CategoriaMoroso | null,
+): CategoriaMoroso | null {
+  if (esCategoriaMoroso(guardada)) return guardada;
+  return enVivo;
+}
