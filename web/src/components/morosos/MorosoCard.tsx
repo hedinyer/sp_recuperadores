@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import {
-  gestionReciente,
+  conteoGestiones,
   type GestionCartera,
   type MorosoBandeja,
 } from "@/lib/carteraMorososTypes";
@@ -53,7 +53,7 @@ export function MorosoCard({
 }) {
   const waTexto = `Hola ${moto.nombre.split(" ")[0] || ""}, te escribimos por el atraso de la moto ${moto.placa}. Deuda aproximada: ${formatearCOP(moto.deuda_total)}.`;
   const wa = enlaceWhatsApp(moto.telefono, waTexto);
-  const conChulito = gestionReciente(moto.gestiones, perfilId);
+  const nGestiones = conteoGestiones(moto);
   const ultimo = (moto.gestiones ?? [])[0] as GestionCartera | undefined;
   const diasMoto = diasDesde(moto.fecha_inicio);
   const sinPerfil = !perfilId;
@@ -66,13 +66,16 @@ export function MorosoCard({
             <p className="text-xl font-bold tracking-[0.12em] text-foreground">
               {moto.placa}
             </p>
-            {conChulito ? (
+            {nGestiones > 0 ? (
               <span
-                className="inline-flex size-6 items-center justify-center rounded-full bg-success text-success-foreground"
-                title="Tú la gestionaste hoy"
-                aria-label="Tú la gestionaste hoy"
+                className="inline-flex h-6 items-center gap-0.5 rounded-full bg-success pl-1 pr-1.5 text-success-foreground"
+                title={`${nGestiones} gestión${nGestiones === 1 ? "" : "es"}`}
+                aria-label={`Gestionado ${nGestiones} ${nGestiones === 1 ? "vez" : "veces"}`}
               >
                 <CheckIcon className="size-3.5" aria-hidden strokeWidth={3} />
+                <span className="text-xs font-bold tabular-nums">
+                  {nGestiones}
+                </span>
               </span>
             ) : null}
           </div>
@@ -118,10 +121,10 @@ export function MorosoCard({
           <p className="text-sm text-muted-foreground">Aún no la gestionaste</p>
         )}
 
-        {(moto.gestiones?.length ?? 0) > 0 ? (
+        {nGestiones > 0 ? (
           <p className="text-xs text-muted-foreground">
-            Tras {moto.gestiones!.length} gestión
-            {moto.gestiones!.length === 1 ? "" : "es"} en este caso
+            Tras {nGestiones} gestión
+            {nGestiones === 1 ? "" : "es"} en este caso
             {" · "}
             <a
               href={`/efectividad?placa=${encodeURIComponent(moto.placa)}`}

@@ -201,6 +201,8 @@ export default function PlacasMorososPage() {
                     updated_at: ahora,
                   },
                   gestiones: [nueva, ...(m.gestiones ?? [])].slice(0, 8),
+                  n_gestiones:
+                    (m.n_gestiones ?? m.gestiones?.length ?? 0) + 1,
                 }
               : m,
           );

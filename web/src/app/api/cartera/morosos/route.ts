@@ -101,11 +101,13 @@ export async function GET(request: Request) {
     }
 
     const gestionesByPlaca = new Map<string, GestionCartera[]>();
+    const nGestionesByPlaca = new Map<string, number>();
     for (const row of gestionesRows ?? []) {
       const placa = String(row.placa ?? "")
         .toUpperCase()
         .replace(/\s/g, "");
       if (!placa) continue;
+      nGestionesByPlaca.set(placa, (nGestionesByPlaca.get(placa) ?? 0) + 1);
       const list = gestionesByPlaca.get(placa) ?? [];
       if (list.length >= 8) continue;
       list.push({
@@ -167,6 +169,7 @@ export async function GET(request: Request) {
         gps: item.gps,
         caso,
         gestiones: gestionesByPlaca.get(placaKey) ?? [],
+        n_gestiones: nGestionesByPlaca.get(placaKey) ?? 0,
       };
       categorias[categoria].push(fila);
     }

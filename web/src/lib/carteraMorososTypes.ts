@@ -40,7 +40,14 @@ export type MorosoBandeja = {
   gps: EstadoGpsPlaca;
   caso: CasoCartera | null;
   gestiones: GestionCartera[];
+  n_gestiones: number;
 };
+
+export function conteoGestiones(
+  moto: Pick<MorosoBandeja, "gestiones" | "n_gestiones">,
+): number {
+  return moto.n_gestiones ?? moto.gestiones?.length ?? 0;
+}
 
 /** Inicio del día en Bogotá (UTC-5). */
 export function inicioDiaBogotaMs(ahora = Date.now()): number {
