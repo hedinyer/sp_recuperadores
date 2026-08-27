@@ -19,7 +19,23 @@ type ClienteDbRow = {
   fecha_final: string | null;
   /** Estado del contrato en el ERP (`Activo`, `Inactivo`, etc.). */
   estado?: string | null;
+  /** Estado del vehículo (`Activo`, `Vitrina`, `Inactivo`, etc.). */
+  estado_vehiculo?: string | null;
 };
+
+/** Solo contratos y motos activos generan deuda cobrable. */
+export function esDeudaCobrable(
+  estadoContrato: string | null | undefined,
+  estadoVehiculo?: string | null,
+): boolean {
+  const ct = String(estadoContrato ?? "Activo").trim().toLowerCase();
+  if (ct !== "activo") return false;
+  // Sin dato de vehículo (p. ej. reportes masivos) se asume activo.
+  if (estadoVehiculo == null || String(estadoVehiculo).trim() === "") {
+    return true;
+  }
+  return String(estadoVehiculo).trim().toLowerCase() === "activo";
+}
 
 type RegistroDbRow = {
   fecha_registro: Date;
@@ -39,7 +55,8 @@ SELECT
     ct.fecha_inicio::date AS fecha_inicio,
     ct.tarifa::numeric AS valor_cuota,
     ct.dias_contrato::text AS fecha_final,
-    ct.estado
+    ct.estado,
+    v.estado AS estado_vehiculo
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
@@ -62,7 +79,8 @@ SELECT
     ct.fecha_inicio::date AS fecha_inicio,
     ct.tarifa::numeric AS valor_cuota,
     ct.dias_contrato::text AS fecha_final,
-    ct.estado
+    ct.estado,
+    v.estado AS estado_vehiculo
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
@@ -195,17 +213,27 @@ export function buildFilaReporte(
   c: ClienteDbRow,
   registros: RegistroExtracto[],
   deudaMultas = 0,
+  fechasCongeladas: Iterable<string> = [],
 ): Record<string, string> {
   const valorCuota = Number(c.valor_cuota);
+  const estadoContrato = String(c.estado ?? "Activo").trim() || "Activo";
+  const estadoVehiculo =
+    c.estado_vehiculo == null || String(c.estado_vehiculo).trim() === ""
+      ? ""
+      : String(c.estado_vehiculo).trim();
+  const cobrable = esDeudaCobrable(estadoContrato, c.estado_vehiculo);
+
   const m = calcularMetricasExtracto(
     new Date(c.fecha_inicio),
     valorCuota,
     registros,
     parseDiasCredito(c.fecha_final),
+    undefined,
+    fechasCongeladas,
   );
 
-  const deudaCuotas = Math.round(m.deuda_total);
-  const multas = Math.round(deudaMultas);
+  const deudaCuotas = cobrable ? Math.round(m.deuda_total) : 0;
+  const multas = cobrable ? Math.round(deudaMultas) : 0;
 
   return {
     cedula: c.cedula,
@@ -218,15 +246,16 @@ export function buildFilaReporte(
     cuotas_generadas: String(m.cuotas_generadas),
     cuotas_completas: String(m.cuotas_completas),
     cuotas_pagadas: m.cuotas_pagadas.toFixed(1),
-    cuotas_pendientes: m.cuotas_pendientes.toFixed(1),
+    cuotas_pendientes: cobrable ? m.cuotas_pendientes.toFixed(1) : "0",
     total_pagado: String(Math.round(m.total_pagado)),
     deuda_cuotas: String(deudaCuotas),
     deuda_multas: String(multas),
     deuda_total: String(deudaCuotas + multas),
     ultimo_pago: m.ultimo_pago,
-    dias_mora: String(m.dias_mora),
+    dias_mora: cobrable ? String(m.dias_mora) : "0",
     cumplimiento_pct: String(m.cumplimiento_pct),
-    estado_contrato: String(c.estado ?? "Activo").trim() || "Activo",
+    estado_contrato: estadoContrato,
+    estado_vehiculo: estadoVehiculo,
   };
 }
 
@@ -262,14 +291,28 @@ async function fetchDesdeUrl(
   const cliente = clientes[0];
   if (!cliente) return null;
 
-  const [regRows, deudaMultas] = await Promise.all([
+  const [regRows, deudaMultas, freezeRows] = await Promise.all([
     queryPg<RegistroDbRow>(connectionString, SQL_REGISTROS_CONTRATO, [
       cliente.contrato_id,
     ]),
     fetchDeudaMultasPendientes(connectionString, cliente.contrato_id),
+    queryPg<{ fecha: string | null }>(
+      connectionString,
+      "SELECT fecha::text AS fecha FROM arrendamientos_freezeday WHERE contrato_id = $1",
+      [cliente.contrato_id],
+    ).catch(() => [] as Array<{ fecha: string | null }>),
   ]);
 
-  return buildFilaReporte(cliente, registrosDesdeRows(regRows), deudaMultas);
+  const freeze = freezeRows
+    .map((r) => String(r.fecha ?? "").slice(0, 10))
+    .filter((f) => /^\d{4}-\d{2}-\d{2}$/.test(f));
+
+  return buildFilaReporte(
+    cliente,
+    registrosDesdeRows(regRows),
+    deudaMultas,
+    freeze,
+  );
 }
 
 /** Limpia caché de consulta (p. ej. tras registrar multa en el ERP). */

@@ -83,6 +83,45 @@ WHERE valor > 0
 ORDER BY contrato_id, fecha_registro
 `;
 
+/** Días que no generan cuota (ERP `arrendamientos_freezeday`). */
+export const SQL_FREEZE_DAYS = `
+SELECT contrato_id, fecha::text AS fecha
+FROM arrendamientos_freezeday
+`;
+
+export function freezeDaysByContrato(
+  rows: Array<{ contrato_id: string | number; fecha: string | null }>,
+): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const fecha = String(row.fecha ?? "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+    const key = String(row.contrato_id);
+    const list = map.get(key) ?? [];
+    list.push(fecha);
+    map.set(key, list);
+  }
+  return map;
+}
+
+export async function fetchFreezeDaysPorContrato(
+  connectionString: string,
+): Promise<Map<string, string[]>> {
+  try {
+    const rows = await queryPg<{
+      contrato_id: string | number;
+      fecha: string | null;
+    }>(connectionString, SQL_FREEZE_DAYS);
+    return freezeDaysByContrato(rows);
+  } catch (e) {
+    console.warn(
+      "[reporteFromDb] arrendamientos_freezeday:",
+      e instanceof Error ? e.message : e,
+    );
+    return new Map();
+  }
+}
+
 type ClienteRow = {
   contrato_id: string | number;
   cedula: string;
@@ -134,6 +173,7 @@ async function queryDb(connectionString: string): Promise<{
     referencia: string | null;
   }>;
   multasPorContrato: Map<string, number>;
+  freezeByContrato: Map<string, string[]>;
 }> {
   const clientes = await queryPg<ClienteRow>(
     connectionString,
@@ -141,10 +181,15 @@ async function queryDb(connectionString: string): Promise<{
   );
 
   if (!clientes.length) {
-    return { clientes: [], registros: [], multasPorContrato: new Map() };
+    return {
+      clientes: [],
+      registros: [],
+      multasPorContrato: new Map(),
+      freezeByContrato: new Map(),
+    };
   }
 
-  const [registros, multasPorContrato] = await Promise.all([
+  const [registros, multasPorContrato, freezeByContrato] = await Promise.all([
     queryPg<{
       contrato_id: string | number;
       fecha_registro: Date;
@@ -153,9 +198,10 @@ async function queryDb(connectionString: string): Promise<{
       referencia: string | null;
     }>(connectionString, SQL_REGISTROS_EXTRACTO),
     fetchMultasPendientesPorContrato(connectionString),
+    fetchFreezeDaysPorContrato(connectionString),
   ]);
 
-  return { clientes, registros, multasPorContrato };
+  return { clientes, registros, multasPorContrato, freezeByContrato };
 }
 
 /** Reporte completo (~900 filas). Usar solo cuando haga falta la lista entera. */
@@ -174,6 +220,7 @@ export async function fetchReporteFilasDesdeDb(
     referencia: string | null;
   }> = [];
   const multasPorContrato = new Map<string, number>();
+  const freezeByContrato = new Map<string, string[]>();
 
   for (const r of results) {
     if (r.status === "fulfilled") {
@@ -181,6 +228,10 @@ export async function fetchReporteFilasDesdeDb(
       todosRegistros.push(...r.value.registros);
       for (const [id, monto] of r.value.multasPorContrato) {
         multasPorContrato.set(id, (multasPorContrato.get(id) ?? 0) + monto);
+      }
+      for (const [id, fechas] of r.value.freezeByContrato) {
+        const prev = freezeByContrato.get(id) ?? [];
+        freezeByContrato.set(id, [...prev, ...fechas]);
       }
     } else {
       console.warn(
@@ -210,7 +261,8 @@ export async function fetchReporteFilasDesdeDb(
 
     const regs = registrosMap.get(String(c.contrato_id)) ?? [];
     const deudaMultas = multasPorContrato.get(String(c.contrato_id)) ?? 0;
-    filas.push(buildFilaReporte(c, regs, deudaMultas));
+    const freeze = freezeByContrato.get(String(c.contrato_id)) ?? [];
+    filas.push(buildFilaReporte(c, regs, deudaMultas, freeze));
   }
 
   filas.sort((a, b) => {

@@ -1,35 +1,35 @@
-const CORTE = "19 de agosto de 2026";
+const CORTE = "27 de agosto de 2026";
 
 const SANTANDER = {
-  motos: 814,
-  cartera: 724_241_577,
-  alDia: 191,
-  mora1a7: 343,
-  moraMas7: 280,
+  motos: 777,
+  cartera: 688_424_241,
+  alDia: 151,
+  mora1a7: 347,
+  moraMas7: 279,
 };
 
 const BOGOTA_CHIA = {
-  motos: 206,
-  cartera: 145_761_620,
-  alDia: 29,
-  mora1a7: 101,
+  motos: 196,
+  cartera: 144_842_520,
+  alDia: 4,
+  mora1a7: 116,
   moraMas7: 76,
 };
 
 const CALLE_80 = {
-  motos: 76,
-  cartera: 5_835_003,
-  alDia: 49,
-  mora1a7: 24,
-  moraMas7: 3,
+  motos: 97,
+  cartera: 15_348_003,
+  alDia: 48,
+  mora1a7: 33,
+  moraMas7: 16,
 };
 
 const GIRARDOT = {
-  motos: 23,
-  cartera: 3_910_000,
+  motos: 25,
+  cartera: 4_960_000,
   alDia: 9,
-  mora1a7: 13,
-  moraMas7: 1,
+  mora1a7: 12,
+  moraMas7: 4,
 };
 
 const ZONAS = [
@@ -41,7 +41,7 @@ const ZONAS = [
 
 const TOTAL_MOTOS = ZONAS.reduce((s, z) => s + z.motos, 0);
 const TOTAL_CARTERA = ZONAS.reduce((s, z) => s + z.cartera, 0);
-const TALLER = 32_560_000;
+const TALLER = 30_645_000;
 const MAX_CARTERA = Math.max(...ZONAS.map((z) => z.cartera));
 
 function millones(n: number): string {

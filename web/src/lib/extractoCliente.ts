@@ -85,6 +85,48 @@ function formatFecha(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function setCongelados(fechas: Iterable<string> | undefined): Set<string> {
+  const out = new Set<string>();
+  if (!fechas) return out;
+  for (const raw of fechas) {
+    const ymd = String(raw ?? "").slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) out.add(ymd);
+  }
+  return out;
+}
+
+function parseYmdLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function dateRangeSinCongelados(
+  start: Date,
+  end: Date,
+  freeze: Set<string>,
+): Date[] {
+  return dateRange(start, end).filter((d) => !freeze.has(formatFecha(d)));
+}
+
+/** Días de mora calendario menos congelados posteriores al último pago. */
+function diasMoraSinCongelados(
+  ultimoPagoYmd: string,
+  fin: Date,
+  freeze: Set<string>,
+): number {
+  const inicioPago = parseYmdLocal(ultimoPagoYmd);
+  const bruto = daysBetween(inicioPago, fin);
+  if (bruto <= 0) return 0;
+  const hasta = startOfDay(fin).getTime();
+  const desde = inicioPago.getTime();
+  let restar = 0;
+  for (const ymd of freeze) {
+    const t = parseYmdLocal(ymd).getTime();
+    if (t > desde && t <= hasta) restar += 1;
+  }
+  return Math.max(0, bruto - restar);
+}
+
 /** Equivalente a `generar_dataframe_extracto` en client_report.py */
 export function generarFilasExtracto(
   fechaInicio: Date,
@@ -92,11 +134,13 @@ export function generarFilasExtracto(
   registros: RegistroExtracto[],
   diasCredito: number = DIAS_CREDITO_DEFAULT,
   fechaReferencia?: Date,
+  fechasCongeladas: Iterable<string> = [],
 ): FilaExtracto[] {
   if (valorCuota <= 0) {
     throw new Error("valor_cuota inválido");
   }
 
+  const freeze = setCongelados(fechasCongeladas);
   const inicio = startOfDay(fechaInicio);
   const fechaFinCredito = addDays(inicio, diasCredito - 1);
   let fin = startOfDay(fechaReferencia ?? new Date());
@@ -116,7 +160,7 @@ export function generarFilasExtracto(
   const total = registrosModificados.reduce((s, r) => s + r.valor, 0);
   const cuotasPagadasCeil = total > 0 ? Math.ceil(total / valorCuota) : 0;
 
-  const diasRango = daysBetween(inicio, fin) + 1;
+  const diasRango = dateRangeSinCongelados(inicio, fin, freeze).length;
   if (cuotasPagadasCeil > diasRango) {
     const finExtendido = addDays(fin, cuotasPagadasCeil - diasRango);
     fin =
@@ -125,13 +169,15 @@ export function generarFilasExtracto(
         : finExtendido;
   }
 
-  const filas: FilaExtracto[] = dateRange(inicio, fin).map((d) => ({
-    fechaProgramada: d,
-    fechaPago: "",
-    valorPagado: 0,
-    tipo: "",
-    referencia: "",
-  }));
+  const filas: FilaExtracto[] = dateRangeSinCongelados(inicio, fin, freeze).map(
+    (d) => ({
+      fechaProgramada: d,
+      fechaPago: "",
+      valorPagado: 0,
+      tipo: "",
+      referencia: "",
+    }),
+  );
 
   let saldo = 0;
   let pagosIdx = 0;
@@ -221,7 +267,9 @@ export function calcularMetricasExtracto(
   registros: RegistroExtracto[],
   diasCredito: number = DIAS_CREDITO_DEFAULT,
   fechaReferencia?: Date,
+  fechasCongeladas: Iterable<string> = [],
 ): MetricasExtracto {
+  const freeze = setCongelados(fechasCongeladas);
   const ref = fechaReferencia ?? new Date();
   const filas = generarFilasExtracto(
     fechaInicio,
@@ -229,6 +277,7 @@ export function calcularMetricasExtracto(
     registros,
     diasCredito,
     ref,
+    freeze,
   );
   const totalRegistros = registros.reduce((s, r) => s + Number(r.valor), 0);
   const resumen = calcularResumenExtracto(
@@ -249,7 +298,7 @@ export function calcularMetricasExtracto(
 
   const fin = startOfDay(ref);
   const diasMora = ultimoPago
-    ? daysBetween(new Date(ultimoPago), fin)
+    ? diasMoraSinCongelados(ultimoPago, fin, freeze)
     : resumen.cuotas_generadas;
 
   const cumplimientoPct =

@@ -773,17 +773,24 @@ export default function Home() {
                 </span>
               </div>
 
-              {modoMaster &&
-              v.estado_contrato &&
-              v.estado_contrato.trim().toLowerCase() !== "activo" ? (
-                <div
-                  role="status"
-                  className="px-4 py-2 border-b border-amber-900/50 bg-amber-950/40 text-sm text-amber-200"
-                >
-                  Contrato {v.estado_contrato.trim()} — se muestra la deuda
-                  igualmente
-                </div>
-              ) : null}
+              {(() => {
+                const ct = (v.estado_contrato ?? "").trim();
+                const veh = (v.estado_vehiculo ?? "").trim();
+                const ctOk = !ct || ct.toLowerCase() === "activo";
+                const vehOk = !veh || veh.toLowerCase() === "activo";
+                if (ctOk && vehOk) return null;
+                const partes: string[] = [];
+                if (!ctOk) partes.push(`contrato ${ct}`);
+                if (!vehOk) partes.push(`moto ${veh}`);
+                return (
+                  <div
+                    role="status"
+                    className="px-4 py-2 border-b border-amber-900/50 bg-amber-950/40 text-sm text-amber-200"
+                  >
+                    {partes.join(" · ")} — sin deuda cobrable ($0)
+                  </div>
+                );
+              })()}
 
               {/* Deuda */}
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">

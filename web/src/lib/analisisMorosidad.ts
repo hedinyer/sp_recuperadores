@@ -62,6 +62,7 @@ export type EntradaAnalisisMoroso = {
   valor_cuota: number;
   dias_credito: number;
   registros: RegistroExtracto[];
+  fechas_congeladas?: Iterable<string>;
 };
 
 export type ResultadoMoroso = {
@@ -266,6 +267,7 @@ export function analizarMorosidad(
     valor_cuota,
     dias_credito,
     registros,
+    fechas_congeladas,
   } = entrada;
 
   if (!antiguedadPermitida(fecha_inicio, hoy)) return null;
@@ -294,6 +296,7 @@ export function analizarMorosidad(
     regsValidos,
     dias_credito,
     hoyD,
+    fechas_congeladas,
   );
 
   const hace30 = addDays(hoyD, -30);
@@ -306,6 +309,7 @@ export function analizarMorosidad(
     regsHace30.length > 0 ? regsHace30 : [],
     dias_credito,
     hace30,
+    fechas_congeladas,
   );
 
   const deltaDeuda30 = metricasHoy.deuda_total - metricas30.deuda_total;

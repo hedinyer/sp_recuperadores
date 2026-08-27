@@ -10,6 +10,7 @@ import { queryPg } from "@/lib/pgPool";
 import {
   SQL_CLIENTES_EXTRACTO,
   SQL_REGISTROS_EXTRACTO,
+  fetchFreezeDaysPorContrato,
 } from "@/lib/reporteFromDb";
 
 type ClienteRow = {
@@ -62,22 +63,28 @@ async function queryDb(connectionString: string): Promise<{
     tipo: string | null;
     referencia: string | null;
   }>;
+  freezeByContrato: Map<string, string[]>;
 }> {
   const clientes = await queryPg<ClienteRow>(
     connectionString,
     SQL_CLIENTES_EXTRACTO,
   );
-  if (!clientes.length) return { clientes: [], registros: [] };
+  if (!clientes.length) {
+    return { clientes: [], registros: [], freezeByContrato: new Map() };
+  }
 
-  const registros = await queryPg<{
-    contrato_id: string | number;
-    fecha_registro: Date;
-    valor: string | number;
-    tipo: string | null;
-    referencia: string | null;
-  }>(connectionString, SQL_REGISTROS_EXTRACTO);
+  const [registros, freezeByContrato] = await Promise.all([
+    queryPg<{
+      contrato_id: string | number;
+      fecha_registro: Date;
+      valor: string | number;
+      tipo: string | null;
+      referencia: string | null;
+    }>(connectionString, SQL_REGISTROS_EXTRACTO),
+    fetchFreezeDaysPorContrato(connectionString),
+  ]);
 
-  return { clientes, registros };
+  return { clientes, registros, freezeByContrato };
 }
 
 const CACHE_TTL_MS =
@@ -114,11 +121,16 @@ export async function fetchMorososDesdeDb(
     tipo: string | null;
     referencia: string | null;
   }> = [];
+  const freezeByContrato = new Map<string, string[]>();
 
   for (const r of results) {
     if (r.status === "fulfilled") {
       todosClientes.push(...r.value.clientes);
       todosRegistros.push(...r.value.registros);
+      for (const [id, fechas] of r.value.freezeByContrato) {
+        const prev = freezeByContrato.get(id) ?? [];
+        freezeByContrato.set(id, [...prev, ...fechas]);
+      }
     } else {
       console.warn(
         "[morososFromDb] Error en una base:",
@@ -155,6 +167,7 @@ export async function fetchMorososDesdeDb(
       valor_cuota: valorCuota,
       dias_credito: diasCredito,
       registros: regs,
+      fechas_congeladas: freezeByContrato.get(String(c.contrato_id)) ?? [],
     });
 
     if (resultado) morosos.push(resultado);
