@@ -23,6 +23,24 @@ import {
 import { formatearCOP } from "@/lib/formatoDinero";
 import { formatearConPuntos, limpiarNumero } from "@/lib/formatoDinero";
 
+const ORDEN_RESULTADOS: CarteraStatus[] = [
+  "abono",
+  "contactado",
+  "no_contesta",
+  "compromiso",
+  "visita",
+  "en_ruta",
+  "recuperada",
+  "cerrado",
+];
+
+const ETIQUETAS_CORTAS: Partial<Record<CarteraStatus, string>> = {
+  abono: "Pagó",
+  contactado: "Contactado",
+  no_contesta: "No contesta",
+  compromiso: "Compromiso",
+};
+
 export function GestionSheet({
   open,
   onOpenChange,
@@ -50,16 +68,22 @@ export function GestionSheet({
   guardando: boolean;
   onSave: () => void;
 }) {
+  const montoInvalido =
+    status === "abono" && open && !limpiarNumero(monto);
   const puedeGuardar =
     Boolean(status) &&
     (status !== "abono" || Boolean(limpiarNumero(monto))) &&
     !guardando;
 
+  const statuses = ORDEN_RESULTADOS.map((id) =>
+    CARTERA_STATUSES.find((s) => s.id === id),
+  ).filter(Boolean) as Array<{ id: CarteraStatus; label: string }>;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="max-h-[90dvh] gap-0 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]"
+        className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <SheetHeader className="text-left">
           <SheetTitle>Registrar resultado</SheetTitle>
@@ -74,12 +98,12 @@ export function GestionSheet({
 
         {moto ? (
           <div className="flex flex-col gap-4 px-4 py-2">
-            <p className="text-xs text-muted-foreground">
-              Debe aprox. {formatearCOP(moto.deuda_total)}
+            <p className="text-lg font-bold tabular-nums text-destructive">
+              Debe {formatearCOP(moto.deuda_total)}
             </p>
 
             <div className="flex flex-col gap-2">
-              <Label>¿Qué pasó?</Label>
+              <Label id="gestion-resultado-label">¿Qué pasó?</Label>
               <ToggleGroup
                 type="single"
                 value={status}
@@ -89,18 +113,17 @@ export function GestionSheet({
                   if (next !== "abono") onMontoChange("");
                 }}
                 className="grid w-full grid-cols-2 gap-2"
+                aria-labelledby="gestion-resultado-label"
               >
-                {CARTERA_STATUSES.filter((s) => s.id !== "pendiente").map(
-                  (s) => (
-                    <ToggleGroupItem
-                      key={s.id}
-                      value={s.id}
-                      className="h-11 min-w-0 rounded-lg border border-border px-2 text-xs data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                    >
-                      {s.id === "abono" ? "Pagó / abonó" : s.label}
-                    </ToggleGroupItem>
-                  ),
-                )}
+                {statuses.map((s) => (
+                  <ToggleGroupItem
+                    key={s.id}
+                    value={s.id}
+                    className="h-12 min-w-0 rounded-lg border border-border px-2 text-sm font-medium data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    {ETIQUETAS_CORTAS[s.id] ?? s.label}
+                  </ToggleGroupItem>
+                ))}
               </ToggleGroup>
             </div>
 
@@ -110,13 +133,26 @@ export function GestionSheet({
                 <Input
                   id="gestion-monto"
                   inputMode="numeric"
-                  placeholder="Ej. 150000"
+                  placeholder="150.000"
                   value={monto}
+                  aria-invalid={montoInvalido || undefined}
+                  aria-describedby={
+                    montoInvalido ? "gestion-monto-error" : undefined
+                  }
                   onChange={(e) =>
                     onMontoChange(formatearConPuntos(e.target.value))
                   }
                   className="h-12 text-lg font-semibold tabular-nums"
                 />
+                {montoInvalido ? (
+                  <p
+                    id="gestion-monto-error"
+                    className="text-sm text-destructive"
+                    role="alert"
+                  >
+                    Escribe cuánto pagó
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -124,10 +160,11 @@ export function GestionSheet({
               <Label htmlFor="gestion-notas">Nota (opcional)</Label>
               <Textarea
                 id="gestion-notas"
-                rows={3}
+                rows={2}
                 value={notas}
                 onChange={(e) => onNotasChange(e.target.value)}
                 placeholder="Qué quedó acordado…"
+                className="text-base"
               />
             </div>
           </div>
@@ -137,14 +174,14 @@ export function GestionSheet({
           <Button
             type="button"
             variant="outline"
-            className="h-11 flex-1 rounded-lg"
+            className="h-12 flex-1 rounded-lg"
             onClick={() => onOpenChange(false)}
           >
             Cancelar
           </Button>
           <Button
             type="button"
-            className="h-11 flex-1 rounded-lg active:scale-[0.96]"
+            className="h-12 flex-1 rounded-lg text-base"
             disabled={!puedeGuardar}
             onClick={onSave}
           >

@@ -38,6 +38,8 @@ export type MorosoBandeja = {
   pago_hoy: boolean;
   categoria: CategoriaMoroso;
   gps: EstadoGpsPlaca;
+  lat?: number | null;
+  lng?: number | null;
   caso: CasoCartera | null;
   gestiones: GestionCartera[];
   n_gestiones: number;

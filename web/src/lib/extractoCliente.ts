@@ -7,6 +7,12 @@
 /** Días de crédito por defecto; la deuda deja de generarse al cumplirse. */
 export const DIAS_CREDITO_DEFAULT = 365;
 
+/** Días sin pagar nunca negativos (pago adelantado, fecha futura o fin de crédito). */
+export function normalizarDiasMora(dias: number): number {
+  if (!Number.isFinite(dias)) return 0;
+  return Math.max(0, Math.floor(dias));
+}
+
 export function parseDiasCredito(fechaFinal?: string | null): number {
   const raw = fechaFinal?.trim();
   if (raw && /^\d+$/.test(raw)) {
@@ -287,19 +293,30 @@ export function calcularMetricasExtracto(
     totalRegistros,
   );
 
+  const pagosConValor = registros.filter(
+    (r) =>
+      r.valor != null &&
+      !Number.isNaN(Number(r.valor)) &&
+      Number(r.valor) > 0,
+  );
   let ultimoPago = "";
-  if (registros.length > 0) {
-    const maxFecha = registros.reduce(
+  if (pagosConValor.length > 0) {
+    const maxFecha = pagosConValor.reduce(
       (max, r) => (r.fecha > max ? r.fecha : max),
-      registros[0].fecha,
+      pagosConValor[0].fecha,
     );
     ultimoPago = formatFecha(startOfDay(maxFecha));
   }
 
-  const fin = startOfDay(ref);
-  const diasMora = ultimoPago
-    ? diasMoraSinCongelados(ultimoPago, fin, freeze)
-    : resumen.cuotas_generadas;
+  const finMora =
+    filas.length > 0
+      ? startOfDay(filas[filas.length - 1]!.fechaProgramada)
+      : startOfDay(ref);
+  const diasMora = normalizarDiasMora(
+    ultimoPago
+      ? diasMoraSinCongelados(ultimoPago, finMora, freeze)
+      : resumen.cuotas_generadas,
+  );
 
   const cumplimientoPct =
     resumen.cuotas_generadas > 0

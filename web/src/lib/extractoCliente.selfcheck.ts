@@ -31,4 +31,22 @@ const conPago = calcularMetricasExtracto(
 assert(conPago.deuda_total === 3000, `deuda tras pago ${conPago.deuda_total}`);
 assert(conPago.dias_mora === 3, `mora ${conPago.dias_mora}`);
 
+const pagoAdelantado = calcularMetricasExtracto(
+  inicio,
+  1000,
+  [{ fecha: new Date(2026, 0, 20), valor: 5000, tipo: "", referencia: "" }],
+  365,
+  ref,
+);
+assert(pagoAdelantado.dias_mora === 0, `mora adelantada ${pagoAdelantado.dias_mora}`);
+
+const finCreditoCorto = calcularMetricasExtracto(
+  inicio,
+  1000,
+  [{ fecha: new Date(2026, 1, 15), valor: 5000, tipo: "", referencia: "" }],
+  30,
+  ref,
+);
+assert(finCreditoCorto.dias_mora === 0, `mora fin crédito ${finCreditoCorto.dias_mora}`);
+
 console.log("extractoCliente.selfcheck: ok");

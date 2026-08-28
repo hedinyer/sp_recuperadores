@@ -23,6 +23,7 @@ import {
   type CarteraStatus,
 } from "@/lib/carteraPerfiles";
 import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
+import { normalizarDiasMora } from "@/lib/extractoCliente";
 import { getDatabaseUrls } from "@/lib/dbUrls";
 import { queryPg } from "@/lib/pgPool";
 import { supabase } from "@/lib/supabase";
@@ -176,7 +177,7 @@ async function fichaPlaca(placa: string) {
     visitador: vehiculo.visitador ?? "",
     valor_cuota: Number(vehiculo.valor_cuota) || 0,
     deuda_total: Number(vehiculo.deuda_total) || 0,
-    dias_mora: Number(vehiculo.dias_mora) || 0,
+    dias_mora: normalizarDiasMora(Number(vehiculo.dias_mora)),
     cuotas_pendientes: Number(vehiculo.cuotas_pendientes) || 0,
     cumplimiento_pct: Number(vehiculo.cumplimiento_pct) || 0,
     total_pagado: Number(vehiculo.total_pagado) || 0,
@@ -249,16 +250,22 @@ async function actionPendientes(categoriaRaw: string | null, limitRaw: string | 
   for (const a of atrasos) {
     if (a.deuda_total <= 0) continue;
     const placa = normalizarPlaca(a.placa);
-    const caso = casosByPlaca.get(placa) ?? null;
-    const enVivo = clasificarCategoriaMoroso({
-      dias_mora: a.dias_mora,
+    const diasMora = normalizarDiasMora(a.dias_mora);
+    const itemCategoria = {
+      dias_mora: diasMora,
       deuda_total: a.deuda_total,
       total_pagado: a.total_pagado,
       cumplimiento_pct: a.cumplimiento_pct,
       ultimo_pago: a.ultimo_pago,
       gps: { funcional: true },
-    });
-    const categoria = categoriaMorosoEstable(caso?.categoria, enVivo);
+    };
+    const caso = casosByPlaca.get(placa) ?? null;
+    const enVivo = clasificarCategoriaMoroso(itemCategoria);
+    const categoria = categoriaMorosoEstable(
+      caso?.categoria,
+      enVivo,
+      itemCategoria,
+    );
     if (!categoria) continue;
     if (filtro && categoria !== filtro) continue;
 
@@ -267,7 +274,7 @@ async function actionPendientes(categoriaRaw: string | null, limitRaw: string | 
       nombre: a.nombre,
       telefono: a.telefono,
       deuda_total: a.deuda_total,
-      dias_mora: a.dias_mora,
+      dias_mora: diasMora,
       valor_cuota: a.valor_cuota,
       ultimo_pago: a.ultimo_pago,
       categoria,

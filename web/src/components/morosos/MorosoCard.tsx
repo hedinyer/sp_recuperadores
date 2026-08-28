@@ -13,6 +13,7 @@ import {
 import type { CarteraPerfilId } from "@/lib/carteraPerfiles";
 import { etiquetaCarteraStatus } from "@/lib/carteraPerfiles";
 import { diasDesde, formatFechaHora } from "@/lib/fechas";
+import { normalizarDiasMora } from "@/lib/extractoCliente";
 import { formatearCOP } from "@/lib/formatoDinero";
 import { montoDesdeGestion } from "@/lib/carteraKpis";
 import { cn } from "@/lib/utils";
@@ -51,11 +52,24 @@ export function MorosoCard({
   onRegistrar: (moto: MorosoBandeja) => void;
   onHistorial: (moto: MorosoBandeja) => void;
 }) {
-  const waTexto = `Hola ${moto.nombre.split(" ")[0] || ""}, te escribimos por el atraso de la moto ${moto.placa}. Deuda aproximada: ${formatearCOP(moto.deuda_total)}.`;
+  const primerNombre = moto.nombre.trim().split(/\s+/)[0] || "cliente";
+  const waTexto = `Estimado ${primerNombre},
+
+Le escribimos del Área de Cartera respecto a su crédito de motocicleta placa ${moto.placa}.
+
+Actualmente registra un saldo pendiente de ${formatearCOP(moto.deuda_total)}. Le invitamos a regularizar su obligación a la brevedad posible para evitar recargos por mora y mantener su crédito al día.
+
+Puede realizar su pago por Nequi, Davivienda, Bancolombia o en efectivo, y enviarnos el comprobante por este medio.
+
+Quedamos atentos para confirmar su pago y brindarle el soporte que necesite.
+
+Cordialmente,
+Área de Cartera`;
   const wa = enlaceWhatsApp(moto.telefono, waTexto);
   const nGestiones = conteoGestiones(moto);
   const ultimo = (moto.gestiones ?? [])[0] as GestionCartera | undefined;
   const diasMoto = diasDesde(moto.fecha_inicio);
+  const diasSinPagar = normalizarDiasMora(moto.dias_mora);
   const sinPerfil = !perfilId;
 
   return (
@@ -145,7 +159,7 @@ export function MorosoCard({
           <div>
             <p className="text-xs text-muted-foreground">Días sin pagar</p>
             <p className="text-sm font-semibold tabular-nums">
-              {moto.dias_mora}d
+              {diasSinPagar}d
             </p>
           </div>
           <div>

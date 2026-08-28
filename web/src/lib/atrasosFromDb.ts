@@ -5,6 +5,7 @@ import {
 } from "@/lib/analisisMorosidad";
 import {
   calcularMetricasExtracto,
+  normalizarDiasMora,
   parseDiasCredito,
   type RegistroExtracto,
 } from "@/lib/extractoCliente";
@@ -178,7 +179,7 @@ export function analizarAtraso(
     fecha_inicio: formatFecha(startOfDay(cliente.fecha_inicio)),
     valor_cuota: Math.round(cliente.valor_cuota),
     deuda_total: Math.round(metricas.deuda_total),
-    dias_mora: metricas.dias_mora,
+    dias_mora: normalizarDiasMora(metricas.dias_mora),
     cuotas_pendientes: Math.round(metricas.cuotas_pendientes * 10) / 10,
     cumplimiento_pct: metricas.cumplimiento_pct,
     total_pagado: Math.round(metricas.total_pagado),

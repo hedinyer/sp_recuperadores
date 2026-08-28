@@ -12,6 +12,7 @@ import type {
   MorosoBandeja,
 } from "@/lib/carteraMorososTypes";
 import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
+import { normalizarDiasMora } from "@/lib/extractoCliente";
 import { enriquecerConEstadoGps } from "@/lib/gpsEstadoPlacas";
 import { supabase } from "@/lib/supabase";
 
@@ -134,16 +135,22 @@ export async function GET(request: Request) {
       if (item.deuda_total <= 0) continue;
 
       const placaKey = item.placa.toUpperCase().replace(/\s/g, "");
-      const enVivo = clasificarCategoriaMoroso({
-        dias_mora: item.dias_mora,
+      const diasMora = normalizarDiasMora(item.dias_mora);
+      const itemCategoria = {
+        dias_mora: diasMora,
         deuda_total: item.deuda_total,
         total_pagado: item.total_pagado,
         cumplimiento_pct: item.cumplimiento_pct,
         ultimo_pago: item.ultimo_pago,
         gps: item.gps,
-      });
+      };
+      const enVivo = clasificarCategoriaMoroso(itemCategoria);
       const caso = casosByPlaca.get(placaKey) ?? null;
-      const categoria = categoriaMorosoEstable(caso?.categoria, enVivo);
+      const categoria = categoriaMorosoEstable(
+        caso?.categoria,
+        enVivo,
+        itemCategoria,
+      );
       if (!categoria) continue;
 
       if (!esCategoriaMoroso(caso?.categoria)) {
@@ -159,7 +166,7 @@ export async function GET(request: Request) {
         fecha_inicio: item.fecha_inicio,
         valor_cuota: item.valor_cuota,
         deuda_total: item.deuda_total,
-        dias_mora: item.dias_mora,
+        dias_mora: diasMora,
         cuotas_pendientes: item.cuotas_pendientes,
         cumplimiento_pct: item.cumplimiento_pct,
         total_pagado: item.total_pagado,
