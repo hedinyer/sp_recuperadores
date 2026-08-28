@@ -14,15 +14,21 @@ type MapaConducirRutaProps = {
   paradaActual: number;
   rutaCompleta: PuntoRuta[];
   rutaTramo: PuntoRuta[];
+  seguirYo?: boolean;
 };
 
 function htmlYo(): string {
-  return `<div style="width:18px;height:18px;border-radius:999px;background:#38bdf8;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)"></div>`;
+  return `<div style="width:20px;height:20px;border-radius:999px;background:#38bdf8;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.5)"></div>`;
 }
 
-function htmlParada(placa: string, n: number, activa: boolean, hecha: boolean): string {
-  const bg = hecha ? "#64748b" : activa ? "#be123c" : "#7c3aed";
-  return `<div style="display:flex;align-items:center;gap:4px;background:${bg};color:#fff;font:700 10px/1.1 ui-monospace,monospace;padding:4px 6px;border-radius:8px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);white-space:nowrap"><span style="display:inline-flex;min-width:14px;height:14px;align-items:center;justify-content:center;border-radius:999px;background:rgba(255,255,255,.25);font-size:9px">${n}</span>${placa}</div>`;
+function htmlParada(
+  placa: string,
+  n: number,
+  activa: boolean,
+  hecha: boolean,
+): string {
+  const bg = hecha ? "#64748b" : activa ? "#e11d48" : "#7c3aed";
+  return `<div style="display:flex;align-items:center;gap:4px;background:${bg};color:#fff;font:700 11px/1.1 ui-monospace,monospace;padding:5px 7px;border-radius:8px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45);white-space:nowrap"><span style="display:inline-flex;min-width:15px;height:15px;align-items:center;justify-content:center;border-radius:999px;background:rgba(255,255,255,.25);font-size:9px">${n}</span>${placa}</div>`;
 }
 
 export function MapaConducirRuta({
@@ -31,6 +37,7 @@ export function MapaConducirRuta({
   paradaActual,
   rutaCompleta,
   rutaTramo,
+  seguirYo = true,
 }: MapaConducirRutaProps) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<import("leaflet").Map | null>(null);
@@ -40,6 +47,14 @@ export function MapaConducirRuta({
   const polyTramoRef = useRef<import("leaflet").Polyline | null>(null);
   const [listo, setListo] = useState(false);
   const ajusteRef = useRef(false);
+  const paradaPrevRef = useRef(paradaActual);
+
+  useEffect(() => {
+    if (paradaActual !== paradaPrevRef.current) {
+      ajusteRef.current = false;
+      paradaPrevRef.current = paradaActual;
+    }
+  }, [paradaActual]);
 
   useEffect(() => {
     let cancelado = false;
@@ -49,20 +64,22 @@ export function MapaConducirRuta({
       if (cancelado || !contenedorRef.current || mapaRef.current) return;
 
       const mapa = L.map(contenedorRef.current, {
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: true,
         scrollWheelZoom: true,
-      }).setView([4.65, -74.1], 12);
+      }).setView([4.65, -74.1], 13);
+
+      L.control.zoom({ position: "bottomright" }).addTo(mapa);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+        attribution: "&copy; OSM",
       }).addTo(mapa);
 
       mapaRef.current = mapa;
       if (!cancelado) setListo(true);
       requestAnimationFrame(() => mapa.invalidateSize());
+      window.setTimeout(() => mapa.invalidateSize(), 200);
     })();
 
     return () => {
@@ -92,12 +109,12 @@ export function MapaConducirRuta({
         const icon = L.divIcon({
           className: "",
           html: htmlYo(),
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
         });
         if (!yoRef.current) {
-          yoRef.current = L.marker([yo.lat, yo.lng], { icon })
-            .bindTooltip("Tú", { direction: "top" })
+          yoRef.current = L.marker([yo.lat, yo.lng], { icon, zIndexOffset: 1000 })
+            .bindTooltip("Tú", { direction: "top", permanent: false })
             .addTo(mapa);
         } else {
           yoRef.current.setLatLng([yo.lat, yo.lng]);
@@ -121,8 +138,8 @@ export function MapaConducirRuta({
         const icon = L.divIcon({
           className: "",
           html: htmlParada(p.placa, p.indice, activa, hecha),
-          iconSize: [88, 24],
-          iconAnchor: [44, 12],
+          iconSize: [92, 26],
+          iconAnchor: [46, 13],
         });
         let marker = paradasRef.current.get(p.placa);
         if (!marker) {
@@ -132,7 +149,7 @@ export function MapaConducirRuta({
           marker.setLatLng([p.lat, p.lng]);
           marker.setIcon(icon);
         }
-        bounds.push([p.lat, p.lng]);
+        if (!hecha) bounds.push([p.lat, p.lng]);
       }
 
       if (polyCompletaRef.current) {
@@ -142,7 +159,7 @@ export function MapaConducirRuta({
       if (rutaCompleta.length >= 2) {
         polyCompletaRef.current = L.polyline(
           rutaCompleta.map((pt) => [pt.lat, pt.lng] as [number, number]),
-          { color: "#475569", weight: 4, opacity: 0.55 },
+          { color: "#475569", weight: 4, opacity: 0.45 },
         ).addTo(mapa);
       }
 
@@ -153,28 +170,37 @@ export function MapaConducirRuta({
       if (rutaTramo.length >= 2) {
         polyTramoRef.current = L.polyline(
           rutaTramo.map((pt) => [pt.lat, pt.lng] as [number, number]),
-          { color: "#38bdf8", weight: 6, opacity: 0.95 },
+          { color: "#38bdf8", weight: 7, opacity: 0.95 },
         ).addTo(mapa);
       }
 
       if (!ajusteRef.current && bounds.length > 0) {
-        mapa.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
+        mapa.fitBounds(bounds, { padding: [48, 48], maxZoom: 16 });
         ajusteRef.current = true;
-      } else if (yo && paradaActual < paradas.length) {
-        mapa.panTo([yo.lat, yo.lng], { animate: true });
+      } else if (seguirYo && yo) {
+        mapa.panTo([yo.lat, yo.lng], { animate: true, duration: 0.4 });
       }
     })();
 
     return () => {
       cancelado = true;
     };
-  }, [listo, yo, paradas, paradaActual, rutaCompleta, rutaTramo]);
+  }, [listo, yo, paradas, paradaActual, rutaCompleta, rutaTramo, seguirYo]);
+
+  useEffect(() => {
+    const mapa = mapaRef.current;
+    const el = contenedorRef.current;
+    if (!mapa || !el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => mapa.invalidateSize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [listo]);
 
   return (
-    <div className="relative min-h-0 flex-1 bg-zinc-900">
+    <div className="absolute inset-0 bg-zinc-900">
       <div
         ref={contenedorRef}
-        className="absolute inset-0 [&_.leaflet-container]:!h-full [&_.leaflet-container]:!w-full"
+        className="h-full w-full [&_.leaflet-container]:!h-full [&_.leaflet-container]:!w-full"
       />
     </div>
   );
