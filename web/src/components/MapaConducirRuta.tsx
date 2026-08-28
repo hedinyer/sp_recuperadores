@@ -69,7 +69,7 @@ export function MapaConducirRuta({
         scrollWheelZoom: true,
       }).setView([4.65, -74.1], 13);
 
-      L.control.zoom({ position: "bottomright" }).addTo(mapa);
+      L.control.zoom({ position: "topleft" }).addTo(mapa);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -197,10 +197,10 @@ export function MapaConducirRuta({
   }, [listo]);
 
   return (
-    <div className="absolute inset-0 bg-zinc-900">
+    <div className="h-full w-full bg-zinc-900">
       <div
         ref={contenedorRef}
-        className="h-full w-full [&_.leaflet-container]:!h-full [&_.leaflet-container]:!w-full"
+        className="h-full w-full [&_.leaflet-bottom.leaflet-right]:bottom-3 [&_.leaflet-container]:!h-full [&_.leaflet-container]:!w-full"
       />
     </div>
   );

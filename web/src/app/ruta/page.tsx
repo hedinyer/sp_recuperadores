@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import {
   enlaceGoogleMapsRuta,
   mensajeErrorGps,
+  obtenerGpsPreciso,
   vigilarGps,
   type GpsPreciso,
   type MotivoGpsError,
@@ -77,6 +78,7 @@ function RutaPageContenido() {
 
   const [yo, setYo] = useState<GpsPreciso | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [gpsCargando, setGpsCargando] = useState(false);
   const [recogidaActiva, setRecogidaActiva] = useState(false);
 
   const [paradaActual, setParadaActual] = useState(0);
@@ -105,19 +107,38 @@ function RutaPageContenido() {
     }
   }, [qRaw]);
 
+  const activarGps = useCallback(async () => {
+    setGpsError(null);
+    setGpsCargando(true);
+    const res = await obtenerGpsPreciso({ samples: 2, maxWaitMs: 25_000 });
+    setGpsCargando(false);
+    if (!res.ok) {
+      setGpsError(mensajeErrorGps(res.motivo));
+      return;
+    }
+    setYo(res.gps);
+    setRecogidaActiva(true);
+  }, []);
+
   useEffect(() => {
+    void activarGps();
+  }, [activarGps]);
+
+  useEffect(() => {
+    if (!recogidaActiva) return;
     const stop = vigilarGps(
       (gps) => {
         setYo(gps);
         setGpsError(null);
-        setRecogidaActiva(true);
       },
       (motivo: MotivoGpsError) => setGpsError(mensajeErrorGps(motivo)),
     );
     return stop;
-  }, []);
+  }, [recogidaActiva]);
 
-  const paradasOrdenadas = paradasLive.length ? paradasLive : (rutaData?.paradas ?? []);
+  const paradasOrdenadas = paradasLive.length
+    ? paradasLive
+    : (rutaData?.paradas ?? []);
   const paradaSiguiente = paradasOrdenadas[paradaActual] ?? null;
   const destinoTramo = paradaSiguiente
     ? { lat: paradaSiguiente.lat, lng: paradaSiguiente.lng }
@@ -251,7 +272,9 @@ function RutaPageContenido() {
   const mapsHref =
     yoPunto && destinoTramo
       ? enlaceGoogleMapsRuta(yoPunto, destinoTramo)
-      : null;
+      : destinoTramo
+        ? enlaceGoogleMapsRuta(rutaData!.origen, destinoTramo)
+        : null;
 
   const paradasMapa = paradasOrdenadas.map((p, i) => ({
     placa: p.placa,
@@ -284,10 +307,57 @@ function RutaPageContenido() {
     ? Math.round((paradaActual / paradasOrdenadas.length) * 100)
     : 0;
 
+  const eta =
+    rutaTramo && paradaSiguiente
+      ? `${formatearDistanciaRuta(rutaTramo.distancia_m)} · ${formatearDuracionRuta(rutaTramo.duracion_s)}`
+      : cargandoRuta
+        ? "Calculando ruta…"
+        : null;
+
   return (
-    <div className="relative mx-auto flex h-dvh w-full max-w-[414px] flex-col overflow-hidden bg-zinc-950 text-zinc-100">
-      {/* Mapa a pantalla completa detrás */}
-      <div className="absolute inset-0">
+    <div className="mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-[414px] flex-col overflow-hidden bg-zinc-950 text-zinc-100">
+      {/* Cabecera compacta */}
+      <header className="shrink-0 border-b border-zinc-800 bg-zinc-950 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+              recogidaActiva ? "bg-rose-600 text-white" : "bg-zinc-800 text-zinc-400"
+            }`}
+          >
+            <RadioIcon
+              className={`size-3 ${recogidaActiva ? "animate-pulse" : ""}`}
+              aria-hidden
+            />
+            Recogida
+          </span>
+          <span className="text-xs tabular-nums text-zinc-400">
+            {paradaActual}/{paradasOrdenadas.length}
+          </span>
+        </div>
+        {!terminada && paradaSiguiente ? (
+          <p className="mt-1 truncate text-sm font-semibold text-white">
+            → {paradaSiguiente.placa}
+            {eta ? (
+              <span className="ml-1.5 font-normal text-zinc-400">{eta}</span>
+            ) : null}
+          </p>
+        ) : null}
+        <div
+          className="mt-1.5 h-1 rounded-full bg-zinc-800"
+          role="progressbar"
+          aria-valuenow={progreso}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-rose-500"
+            style={{ width: `${progreso}%` }}
+          />
+        </div>
+      </header>
+
+      {/* Mapa: mitad superior, altura fija en móvil */}
+      <div className="relative min-h-[42dvh] flex-1 bg-zinc-900">
         <MapaConducirRuta
           yo={yoPunto}
           paradas={paradasMapa}
@@ -298,138 +368,76 @@ function RutaPageContenido() {
         />
       </div>
 
-      {/* Barra superior */}
-      <header className="relative z-10 shrink-0 bg-gradient-to-b from-zinc-950/95 to-transparent px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${
-              recogidaActiva
-                ? "bg-rose-600 text-white"
-                : "bg-zinc-800/90 text-zinc-300"
-            }`}
-          >
-            <RadioIcon
-              className={`size-3.5 ${recogidaActiva ? "animate-pulse" : ""}`}
-              aria-hidden
-            />
-            Modo Recogida
-          </span>
-          <span className="text-xs tabular-nums text-zinc-300">
-            {paradaActual}/{paradasOrdenadas.length}
-          </span>
-        </div>
-        <div
-          className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800/80"
-          role="progressbar"
-          aria-valuenow={progreso}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <div
-            className="h-full rounded-full bg-rose-500 transition-all"
-            style={{ width: `${progreso}%` }}
-          />
-        </div>
-        <p className="mt-1.5 text-[11px] tabular-nums text-zinc-300" role="status">
-          {terminada
-            ? "Ruta completada"
-            : !recogidaActiva
-              ? "Activa el GPS del iPhone para empezar"
-              : rutaTramo
-                ? `${formatearDistanciaRuta(rutaTramo.distancia_m)} · ${formatearDuracionRuta(rutaTramo.duracion_s)} a ${paradaSiguiente?.placa}`
-                : cargandoRuta
-                  ? "Calculando ruta…"
-                  : "Ubicando…"}
-        </p>
-      </header>
+      {/* Comandos: siempre visibles abajo */}
+      <footer className="shrink-0 space-y-2 border-t border-zinc-800 bg-zinc-950 px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {gpsError ? (
+          <p className="text-center text-xs text-rose-400" role="alert">
+            {gpsError}
+          </p>
+        ) : null}
 
-      {/* Espaciador: el mapa se ve en el centro */}
-      <div className="relative z-0 min-h-0 flex-1" aria-hidden />
-
-      {/* Panel inferior tipo Uber */}
-      <div className="relative z-10 shrink-0 rounded-t-2xl border-t border-zinc-700/80 bg-zinc-950/95 px-4 pt-3 shadow-[0_-8px_32px_rgba(0,0,0,.5)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {!recogidaActiva ? (
-          <div className="space-y-3 py-1">
-            <p className="text-center text-sm text-zinc-300">
-              {paradasOrdenadas.length} motos en ruta. Permite la ubicación para
-              ver dónde estás y seguir la ruta en vivo.
+          <>
+            <p className="text-center text-sm text-zinc-400">
+              {paradasOrdenadas.length} motos · toca para activar GPS
             </p>
             <Button
               type="button"
-              className="h-12 w-full rounded-xl bg-rose-600 text-base font-bold hover:bg-rose-500"
-              onClick={() => {
-                /* vigilarGps ya activo; reintento implícito al tocar */
-                setGpsError(null);
-              }}
+              className="h-14 w-full rounded-xl bg-rose-600 text-base font-bold"
+              disabled={gpsCargando}
+              onClick={() => void activarGps()}
             >
-              Activar GPS e iniciar
+              {gpsCargando ? "Obteniendo GPS…" : "Activar GPS e iniciar"}
             </Button>
-            {gpsError ? (
-              <p className="text-center text-xs text-rose-400" role="alert">
-                {gpsError}
-              </p>
-            ) : null}
-          </div>
+          </>
         ) : terminada ? (
-          <div className="space-y-3 py-2">
-            <p className="text-center text-base font-semibold text-white">
-              Recogida completada
-            </p>
-            <Button type="button" variant="secondary" className="h-12 w-full" asChild>
-              <Link href="/recoger-bogota">Volver a Bogotá</Link>
-            </Button>
-          </div>
+          <Button type="button" variant="secondary" className="h-14 w-full" asChild>
+            <Link href="/recoger-bogota">Listo — volver a Bogotá</Link>
+          </Button>
         ) : paradaSiguiente ? (
-          <div className="space-y-3">
-            <div>
+          <>
+            <div className="rounded-lg bg-zinc-900 px-3 py-2">
               <p className="text-xs text-zinc-500">
-                Siguiente · parada {paradaActual + 1}
+                Parada {paradaActual + 1} de {paradasOrdenadas.length}
               </p>
-              <p className="text-xl font-bold tracking-wide text-white">
+              <p className="text-lg font-bold tracking-wide">
                 {paradaSiguiente.placa}
               </p>
               <p className="truncate text-sm text-zinc-400">
                 {paradaSiguiente.nombre}
               </p>
-              <p className="text-lg font-bold tabular-nums text-rose-400">
+              <p className="text-base font-bold tabular-nums text-rose-400">
                 {formatearCOP(paradaSiguiente.deuda_total)}
               </p>
-              {distanciaAParada != null ? (
-                <p className="text-xs tabular-nums text-zinc-500">
-                  ~{Math.round(distanciaAParada)} m en línea recta
-                </p>
-              ) : null}
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
+            <Button
+              type="button"
+              className="h-14 w-full rounded-xl bg-emerald-700 text-base font-bold hover:bg-emerald-600"
+              disabled={!mapsHref}
+              asChild={Boolean(mapsHref)}
+            >
               {mapsHref ? (
-                <Button
-                  type="button"
-                  className="h-12 w-full rounded-xl bg-emerald-700 text-base font-semibold hover:bg-emerald-600"
-                  asChild
-                >
-                  <a
-                    href={mapsHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <NavigationIcon className="mr-2 size-5" aria-hidden />
-                    Navegar en Maps
-                  </a>
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                className="h-12 w-full rounded-xl bg-rose-600 text-base font-bold hover:bg-rose-500"
-                onClick={marcarLlegada}
-              >
-                <CheckIcon className="mr-2 size-5" aria-hidden />
-                {cercaDeParada ? "Llegué — siguiente" : "Moto recogida — siguiente"}
-              </Button>
-            </div>
-          </div>
+                <a href={mapsHref} target="_blank" rel="noopener noreferrer">
+                  <NavigationIcon className="mr-2 inline size-5" aria-hidden />
+                  Ir en Google Maps
+                </a>
+              ) : (
+                <span>Esperando GPS…</span>
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              className="h-14 w-full rounded-xl bg-rose-600 text-base font-bold"
+              onClick={marcarLlegada}
+            >
+              <CheckIcon className="mr-2 inline size-5" aria-hidden />
+              {cercaDeParada ? "Llegué — siguiente moto" : "Siguiente moto"}
+            </Button>
+          </>
         ) : null}
-      </div>
+      </footer>
     </div>
   );
 }
