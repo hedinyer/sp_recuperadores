@@ -1,35 +1,35 @@
-const CORTE = "27 de agosto de 2026";
+const CORTE = "2 de septiembre de 2026";
 
 const SANTANDER = {
-  motos: 777,
-  cartera: 688_424_241,
-  alDia: 151,
-  mora1a7: 347,
-  moraMas7: 279,
+  motos: 713,
+  cartera: 604_771_378,
+  alDia: 198,
+  mora1a7: 306,
+  moraMas7: 209,
 };
 
 const BOGOTA_CHIA = {
-  motos: 196,
-  cartera: 144_842_520,
-  alDia: 4,
-  mora1a7: 116,
-  moraMas7: 76,
+  motos: 202,
+  cartera: 158_245_520,
+  alDia: 25,
+  mora1a7: 107,
+  moraMas7: 70,
 };
 
 const CALLE_80 = {
-  motos: 97,
-  cartera: 15_348_003,
-  alDia: 48,
-  mora1a7: 33,
-  moraMas7: 16,
+  motos: 102,
+  cartera: 24_775_003,
+  alDia: 43,
+  mora1a7: 28,
+  moraMas7: 31,
 };
 
 const GIRARDOT = {
-  motos: 25,
-  cartera: 4_960_000,
-  alDia: 9,
-  mora1a7: 12,
-  moraMas7: 4,
+  motos: 32,
+  cartera: 6_113_000,
+  alDia: 16,
+  mora1a7: 11,
+  moraMas7: 5,
 };
 
 const ZONAS = [
@@ -41,7 +41,7 @@ const ZONAS = [
 
 const TOTAL_MOTOS = ZONAS.reduce((s, z) => s + z.motos, 0);
 const TOTAL_CARTERA = ZONAS.reduce((s, z) => s + z.cartera, 0);
-const TALLER = 30_645_000;
+const TALLER = 26_970_000;
 const MAX_CARTERA = Math.max(...ZONAS.map((z) => z.cartera));
 
 function millones(n: number): string {
@@ -276,9 +276,11 @@ export default function InformeCarteraPage() {
         </aside>
 
         <p className="text-[11px] text-zinc-600">
-          Solo lectura, {CORTE}. Contrato activo y moto activa. GPS fuera de
-          Santander entra en Bogotá / Chía. Sin GPS se queda en Santander. Al
-          día = cero atraso. Luego 1–7 días y más de 7.
+          Solo lectura, {CORTE}. Contrato activo y moto activa; no se cuentan
+          inactivos, cancelados ni retenidos. GPS fuera de Santander entra en
+          Bogotá / Chía. Sin GPS se queda en Santander. Al día = cero atraso o
+          sin deuda. Luego 1–7 días y más de 7. Días congelados no generan
+          cuota ni mora.
         </p>
       </main>
     </div>

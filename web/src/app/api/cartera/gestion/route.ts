@@ -25,6 +25,16 @@ function parseMonto(raw: unknown): number | null {
   return Math.round(n);
 }
 
+function mensajeErrorCartera(msg: string): string {
+  if (/foreign key|cartera_perfiles/i.test(msg)) {
+    return "Ese perfil no existe en la base. Aplica web/sql/cartera_perfil_james_blanco.sql.";
+  }
+  if (/schema cache|does not exist|PGRST/i.test(msg)) {
+    return `${msg} Aplica web/sql/cartera_seguimiento.sql en el SQL Editor de Supabase.`;
+  }
+  return msg;
+}
+
 /** Historial de gestiones de una placa. */
 export async function GET(request: Request) {
   try {
@@ -140,11 +150,8 @@ export async function POST(request: Request) {
         .select("id, placa, perfil_id, status, categoria, notas, created_at")
         .single();
       if (error) {
-        const hint = /schema cache|does not exist|PGRST/i.test(error.message)
-          ? " Aplica web/sql/cartera_seguimiento.sql en el SQL Editor de Supabase."
-          : "";
         return NextResponse.json(
-          { error: error.message + hint },
+          { error: mensajeErrorCartera(error.message) },
           { status: 500 },
         );
       }
@@ -152,11 +159,8 @@ export async function POST(request: Request) {
         ? { ...data, monto: status === "abono" ? monto : null }
         : null;
     } else if (errGestionMsg) {
-      const hint = /schema cache|does not exist|PGRST/i.test(errGestionMsg)
-        ? " Aplica web/sql/cartera_seguimiento.sql en el SQL Editor de Supabase."
-        : "";
       return NextResponse.json(
-        { error: errGestionMsg + hint },
+        { error: mensajeErrorCartera(errGestionMsg) },
         { status: 500 },
       );
     }
@@ -178,7 +182,10 @@ export async function POST(request: Request) {
       .single();
 
     if (errCaso) {
-      return NextResponse.json({ error: errCaso.message }, { status: 500 });
+      return NextResponse.json(
+        { error: mensajeErrorCartera(errCaso.message) },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({ ok: true, gestion, caso });
