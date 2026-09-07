@@ -26,6 +26,7 @@ import {
 } from "@/lib/carteraMorososTypes";
 import {
   CATEGORIAS_MOROSO,
+  emptyCategoriasMoroso,
   type CategoriaMoroso,
 } from "@/lib/categoriasMorosos";
 import {
@@ -45,12 +46,7 @@ import { cn } from "@/lib/utils";
 const POLL_GPS_MS = 30_000;
 
 function emptyCategorias(): Record<CategoriaMoroso, MorosoBandeja[]> {
-  return {
-    bajo_pago: [],
-    sin_gps: [],
-    mora_15: [],
-    mora_4_15: [],
-  };
+  return emptyCategoriasMoroso(() => [] as MorosoBandeja[]);
 }
 
 function congelarBandejas(
@@ -98,7 +94,7 @@ function aplicarPosicionesGps(
 
 export function MorososWorkspace() {
   const [perfilId, setPerfilId] = useState<CarteraPerfilId | null>(null);
-  const [categoria, setCategoria] = useState<CategoriaMoroso>("bajo_pago");
+  const [categoria, setCategoria] = useState<CategoriaMoroso>("cuotas_1_5");
   const [categorias, setCategorias] =
     useState<Record<CategoriaMoroso, MorosoBandeja[]>>(emptyCategorias);
   const [loading, setLoading] = useState(true);
@@ -251,22 +247,18 @@ export function MorososWorkspace() {
     };
   }, [pollGpsActivo, lista.length, pollGps, categoria, busqueda]);
 
-  const totalMotos =
-    categorias.bajo_pago.length +
-    categorias.sin_gps.length +
-    categorias.mora_15.length +
-    categorias.mora_4_15.length;
+  const totalMotos = CATEGORIAS_MOROSO.reduce(
+    (s, c) => s + categorias[c.id].length,
+    0,
+  );
 
   const deudaLista = lista.reduce((s, m) => s + m.deuda_total, 0);
 
   const metaCategoria = CATEGORIAS_MOROSO.find((c) => c.id === categoria);
 
-  const counts: Record<CategoriaMoroso, number> = {
-    bajo_pago: categorias.bajo_pago.length,
-    sin_gps: categorias.sin_gps.length,
-    mora_15: categorias.mora_15.length,
-    mora_4_15: categorias.mora_4_15.length,
-  };
+  const counts = Object.fromEntries(
+    CATEGORIAS_MOROSO.map((c) => [c.id, categorias[c.id].length]),
+  ) as Record<CategoriaMoroso, number>;
 
   const motoSeleccionada = seleccionada
     ? lista.find((m) => m.placa === seleccionada) ?? null

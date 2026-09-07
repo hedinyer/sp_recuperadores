@@ -4,7 +4,7 @@ import { useId } from "react";
 import {
   AlertTriangleIcon,
   CalendarClockIcon,
-  SignalZeroIcon,
+  LayersIcon,
   WalletIcon,
 } from "lucide-react";
 
@@ -15,17 +15,17 @@ import {
 import { cn } from "@/lib/utils";
 
 const ICONOS: Record<CategoriaMoroso, typeof WalletIcon> = {
-  bajo_pago: WalletIcon,
-  sin_gps: SignalZeroIcon,
-  mora_15: AlertTriangleIcon,
-  mora_4_15: CalendarClockIcon,
+  cuotas_1_5: WalletIcon,
+  cuotas_6_10: CalendarClockIcon,
+  cuotas_11_16: LayersIcon,
+  cuotas_17: AlertTriangleIcon,
 };
 
 const LABEL_CORTO: Record<CategoriaMoroso, string> = {
-  bajo_pago: "Bajo pago",
-  sin_gps: "Sin GPS",
-  mora_15: "+15d",
-  mora_4_15: "4–15d",
+  cuotas_1_5: "1–5",
+  cuotas_6_10: "6–10",
+  cuotas_11_16: "11–16",
+  cuotas_17: "17+",
 };
 
 export function MorososBandejas({
@@ -45,7 +45,7 @@ export function MorososBandejas({
   return (
     <div
       role="tablist"
-      aria-label="Categorías de mora"
+      aria-label="Categorías por cuotas pendientes"
       className="grid w-full grid-cols-2 gap-2"
       onKeyDown={(e) => {
         const i = ids.indexOf(categoria);

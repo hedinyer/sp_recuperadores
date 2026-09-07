@@ -150,7 +150,7 @@ def register_tools(ctx) -> None:
             "name": "cartera_pendientes",
             "description": (
                 "Lista morosos pendientes para gestionar ahora (máx 20). "
-                "Categorías: bajo_pago, sin_gps, mora_15, mora_4_15. "
+                "Categorías: cuotas_1_5, cuotas_6_10, cuotas_11_16, cuotas_17. "
                 "No incluye GPS; sirve para decidir a quién llamar."
             ),
             "parameters": {
@@ -158,8 +158,13 @@ def register_tools(ctx) -> None:
                 "properties": {
                     "categoria": {
                         "type": "string",
-                        "enum": ["bajo_pago", "sin_gps", "mora_15", "mora_4_15"],
-                        "description": "Filtrar por bandeja.",
+                        "enum": [
+                            "cuotas_1_5",
+                            "cuotas_6_10",
+                            "cuotas_11_16",
+                            "cuotas_17",
+                        ],
+                        "description": "Filtrar por bandeja de cuotas pendientes.",
                     },
                     "limit": {
                         "type": "integer",
@@ -240,7 +245,7 @@ def register_tools(ctx) -> None:
                     },
                     "categoria": {
                         "type": "string",
-                        "description": "Bandeja opcional (bajo_pago, sin_gps, …).",
+                        "description": "Bandeja opcional (cuotas_1_5, cuotas_6_10, …).",
                     },
                 },
                 "required": ["placa", "perfil_id", "status"],

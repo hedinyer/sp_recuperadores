@@ -1,11 +1,8 @@
-import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
-import { normalizarDiasMora } from "@/lib/extractoCliente";
-
 export type CategoriaMoroso =
-  | "bajo_pago"
-  | "sin_gps"
-  | "mora_15"
-  | "mora_4_15";
+  | "cuotas_1_5"
+  | "cuotas_6_10"
+  | "cuotas_11_16"
+  | "cuotas_17";
 
 export const CATEGORIAS_MOROSO: Array<{
   id: CategoriaMoroso;
@@ -13,103 +10,58 @@ export const CATEGORIAS_MOROSO: Array<{
   descripcion: string;
 }> = [
   {
-    id: "bajo_pago",
-    label: "Bajo pago",
-    descripcion: "Sin pagos o menos del 20% de las cuotas esperadas",
+    id: "cuotas_1_5",
+    label: "1 a 5 cuotas",
+    descripcion: "De 1 a 5 cuotas pendientes",
   },
   {
-    id: "sin_gps",
-    label: "Sin GPS",
-    descripcion: "GPS no funcional o sin dispositivo",
+    id: "cuotas_6_10",
+    label: "6 a 10 cuotas",
+    descripcion: "De 6 a 10 cuotas pendientes",
   },
   {
-    id: "mora_15",
-    label: "15+ días",
-    descripcion: "15 días o más sin pago",
+    id: "cuotas_11_16",
+    label: "11 a 16 cuotas",
+    descripcion: "De 11 a 16 cuotas pendientes",
   },
   {
-    id: "mora_4_15",
-    label: "4–15 días",
-    descripcion: "Entre 4 y 14 días sin pago",
+    id: "cuotas_17",
+    label: "17+ cuotas",
+    descripcion: "17 o más cuotas pendientes",
   },
 ];
 
 export type ItemParaCategoria = {
-  dias_mora: number;
   deuda_total: number;
-  /** Pagos totales en dinero; 0 = nunca pagó. */
-  total_pagado: number;
-  /** % cuotas pagadas / generadas. */
-  cumplimiento_pct: number;
-  ultimo_pago?: string;
-  gps: Pick<EstadoGpsPlaca, "funcional">;
+  cuotas_pendientes: number;
 };
 
+function cuotasParaBandeja(item: ItemParaCategoria): number {
+  if (item.deuda_total <= 0) return 0;
+  const n = Math.ceil(Number(item.cuotas_pendientes) || 0);
+  return n > 0 ? n : 0;
+}
+
 /**
- * Categoría exclusiva por prioridad:
- * 1 bajo_pago → 2 sin_gps → 3 mora_15 → 4 mora_4_15
- * null = no entra en ninguna bandeja de morosos.
+ * Categorías exclusivas por cuotas pendientes.
+ * null = no entra en ninguna bandeja.
  */
 function cumpleCategoriaMoroso(
   cat: CategoriaMoroso,
   item: ItemParaCategoria,
 ): boolean {
-  const dias = normalizarDiasMora(item.dias_mora);
-  const nuncaPago =
-    item.total_pagado <= 0 ||
-    !item.ultimo_pago ||
-    String(item.ultimo_pago).trim() === "";
-  const bajoCumplimiento = item.cumplimiento_pct < 20;
-
-  switch (cat) {
-    case "bajo_pago":
-      return nuncaPago || bajoCumplimiento;
-    case "sin_gps":
-      return !nuncaPago && !bajoCumplimiento && !item.gps.funcional;
-    case "mora_15":
-      return (
-        !nuncaPago && !bajoCumplimiento && item.gps.funcional && dias >= 15
-      );
-    case "mora_4_15":
-      return (
-        !nuncaPago &&
-        !bajoCumplimiento &&
-        item.gps.funcional &&
-        dias >= 4 &&
-        dias < 15
-      );
-  }
+  return clasificarCategoriaMoroso(item) === cat;
 }
 
 export function clasificarCategoriaMoroso(
   item: ItemParaCategoria,
 ): CategoriaMoroso | null {
-  if (item.deuda_total <= 0) return null;
-
-  const dias = normalizarDiasMora(item.dias_mora);
-  const nuncaPago =
-    item.total_pagado <= 0 ||
-    !item.ultimo_pago ||
-    String(item.ultimo_pago).trim() === "";
-  const bajoCumplimiento = item.cumplimiento_pct < 20;
-
-  if (nuncaPago || bajoCumplimiento) {
-    return "bajo_pago";
-  }
-
-  if (!item.gps.funcional) {
-    return "sin_gps";
-  }
-
-  if (dias >= 15) {
-    return "mora_15";
-  }
-
-  if (dias >= 4) {
-    return "mora_4_15";
-  }
-
-  return null;
+  const n = cuotasParaBandeja(item);
+  if (n < 1) return null;
+  if (n <= 5) return "cuotas_1_5";
+  if (n <= 10) return "cuotas_6_10";
+  if (n <= 16) return "cuotas_11_16";
+  return "cuotas_17";
 }
 
 export function etiquetaCategoriaMoroso(
@@ -125,7 +77,7 @@ export function esCategoriaMoroso(
   return CATEGORIAS_MOROSO.some((c) => c.id === value);
 }
 
-/** Bandeja fija: se respeta salvo que ya no cumpla el umbral o suba de prioridad. */
+/** Bandeja fija: se respeta salvo que ya no cumpla el umbral. */
 export function categoriaMorosoEstable(
   guardada: string | null | undefined,
   enVivo: CategoriaMoroso | null,
@@ -133,14 +85,14 @@ export function categoriaMorosoEstable(
 ): CategoriaMoroso | null {
   if (!esCategoriaMoroso(guardada)) return enVivo;
   if (!item) return guardada;
-
   if (!cumpleCategoriaMoroso(guardada, item)) return enVivo;
-
-  if (enVivo) {
-    const prioGuardada = CATEGORIAS_MOROSO.findIndex((c) => c.id === guardada);
-    const prioEnVivo = CATEGORIAS_MOROSO.findIndex((c) => c.id === enVivo);
-    if (prioEnVivo >= 0 && prioEnVivo < prioGuardada) return enVivo;
-  }
-
   return guardada;
+}
+
+export function emptyCategoriasMoroso<T>(
+  factory: () => T,
+): Record<CategoriaMoroso, T> {
+  return Object.fromEntries(
+    CATEGORIAS_MOROSO.map((c) => [c.id, factory()]),
+  ) as Record<CategoriaMoroso, T>;
 }

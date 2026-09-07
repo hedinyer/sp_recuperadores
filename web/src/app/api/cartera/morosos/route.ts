@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
 import {
+  CATEGORIAS_MOROSO,
   categoriaMorosoEstable,
   clasificarCategoriaMoroso,
+  emptyCategoriasMoroso,
   esCategoriaMoroso,
   type CategoriaMoroso,
 } from "@/lib/categoriasMorosos";
@@ -22,12 +24,7 @@ export const dynamic = "force-dynamic";
 type CategoriasMap = Record<CategoriaMoroso, MorosoBandeja[]>;
 
 function emptyCategorias(): CategoriasMap {
-  return {
-    bajo_pago: [],
-    sin_gps: [],
-    mora_15: [],
-    mora_4_15: [],
-  };
+  return emptyCategoriasMoroso(() => [] as MorosoBandeja[]);
 }
 
 export async function GET(request: Request) {
@@ -137,12 +134,8 @@ export async function GET(request: Request) {
       const placaKey = item.placa.toUpperCase().replace(/\s/g, "");
       const diasMora = normalizarDiasMora(item.dias_mora);
       const itemCategoria = {
-        dias_mora: diasMora,
         deuda_total: item.deuda_total,
-        total_pagado: item.total_pagado,
-        cumplimiento_pct: item.cumplimiento_pct,
-        ultimo_pago: item.ultimo_pago,
-        gps: item.gps,
+        cuotas_pendientes: item.cuotas_pendientes,
       };
       const enVivo = clasificarCategoriaMoroso(itemCategoria);
       const caso = casosByPlaca.get(placaKey) ?? null;
@@ -205,14 +198,10 @@ export async function GET(request: Request) {
       }
     }
 
-    const counts = {
-      bajo_pago: categorias.bajo_pago.length,
-      sin_gps: categorias.sin_gps.length,
-      mora_15: categorias.mora_15.length,
-      mora_4_15: categorias.mora_4_15.length,
-    };
-    const total =
-      counts.bajo_pago + counts.sin_gps + counts.mora_15 + counts.mora_4_15;
+    const counts = Object.fromEntries(
+      CATEGORIAS_MOROSO.map((c) => [c.id, categorias[c.id].length]),
+    ) as Record<CategoriaMoroso, number>;
+    const total = Object.values(counts).reduce((s, n) => s + n, 0);
     const deuda_total = (
       Object.values(categorias) as MorosoBandeja[][]
     ).reduce(

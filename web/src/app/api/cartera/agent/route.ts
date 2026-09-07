@@ -245,19 +245,15 @@ async function actionPendientes(categoriaRaw: string | null, limitRaw: string | 
     }
   }
 
-  // ponytail: sin GPS; funcional=true evita inventar bandeja sin_gps
+  // ponytail: clasifica solo por cuotas; GPS no entra en bandeja
   const items: Array<Record<string, unknown>> = [];
   for (const a of atrasos) {
     if (a.deuda_total <= 0) continue;
     const placa = normalizarPlaca(a.placa);
     const diasMora = normalizarDiasMora(a.dias_mora);
     const itemCategoria = {
-      dias_mora: diasMora,
       deuda_total: a.deuda_total,
-      total_pagado: a.total_pagado,
-      cumplimiento_pct: a.cumplimiento_pct,
-      ultimo_pago: a.ultimo_pago,
-      gps: { funcional: true },
+      cuotas_pendientes: a.cuotas_pendientes,
     };
     const caso = casosByPlaca.get(placa) ?? null;
     const enVivo = clasificarCategoriaMoroso(itemCategoria);

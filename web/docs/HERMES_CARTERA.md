@@ -66,7 +66,7 @@ Reiniciar Hermes. Tools disponibles:
 |------|----------|
 | `cartera_buscar` | Busca por placa, nombre o teléfono |
 | `cartera_historial` | Gestiones previas de una placa |
-| `cartera_pendientes` | Cola de bandeja (bajo_pago, sin_gps, …) |
+| `cartera_pendientes` | Cola de bandeja (cuotas_1_5, cuotas_6_10, …) |
 | `cartera_registrar` | Guarda gestión / abono + notas del chat |
 | `cartera_kpis` | Recaudo y gestiones de hoy (James Blanco / Jhon) |
 | `cartera_efectividad` | Días/gestiones hasta pago, ranking de métodos, sugerencia |
@@ -97,7 +97,7 @@ Ejemplos:
 
 - «Busca a Juan Pérez» → `cartera_buscar`
 - «Qué le hemos dicho a XYZ45A?» → `cartera_historial`
-- «Dame 10 de mora 15+» → `cartera_pendientes` `categoria=mora_15`
+- «Dame 10 de 17+ cuotas» → `cartera_pendientes` `categoria=cuotas_17`
 - «James Blanco: abonó 150000 la placa ABC12D» → `cartera_registrar` `status=abono` `monto=150000`
 - «Cómo vamos de recaudo hoy?» → `cartera_kpis`
 
@@ -122,7 +122,7 @@ GET /api/cartera/agent?action=historial&placa=ABC12D
 ### Pendientes
 
 ```http
-GET /api/cartera/agent?action=pendientes&categoria=mora_15&limit=10
+GET /api/cartera/agent?action=pendientes&categoria=cuotas_17&limit=10
 ```
 
 ### KPIs
