@@ -103,7 +103,7 @@ export function KpisCarteraHoy({ tick = 0 }: { tick?: number }) {
       </p>
       <div
         className="grid grid-cols-2 gap-2"
-        aria-label="Recaudo de hoy Dayana y Jhon Sáenz"
+        aria-label="Recaudo de hoy James Blanco y Jhon Sáenz"
       >
         {kpis.map((kpi) => {
           const t = kpi.ultima_at ? new Date(kpi.ultima_at).getTime() : 0;

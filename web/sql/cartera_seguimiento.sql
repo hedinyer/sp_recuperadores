@@ -48,7 +48,7 @@ create index if not exists cartera_gestiones_placa_created_idx
 insert into public.cartera_perfiles (id, nombre, activo)
 values
   ('jhon_saenz', 'Jhon Sáenz', true),
-  ('dayana', 'Dayana', true),
+  ('james_blanco', 'James Blanco', true),
   ('santiago_saenz', 'Santiago Sáenz', true),
   ('angie_garcia', 'Angie García', true),
   ('mauricio_perucho', 'Mauricio Perucho', true)

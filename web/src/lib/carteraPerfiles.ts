@@ -1,6 +1,6 @@
 export type CarteraPerfilId =
   | "jhon_saenz"
-  | "dayana"
+  | "james_blanco"
   | "santiago_saenz"
   | "angie_garcia"
   | "mauricio_perucho";
@@ -12,7 +12,7 @@ export type CarteraPerfil = {
 
 export const CARTERA_PERFILES: CarteraPerfil[] = [
   { id: "jhon_saenz", nombre: "Jhon Sáenz" },
-  { id: "dayana", nombre: "Dayana" },
+  { id: "james_blanco", nombre: "James Blanco" },
   { id: "santiago_saenz", nombre: "Santiago Sáenz" },
   { id: "angie_garcia", nombre: "Angie García" },
   { id: "mauricio_perucho", nombre: "Mauricio Perucho" },

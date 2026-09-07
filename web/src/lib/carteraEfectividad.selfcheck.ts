@@ -18,19 +18,19 @@ function assert(cond: unknown, msg: string): void {
 const base: GestionEfect[] = [
   {
     placa: "ABC12D",
-    perfil_id: "dayana",
+    perfil_id: "james_blanco",
     status: "contactado",
     created_at: "2026-08-20T14:00:00-05:00",
   },
   {
     placa: "ABC12D",
-    perfil_id: "dayana",
+    perfil_id: "james_blanco",
     status: "compromiso",
     created_at: "2026-08-20T16:00:00-05:00",
   },
   {
     placa: "ABC12D",
-    perfil_id: "dayana",
+    perfil_id: "james_blanco",
     status: "abono",
     created_at: "2026-08-20T18:00:00-05:00",
     monto: 150000,

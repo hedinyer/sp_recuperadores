@@ -14,7 +14,7 @@ En la web **Morosos** (`/placas`): botón flotante **Agente cobro** (abajo a la 
 
 Repositorio: https://github.com/hedinyer/sp_recuperadores/tree/main/web
 
-El agente **no envía WhatsApp**. Un cobrador (Dayana, Jhon, …) pega el chat o una captura; Hermes consulta y registra en Supabase (`cartera_casos`, `cartera_gestiones`).
+El agente **no envía WhatsApp**. Un cobrador (James Blanco, Jhon, …) pega el chat o una captura; Hermes consulta y registra en Supabase (`cartera_casos`, `cartera_gestiones`).
 
 ---
 
@@ -68,7 +68,7 @@ Reiniciar Hermes. Tools disponibles:
 | `cartera_historial` | Gestiones previas de una placa |
 | `cartera_pendientes` | Cola de bandeja (bajo_pago, sin_gps, …) |
 | `cartera_registrar` | Guarda gestión / abono + notas del chat |
-| `cartera_kpis` | Recaudo y gestiones de hoy (Dayana / Jhon) |
+| `cartera_kpis` | Recaudo y gestiones de hoy (James Blanco / Jhon) |
 | `cartera_efectividad` | Días/gestiones hasta pago, ranking de métodos, sugerencia |
 
 ---
@@ -90,7 +90,7 @@ Mide episodios: desde la primera gestión hasta abono en app **o** pago ERP (el 
 
 1. Cobrador escribe a Hermes: «El de ABC12D dijo que paga mañana» (o pega captura).
 2. Hermes: `cartera_buscar` → ficha + historial.
-3. Hermes: `cartera_registrar` con `status=compromiso`, `perfil_id=dayana`, `notas=` texto pegado.
+3. Hermes: `cartera_registrar` con `status=compromiso`, `perfil_id=james_blanco`, `notas=` texto pegado.
 4. Queda en Supabase; la UI de Morosos y los KPIs lo ven al instante.
 
 Ejemplos:
@@ -98,7 +98,7 @@ Ejemplos:
 - «Busca a Juan Pérez» → `cartera_buscar`
 - «Qué le hemos dicho a XYZ45A?» → `cartera_historial`
 - «Dame 10 de mora 15+» → `cartera_pendientes` `categoria=mora_15`
-- «Dayana: abonó 150000 la placa ABC12D» → `cartera_registrar` `status=abono` `monto=150000`
+- «James Blanco: abonó 150000 la placa ABC12D» → `cartera_registrar` `status=abono` `monto=150000`
 - «Cómo vamos de recaudo hoy?» → `cartera_kpis`
 
 ---
@@ -142,7 +142,7 @@ Content-Type: application/json
 {
   "action": "registrar",
   "placa": "ABC12D",
-  "perfil_id": "dayana",
+  "perfil_id": "james_blanco",
   "status": "compromiso",
   "notas": "Cliente: pago mañana en la tarde"
 }
@@ -161,7 +161,7 @@ Abono:
 }
 ```
 
-`perfil_id`: `jhon_saenz` | `dayana` | `santiago_saenz` | `angie_garcia` | `mauricio_perucho`
+`perfil_id`: `jhon_saenz` | `james_blanco` | `santiago_saenz` | `angie_garcia` | `mauricio_perucho`
 
 `status`: `pendiente` | `contactado` | `compromiso` | `abono` | `no_contesta` | `visita` | `en_ruta` | `recuperada` | `cerrado`
 

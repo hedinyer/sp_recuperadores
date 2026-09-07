@@ -1,7 +1,7 @@
 import { etiquetaCarteraStatus, nombrePerfilCartera } from "@/lib/carteraPerfiles";
 import { formatearCOP } from "@/lib/formatoDinero";
 
-export const PERFILES_KPI = ["dayana", "jhon_saenz"] as const;
+export const PERFILES_KPI = ["james_blanco", "jhon_saenz"] as const;
 
 export type PerfilKpiId = (typeof PERFILES_KPI)[number];
 

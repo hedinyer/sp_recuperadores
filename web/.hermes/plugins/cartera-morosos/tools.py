@@ -202,7 +202,7 @@ def register_tools(ctx) -> None:
                 "Estados: pendiente, contactado, compromiso, abono, no_contesta, "
                 "visita, en_ruta, recuperada, cerrado. "
                 "Si status=abono, monto es obligatorio (COP). "
-                "perfil_id: jhon_saenz | dayana | santiago_saenz | angie_garcia | mauricio_perucho."
+                "perfil_id: jhon_saenz | james_blanco | santiago_saenz | angie_garcia | mauricio_perucho."
             ),
             "parameters": {
                 "type": "object",
@@ -210,7 +210,7 @@ def register_tools(ctx) -> None:
                     "placa": {"type": "string", "description": "Placa."},
                     "perfil_id": {
                         "type": "string",
-                        "description": "Quién gestiona (ej. dayana, jhon_saenz).",
+                        "description": "Quién gestiona (ej. james_blanco, jhon_saenz).",
                     },
                     "status": {
                         "type": "string",
@@ -262,7 +262,7 @@ def register_tools(ctx) -> None:
             "name": "cartera_kpis",
             "description": (
                 "KPIs de cobro de hoy (Bogotá): motos gestionadas, estados y "
-                "recaudo por Dayana y Jhon Sáenz."
+                "recaudo por James Blanco y Jhon Sáenz."
             ),
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
