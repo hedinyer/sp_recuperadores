@@ -22,6 +22,7 @@ import {
 } from "@/lib/carteraPerfiles";
 import { formatearCOP } from "@/lib/formatoDinero";
 import { formatearConPuntos, limpiarNumero } from "@/lib/formatoDinero";
+import { cn } from "@/lib/utils";
 
 const ORDEN_RESULTADOS: CarteraStatus[] = [
   "abono",
@@ -32,6 +33,13 @@ const ORDEN_RESULTADOS: CarteraStatus[] = [
   "en_ruta",
   "recuperada",
   "cerrado",
+];
+
+const ORDEN_SIMPLE: CarteraStatus[] = [
+  "abono",
+  "no_contesta",
+  "compromiso",
+  "contactado",
 ];
 
 const ETIQUETAS_CORTAS: Partial<Record<CarteraStatus, string>> = {
@@ -54,6 +62,7 @@ export function GestionSheet({
   onMontoChange,
   guardando,
   onSave,
+  modoSimple = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,6 +76,8 @@ export function GestionSheet({
   onMontoChange: (v: string) => void;
   guardando: boolean;
   onSave: () => void;
+  /** Solo 4 botones grandes: Pagó, No contesta, Compromiso, Contactado */
+  modoSimple?: boolean;
 }) {
   const montoInvalido =
     status === "abono" && open && !limpiarNumero(monto);
@@ -75,9 +86,10 @@ export function GestionSheet({
     (status !== "abono" || Boolean(limpiarNumero(monto))) &&
     !guardando;
 
-  const statuses = ORDEN_RESULTADOS.map((id) =>
-    CARTERA_STATUSES.find((s) => s.id === id),
-  ).filter(Boolean) as Array<{ id: CarteraStatus; label: string }>;
+  const orden = modoSimple ? ORDEN_SIMPLE : ORDEN_RESULTADOS;
+  const statuses = orden
+    .map((id) => CARTERA_STATUSES.find((s) => s.id === id))
+    .filter(Boolean) as Array<{ id: CarteraStatus; label: string }>;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -86,7 +98,7 @@ export function GestionSheet({
         className="max-h-[92dvh] gap-0 overflow-y-auto rounded-t-2xl pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <SheetHeader className="text-left">
-          <SheetTitle>Registrar resultado</SheetTitle>
+          <SheetTitle>{modoSimple ? "Anotar resultado" : "Registrar resultado"}</SheetTitle>
           <SheetDescription>
             {moto
               ? `${moto.placa} · ${moto.nombre}${
@@ -112,14 +124,20 @@ export function GestionSheet({
                   onStatusChange(next);
                   if (next !== "abono") onMontoChange("");
                 }}
-                className="grid w-full grid-cols-2 gap-2"
+                className={cn(
+                  "grid w-full gap-2",
+                  modoSimple ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2",
+                )}
                 aria-labelledby="gestion-resultado-label"
               >
                 {statuses.map((s) => (
                   <ToggleGroupItem
                     key={s.id}
                     value={s.id}
-                    className="h-12 min-w-0 rounded-lg border border-border px-2 text-sm font-medium data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                    className={cn(
+                      "min-w-0 rounded-lg border border-border px-2 text-sm font-medium data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground",
+                      modoSimple ? "h-14 text-base" : "h-12",
+                    )}
                   >
                     {ETIQUETAS_CORTAS[s.id] ?? s.label}
                   </ToggleGroupItem>
@@ -157,7 +175,9 @@ export function GestionSheet({
             ) : null}
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="gestion-notas">Nota (opcional)</Label>
+              <Label htmlFor="gestion-notas">
+                {modoSimple ? "Nota" : "Nota (opcional)"}
+              </Label>
               <Textarea
                 id="gestion-notas"
                 rows={2}
@@ -166,6 +186,11 @@ export function GestionSheet({
                 placeholder="Qué quedó acordado…"
                 className="text-base"
               />
+              {modoSimple ? (
+                <p className="text-xs text-muted-foreground">
+                  La fecha se guarda sola al pulsar Guardar.
+                </p>
+              ) : null}
             </div>
           </div>
         ) : null}

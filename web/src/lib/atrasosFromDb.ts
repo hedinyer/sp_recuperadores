@@ -23,6 +23,10 @@ type ClienteRow = {
   nombre: string;
   placa: string;
   telefono: string | null;
+  referencia_1?: string | null;
+  telefono_ref_1?: string | null;
+  referencia_2?: string | null;
+  telefono_ref_2?: string | null;
   visitador: string | null;
   fecha_inicio: Date;
   valor_cuota: string | number;
@@ -44,6 +48,10 @@ export type ResultadoAtraso = {
   total_pagado: number;
   ultimo_pago: string;
   pago_hoy: boolean;
+  referencia_1: string;
+  telefono_ref_1: string;
+  referencia_2: string;
+  telefono_ref_2: string;
 } & PatronPago;
 
 export type ResumenAtrasos = {
@@ -147,6 +155,10 @@ export function analizarAtraso(
     fecha_inicio: Date;
     valor_cuota: number;
     fecha_final: string | null;
+    referencia_1?: string;
+    telefono_ref_1?: string;
+    referencia_2?: string;
+    telefono_ref_2?: string;
   },
   registros: RegistroExtracto[],
   hoy = new Date(),
@@ -185,6 +197,10 @@ export function analizarAtraso(
     total_pagado: Math.round(metricas.total_pagado),
     ultimo_pago: metricas.ultimo_pago,
     pago_hoy: pagoEnFecha(registros, hoy),
+    referencia_1: cliente.referencia_1 ?? "",
+    telefono_ref_1: cliente.telefono_ref_1 ?? "",
+    referencia_2: cliente.referencia_2 ?? "",
+    telefono_ref_2: cliente.telefono_ref_2 ?? "",
     ...patron,
   };
 }
@@ -263,6 +279,10 @@ export async function fetchAtrasosDesdeDb(
         fecha_inicio: new Date(c.fecha_inicio),
         valor_cuota: valorCuota,
         fecha_final: c.fecha_final,
+        referencia_1: (c.referencia_1 ?? "").trim(),
+        telefono_ref_1: (c.telefono_ref_1 ?? "").trim(),
+        referencia_2: (c.referencia_2 ?? "").trim(),
+        telefono_ref_2: (c.telefono_ref_2 ?? "").trim(),
       },
       regs,
       new Date(),

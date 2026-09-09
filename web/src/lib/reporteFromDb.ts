@@ -14,6 +14,10 @@ SELECT
     cl.nombre,
     v.placa,
     cl.telefono,
+    cl.referencia_1,
+    cl.telefono_ref_1,
+    cl.referencia_2,
+    cl.telefono_ref_2,
     ven.nombre AS visitador,
     ct.fecha_inicio::date AS fecha_inicio,
     ct.tarifa::numeric AS valor_cuota,
@@ -128,6 +132,10 @@ type ClienteRow = {
   nombre: string;
   placa: string;
   telefono: string | null;
+  referencia_1?: string | null;
+  telefono_ref_1?: string | null;
+  referencia_2?: string | null;
+  telefono_ref_2?: string | null;
   visitador: string | null;
   fecha_inicio: Date;
   valor_cuota: string | number;

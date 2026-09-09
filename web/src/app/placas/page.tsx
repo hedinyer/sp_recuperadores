@@ -10,6 +10,7 @@ import {
   HistorialSheet,
   type HistorialItem,
 } from "@/components/morosos/HistorialSheet";
+import { Lote17Vista } from "@/components/morosos/Lote17Vista";
 import { MorosoCard } from "@/components/morosos/MorosoCard";
 import { MorososBandejas } from "@/components/morosos/MorososBandejas";
 import { MorososKpis } from "@/components/morosos/MorososKpis";
@@ -24,6 +25,12 @@ import {
   type GestionCartera,
   type MorosoBandeja,
 } from "@/lib/carteraMorososTypes";
+import {
+  esLoteNicolasPerfil,
+  esLoteOperativoPerfil,
+  type Lote17Item,
+  type LoteOperativoPerfilId,
+} from "@/lib/carteraLotes17Types";
 import {
   CATEGORIAS_MOROSO,
   emptyCategoriasMoroso,
@@ -72,6 +79,12 @@ export default function PlacasMorososPage() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [kpiTick, setKpiTick] = useState(0);
   const [busqueda, setBusqueda] = useState("");
+  const [lotePatch, setLotePatch] = useState<{
+    placa: string;
+    gestion?: GestionCartera;
+    caso?: MorosoBandeja["caso"];
+  } | null>(null);
+  const [loteRefreshTick, setLoteRefreshTick] = useState(0);
 
   const [motoActiva, setMotoActiva] = useState<MorosoBandeja | null>(null);
   const [statusDraft, setStatusDraft] = useState<CarteraStatus | "">("");
@@ -84,6 +97,9 @@ export default function PlacasMorososPage() {
   const [historialError, setHistorialError] = useState<string | null>(null);
   const [historialPlaca, setHistorialPlaca] = useState<string | null>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
+
+  const modoLoteNicolas = esLoteNicolasPerfil(perfilId);
+  const modoLoteFijo = esLoteOperativoPerfil(perfilId);
 
   useEffect(() => {
     try {
@@ -105,6 +121,9 @@ export default function PlacasMorososPage() {
 
   const elegirPerfil = useCallback((id: CarteraPerfilId) => {
     setPerfilId(id);
+    setLotePatch(null);
+    setError(null);
+    setMensaje(null);
     try {
       sessionStorage.setItem(CARTERA_PERFIL_STORAGE_KEY, id);
     } catch {
@@ -130,8 +149,12 @@ export default function PlacasMorososPage() {
   }, []);
 
   useEffect(() => {
+    if (modoLoteFijo) {
+      setLoading(false);
+      return;
+    }
     void cargar();
-  }, [cargar]);
+  }, [cargar, modoLoteFijo]);
 
   const listaBase = categorias[categoria] ?? [];
   const lista = (() => {
@@ -201,6 +224,18 @@ export default function PlacasMorososPage() {
         }
         return next;
       });
+      setLotePatch({
+        placa,
+        gestion: nueva,
+        caso: data.caso ?? {
+          placa,
+          perfil_id: perfil,
+          categoria: cat,
+          status,
+          notas,
+          updated_at: ahora,
+        },
+      });
       setKpiTick((n) => n + 1);
     },
     [],
@@ -230,7 +265,7 @@ export default function PlacasMorososPage() {
             perfil_id: perfilId,
             status: "contactado",
             notas: "WhatsApp",
-            categoria: moto.categoria,
+            categoria: moto.categoria || "cuotas_17",
           }),
         });
         const data = await res.json();
@@ -239,7 +274,7 @@ export default function PlacasMorososPage() {
           moto.placa,
           perfilId,
           "contactado",
-          moto.categoria,
+          (moto.categoria as CategoriaMoroso) || "cuotas_17",
           data,
           "WhatsApp",
         );
@@ -286,7 +321,7 @@ export default function PlacasMorososPage() {
           perfil_id: perfilId,
           status: statusDraft,
           notas: notasDraft,
-          categoria: motoActiva.categoria,
+          categoria: motoActiva.categoria || "cuotas_17",
           ...(montoNum ? { monto: montoNum } : {}),
         }),
       });
@@ -297,7 +332,7 @@ export default function PlacasMorososPage() {
         motoActiva.placa,
         perfilId,
         statusDraft,
-        motoActiva.categoria,
+        (motoActiva.categoria as CategoriaMoroso) || "cuotas_17",
         data,
         notasDraft.trim() || null,
       );
@@ -349,29 +384,31 @@ export default function PlacasMorososPage() {
       <MasterGate title="Morosos" subtitle="Escribe la clave para continuar">
         <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
           <div className="mx-auto flex w-full max-w-[414px] flex-col gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h1 className="text-lg font-bold tracking-tight text-balance">
-                  Morosos
-                </h1>
-                <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
-                  Elige bandeja → escribe → registra el resultado
-                </p>
+            {!modoLoteFijo ? (
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-lg font-bold tracking-tight text-balance">
+                    Morosos
+                  </h1>
+                  <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
+                    Elige bandeja → escribe → registra el resultado
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 shrink-0 rounded-lg"
+                  disabled={loading}
+                  onClick={() => void cargar(true)}
+                >
+                  {loading ? "Cargando…" : "Actualizar lista"}
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 shrink-0 rounded-lg"
-                disabled={loading}
-                onClick={() => void cargar(true)}
-              >
-                {loading ? "Cargando…" : "Actualizar lista"}
-              </Button>
-            </div>
+            ) : null}
 
             <MorososPerfilBar perfilId={perfilId} onChange={elegirPerfil} />
             <MorososKpis tick={kpiTick} />
-            {!loading && totalMotos > 0 ? (
+            {!modoLoteFijo && !loading && totalMotos > 0 ? (
               <p className="text-xs tabular-nums text-muted-foreground">
                 {totalMotos} motos en total
               </p>
@@ -393,80 +430,97 @@ export default function PlacasMorososPage() {
             </Alert>
           ) : null}
 
-          <MorososBandejas
-            categoria={categoria}
-            onChange={setCategoria}
-            counts={counts}
-          />
-
-          <p className="text-xs text-muted-foreground text-pretty">
-            {metaCategoria?.descripcion}
-          </p>
-
-          <div>
-            <label htmlFor="buscar-morosos" className="sr-only">
-              Buscar por placa, nombre o cédula
-            </label>
-            <Input
-              id="buscar-morosos"
-              type="search"
-              placeholder="Buscar placa, nombre o cédula"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="h-11 rounded-lg"
+          {modoLoteFijo && perfilId ? (
+            <Lote17Vista
+              perfilId={perfilId as LoteOperativoPerfilId}
+              modo={modoLoteNicolas ? "atraso_3_8" : "cuotas_17"}
+              onError={setError}
+              onMensaje={setMensaje}
+              onAnotar={(item: Lote17Item) => abrirGestion(item)}
+              onWhatsApp={(item, url) => void contactarWhatsApp(item, url)}
+              onHistorial={(item) => void abrirHistorial(item)}
+              refreshTick={loteRefreshTick}
+              metricasTick={kpiTick}
+              pendingPatch={lotePatch}
             />
-          </div>
-
-          {loading ? (
-            <div className="flex flex-col gap-2.5" aria-busy="true">
-              <Skeleton className="h-44 w-full rounded-2xl" />
-              <Skeleton className="h-44 w-full rounded-2xl" />
-              <Skeleton className="h-44 w-full rounded-2xl" />
-            </div>
-          ) : lista.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-4 py-10 text-center">
-              <p className="text-sm font-medium text-foreground">
-                No hay motos aquí
-              </p>
-              <p className="text-sm text-muted-foreground text-pretty">
-                Prueba otra bandeja o actualiza la lista.
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 rounded-lg"
-                  onClick={() => {
-                    const ids = CATEGORIAS_MOROSO.map((c) => c.id);
-                    const i = ids.indexOf(categoria);
-                    setCategoria(ids[(i + 1) % ids.length]!);
-                  }}
-                >
-                  Cambiar bandeja
-                </Button>
-                <Button
-                  type="button"
-                  className="h-11 rounded-lg"
-                  onClick={() => void cargar(true)}
-                >
-                  Actualizar lista
-                </Button>
-              </div>
-            </div>
           ) : (
-            <ul className="flex flex-col gap-2.5">
-              {lista.map((m) => (
-                <li key={m.placa}>
-                  <MorosoCard
-                    moto={m}
-                    perfilId={perfilId}
-                    onWhatsApp={contactarWhatsApp}
-                    onRegistrar={abrirGestion}
-                    onHistorial={(moto) => void abrirHistorial(moto)}
-                  />
-                </li>
-              ))}
-            </ul>
+            <>
+              <MorososBandejas
+                categoria={categoria}
+                onChange={setCategoria}
+                counts={counts}
+              />
+
+              <p className="text-xs text-muted-foreground text-pretty">
+                {metaCategoria?.descripcion}
+              </p>
+
+              <div>
+                <label htmlFor="buscar-morosos" className="sr-only">
+                  Buscar por placa, nombre o cédula
+                </label>
+                <Input
+                  id="buscar-morosos"
+                  type="search"
+                  placeholder="Buscar placa, nombre o cédula"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="h-11 rounded-lg"
+                />
+              </div>
+
+              {loading ? (
+                <div className="flex flex-col gap-2.5" aria-busy="true">
+                  <Skeleton className="h-44 w-full rounded-2xl" />
+                  <Skeleton className="h-44 w-full rounded-2xl" />
+                  <Skeleton className="h-44 w-full rounded-2xl" />
+                </div>
+              ) : lista.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-foreground">
+                    No hay motos aquí
+                  </p>
+                  <p className="text-sm text-muted-foreground text-pretty">
+                    Prueba otra bandeja o actualiza la lista.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 rounded-lg"
+                      onClick={() => {
+                        const ids = CATEGORIAS_MOROSO.map((c) => c.id);
+                        const i = ids.indexOf(categoria);
+                        setCategoria(ids[(i + 1) % ids.length]!);
+                      }}
+                    >
+                      Cambiar bandeja
+                    </Button>
+                    <Button
+                      type="button"
+                      className="h-11 rounded-lg"
+                      onClick={() => void cargar(true)}
+                    >
+                      Actualizar lista
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-2.5">
+                  {lista.map((m) => (
+                    <li key={m.placa}>
+                      <MorosoCard
+                        moto={m}
+                        perfilId={perfilId}
+                        onWhatsApp={contactarWhatsApp}
+                        onRegistrar={abrirGestion}
+                        onHistorial={(moto) => void abrirHistorial(moto)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </main>
 
@@ -485,6 +539,7 @@ export default function PlacasMorososPage() {
           onMontoChange={setMontoDraft}
           guardando={guardando}
           onSave={() => void guardarGestion()}
+          modoSimple={modoLoteFijo}
         />
 
         <HistorialSheet
@@ -500,7 +555,8 @@ export default function PlacasMorososPage() {
           perfilId={perfilId}
           onAfterReply={() => {
             setKpiTick((n) => n + 1);
-            void cargar(false);
+            if (modoLoteFijo) setLoteRefreshTick((n) => n + 1);
+            else void cargar(false);
           }}
         />
       </MasterGate>

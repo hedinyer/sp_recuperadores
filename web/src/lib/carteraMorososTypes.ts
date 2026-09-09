@@ -43,6 +43,10 @@ export type MorosoBandeja = {
   caso: CasoCartera | null;
   gestiones: GestionCartera[];
   n_gestiones: number;
+  referencia_1?: string;
+  telefono_ref_1?: string;
+  referencia_2?: string;
+  telefono_ref_2?: string;
 };
 
 export function conteoGestiones(

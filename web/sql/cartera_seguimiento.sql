@@ -49,9 +49,8 @@ insert into public.cartera_perfiles (id, nombre, activo)
 values
   ('jhon_saenz', 'Jhon Sáenz', true),
   ('james_blanco', 'James Blanco', true),
-  ('santiago_saenz', 'Santiago Sáenz', true),
-  ('angie_garcia', 'Angie García', true),
-  ('mauricio_perucho', 'Mauricio Perucho', true)
+  ('mauricio_perucho', 'Mauricio Perucho', true),
+  ('admin_nicolas', 'Admin Nicolas', true)
 on conflict (id) do update
 set
   nombre = excluded.nombre,

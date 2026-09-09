@@ -170,6 +170,10 @@ export async function GET(request: Request) {
         caso,
         gestiones: gestionesByPlaca.get(placaKey) ?? [],
         n_gestiones: nGestionesByPlaca.get(placaKey) ?? 0,
+        referencia_1: item.referencia_1 ?? "",
+        telefono_ref_1: item.telefono_ref_1 ?? "",
+        referencia_2: item.referencia_2 ?? "",
+        telefono_ref_2: item.telefono_ref_2 ?? "",
       };
       categorias[categoria].push(fila);
     }
