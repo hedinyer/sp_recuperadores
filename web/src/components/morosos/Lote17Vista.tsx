@@ -243,10 +243,9 @@ export function Lote17Vista({
     (lote != null && lote.status !== "activo") ||
     (!loading && !activo && !payload?.items.length);
 
-  const items = payload?.items ?? [];
   const lista = useMemo(
-    () => filtrarItems(items, filtro, busqueda, perfilId),
-    [items, filtro, busqueda, perfilId],
+    () => filtrarItems(payload?.items ?? [], filtro, busqueda, perfilId),
+    [payload?.items, filtro, busqueda, perfilId],
   );
 
   const emptyCopy =

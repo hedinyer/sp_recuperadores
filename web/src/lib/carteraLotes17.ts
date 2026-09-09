@@ -314,7 +314,7 @@ export async function obtenerLoteActivoOUltimo(
   ultimo: Lote17Row | null;
   totalLotes: number;
 }> {
-  let q = supabase
+  const q = supabase
     .from("cartera_lotes_17")
     .select(
       "id, starts_at, ends_at, status, created_by_perfil_id, created_at, tipo",
