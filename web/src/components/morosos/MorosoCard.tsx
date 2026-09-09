@@ -16,6 +16,7 @@ import { diasDesde, formatFechaHora } from "@/lib/fechas";
 import { normalizarDiasMora } from "@/lib/extractoCliente";
 import { formatearCOP } from "@/lib/formatoDinero";
 import { montoDesdeGestion } from "@/lib/carteraKpis";
+import { enlaceWhatsAppMoroso } from "@/lib/morososAcciones";
 import { cn } from "@/lib/utils";
 
 function etiquetaEstadoConMonto(g: {
@@ -26,17 +27,6 @@ function etiquetaEstadoConMonto(g: {
   const base = etiquetaCarteraStatus(g.status);
   const monto = montoDesdeGestion(g);
   return monto > 0 ? `${base} · ${formatearCOP(monto)}` : base;
-}
-
-function enlaceWhatsApp(telefono: string, texto: string): string | null {
-  const digits = telefono.replace(/\D/g, "");
-  if (!digits) return null;
-  const conPais = digits.startsWith("57")
-    ? digits
-    : digits.startsWith("0")
-      ? `57${digits.slice(1)}`
-      : `57${digits}`;
-  return `https://wa.me/${conPais}?text=${encodeURIComponent(texto)}`;
 }
 
 export function MorosoCard({
@@ -52,20 +42,12 @@ export function MorosoCard({
   onRegistrar: (moto: MorosoBandeja) => void;
   onHistorial: (moto: MorosoBandeja) => void;
 }) {
-  const primerNombre = moto.nombre.trim().split(/\s+/)[0] || "cliente";
-  const waTexto = `Estimado ${primerNombre},
-
-Le escribimos del Área de Cartera respecto a su crédito de motocicleta placa ${moto.placa}.
-
-Actualmente registra un saldo pendiente de ${formatearCOP(moto.deuda_total)}. Le invitamos a regularizar su obligación a la brevedad posible para evitar recargos por mora y mantener su crédito al día.
-
-Puede realizar su pago por Nequi, Davivienda, Bancolombia o en efectivo, y enviarnos el comprobante por este medio.
-
-Quedamos atentos para confirmar su pago y brindarle el soporte que necesite.
-
-Cordialmente,
-Área de Cartera`;
-  const wa = enlaceWhatsApp(moto.telefono, waTexto);
+  const wa = enlaceWhatsAppMoroso(
+    moto.telefono,
+    moto.placa,
+    moto.nombre,
+    moto.deuda_total,
+  );
   const nGestiones = conteoGestiones(moto);
   const ultimo = (moto.gestiones ?? [])[0] as GestionCartera | undefined;
   const diasMoto = diasDesde(moto.fecha_inicio);

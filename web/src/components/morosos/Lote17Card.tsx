@@ -5,6 +5,7 @@ import { PhoneIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatearCOP } from "@/lib/formatoDinero";
 import type { Lote17Item } from "@/lib/carteraLotes17Types";
+import { mensajeCobranzaWhatsApp } from "@/lib/morososAcciones";
 import { cn } from "@/lib/utils";
 
 function enlaceWhatsApp(telefono: string, texto: string): string | null {
@@ -37,8 +38,11 @@ export function Lote17Card({
   onAnotar: (item: Lote17Item) => void;
   onDetalle: (item: Lote17Item) => void;
 }) {
-  const primerNombre = item.nombre.trim().split(/\s+/)[0] || "cliente";
-  const waTexto = `Hola ${primerNombre}, le escribimos de Cartera por la moto ${item.placa}. Tiene un saldo de ${formatearCOP(item.deuda_total)}. ¿Cómo podemos ayudarle a ponerse al día?`;
+  const waTexto = mensajeCobranzaWhatsApp(
+    item.nombre,
+    item.placa,
+    item.deuda_total,
+  );
   const wa = enlaceWhatsApp(item.telefono, waTexto);
   const tel = telHref(item.telefono);
   const prefijoAyer = item.gestion_ayer ? "Ayer: " : "";

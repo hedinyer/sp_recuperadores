@@ -1,5 +1,28 @@
 import { formatearCOP } from "@/lib/formatoDinero";
 
+function saludoSegunHora(fecha = new Date()): string {
+  const h = fecha.getHours();
+  if (h < 12) return "Buenos días";
+  if (h < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
+
+/** Texto de WhatsApp tipo call center: corto, en primera persona, sin tono de robot. */
+export function mensajeCobranzaWhatsApp(
+  nombre: string,
+  placa: string,
+  deuda: number,
+): string {
+  const primerNombre = nombre.trim().split(/\s+/)[0] || "cliente";
+  const saldo = formatearCOP(deuda);
+  return `${saludoSegunHora()} ${primerNombre}, le escribo del call center de Soluciones Pinila.
+
+${placa.toUpperCase()}
+Tiene un saldo de ${saldo}.
+
+Le recuerdo que en el contrato solo puede estar atrasado 3 días, entonces necesito que se ponga al día. ¿Me confirma para cuándo puede pagar?`;
+}
+
 export function enlaceWhatsAppMoroso(
   telefono: string,
   placa: string,
@@ -13,19 +36,7 @@ export function enlaceWhatsAppMoroso(
     : digits.startsWith("0")
       ? `57${digits.slice(1)}`
       : `57${digits}`;
-  const primerNombre = nombre.trim().split(/\s+/)[0] || "cliente";
-  const texto = `Estimado ${primerNombre},
-
-Le escribimos del Área de Cartera respecto a su crédito de motocicleta placa ${placa}.
-
-Actualmente registra un saldo pendiente de ${formatearCOP(deuda)}. Le invitamos a regularizar su obligación a la brevedad posible para evitar recargos por mora y mantener su crédito al día.
-
-Puede realizar su pago por Nequi, Davivienda, Bancolombia o en efectivo, y enviarnos el comprobante por este medio.
-
-Quedamos atentos para confirmar su pago y brindarle el soporte que necesite.
-
-Cordialmente,
-Área de Cartera`;
+  const texto = mensajeCobranzaWhatsApp(nombre, placa, deuda);
   return `https://wa.me/${conPais}?text=${encodeURIComponent(texto)}`;
 }
 
