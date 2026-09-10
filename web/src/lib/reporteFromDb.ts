@@ -5,6 +5,11 @@ import {
   fetchMultasPendientesPorContrato,
 } from "@/lib/vehiculoPorPlaca";
 import type { RegistroExtracto } from "@/lib/extractoCliente";
+import {
+  SQL_EXPR_VALOR_CUOTA,
+  SQL_FILTRO_PAGO_TARIFA,
+  SQL_JOINS_PAGO_TARIFA,
+} from "@/lib/sqlPagosCuota";
 
 /** Contratos activos + cliente/vehículo (esquema Django en `db_new.md`). */
 export const SQL_CLIENTES_EXTRACTO = `
@@ -21,7 +26,10 @@ SELECT
     ven.nombre AS visitador,
     ct.fecha_inicio::date AS fecha_inicio,
     ct.tarifa::numeric AS valor_cuota,
-    ct.dias_contrato::text AS fecha_final
+    ct.dias_contrato::text AS fecha_final,
+    ct.estado,
+    v.estado AS estado_vehiculo,
+    ct.fecha_cancelacion
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
@@ -35,8 +43,8 @@ WHERE ct.estado = 'Activo'
 
 /**
  * Pagos que abonan cuotas (contratos activos).
- * Solo facturas con ítem `tarifa` (excluye pago_inicial / abono_credito).
- * Resta multas vía `pagomulta` y excluye cargos DALE de $25.000.
+ * Prorratea por ítem `tarifa` (no cuenta pago_inicial / abono_credito / multa ítem).
+ * Resta `pagomulta` solo si no hay ítem multa; excluye DALE $25.000.
  */
 export const SQL_REGISTROS_EXTRACTO = `
 SELECT
@@ -49,44 +57,20 @@ FROM (
   SELECT
       ct.id AS contrato_id,
       pf.fecha_pago::date AS fecha_registro,
-      pf.valor::numeric
-        - CASE
-            WHEN ROW_NUMBER() OVER (
-              PARTITION BY f.id ORDER BY pf.fecha_pago, pf.id
-            ) = 1
-            THEN COALESCE(pm.valor_multa, 0)
-            ELSE 0
-          END AS valor,
+      (${SQL_EXPR_VALOR_CUOTA.trim()}) AS valor,
       COALESCE(mp.nombre, '') AS tipo,
       COALESCE(pf.referencia, '') AS referencia
   FROM terminal_pagos_pagofactura pf
   JOIN terminal_pagos_factura f ON f.id = pf.factura_id
   JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
-  LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
-  LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
-  LEFT JOIN (
-    SELECT factura_id, SUM(valor::numeric) AS valor_multa
-    FROM terminal_pagos_pagomulta
-    GROUP BY factura_id
-  ) pm ON pm.factura_id = f.id
+  ${SQL_JOINS_PAGO_TARIFA}
   WHERE ct.estado = 'Activo'
     AND ct.fecha_inicio IS NOT NULL
-    AND lower(f.estado) <> 'anulada'
-    AND EXISTS (
-      SELECT 1
-      FROM terminal_pagos_itemfactura i
-      WHERE i.factura_id = f.id
-        AND i.tipo_item = 'tarifa'
-    )
-    AND NOT (
-      pf.valor::numeric = 25000
-      AND lower(COALESCE(mp.nombre, '')) = 'dale'
-    )
+    AND ${SQL_FILTRO_PAGO_TARIFA.trim()}
 ) pagos_cuota
 WHERE valor > 0
 ORDER BY contrato_id, fecha_registro
 `;
-
 /** Días que no generan cuota (ERP `arrendamientos_freezeday`). */
 export const SQL_FREEZE_DAYS = `
 SELECT contrato_id, fecha::text AS fecha
@@ -140,6 +124,9 @@ type ClienteRow = {
   fecha_inicio: Date;
   valor_cuota: string | number;
   fecha_final: string | null;
+  estado?: string | null;
+  estado_vehiculo?: string | null;
+  fecha_cancelacion?: Date | string | null;
 };
 
 function normalizarPlaca(placa: string): string {
@@ -284,4 +271,165 @@ export async function fetchReporteFilasDesdeDb(
   });
 
   return filas;
+}
+
+export type EstadoPlacaErp = {
+  placa: string;
+  estado_contrato: string;
+  estado_vehiculo: string;
+};
+
+export type PagoErpPlaca = {
+  placa: string;
+  fecha: string;
+  monto: number;
+};
+
+/** Último contrato por placa (prioriza Activo). */
+const SQL_ESTADOS_POR_PLACAS = `
+SELECT DISTINCT ON (upper(replace(v.placa, ' ', '')))
+  upper(replace(v.placa, ' ', '')) AS placa,
+  COALESCE(ct.estado, '') AS estado_contrato,
+  COALESCE(v.estado, '') AS estado_vehiculo
+FROM arrendamientos_contrato ct
+JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
+WHERE upper(replace(v.placa, ' ', '')) = ANY($1::text[])
+ORDER BY
+  upper(replace(v.placa, ' ', '')),
+  (ct.estado = 'Activo') DESC,
+  ct.fecha_inicio DESC NULLS LAST
+`;
+
+/** Pagos de cuota ERP por placa en rango de fechas (incl. contratos no activos). */
+const SQL_PAGOS_POR_PLACAS_RANGO = `
+SELECT
+  placa,
+  fecha_registro::text AS fecha,
+  SUM(valor)::numeric AS monto
+FROM (
+  SELECT
+      upper(replace(v.placa, ' ', '')) AS placa,
+      pf.fecha_pago::date AS fecha_registro,
+      (${SQL_EXPR_VALOR_CUOTA.trim()}) AS valor
+  FROM terminal_pagos_pagofactura pf
+  JOIN terminal_pagos_factura f ON f.id = pf.factura_id
+  JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
+  JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
+  ${SQL_JOINS_PAGO_TARIFA}
+  WHERE upper(replace(v.placa, ' ', '')) = ANY($1::text[])
+    AND pf.fecha_pago::date >= $2::date
+    AND pf.fecha_pago::date <= $3::date
+    AND ${SQL_FILTRO_PAGO_TARIFA.trim()}
+) pagos
+WHERE valor > 0
+GROUP BY placa, fecha_registro
+`;
+function chunkPlacas(placas: string[], size = 200): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < placas.length; i += size) {
+    out.push(placas.slice(i, i + size));
+  }
+  return out;
+}
+
+/** Estados contrato/vehículo ERP para un lote de placas. */
+export async function fetchEstadosPorPlacas(
+  placas: string[],
+): Promise<Map<string, EstadoPlacaErp>> {
+  const map = new Map<string, EstadoPlacaErp>();
+  const uniq = [
+    ...new Set(
+      placas
+        .map((p) => p.toUpperCase().replace(/\s/g, ""))
+        .filter(Boolean),
+    ),
+  ];
+  if (!uniq.length) return map;
+
+  const urls = getDatabaseUrls();
+  for (const chunk of chunkPlacas(uniq)) {
+    for (const url of urls) {
+      try {
+        const rows = await queryPg<{
+          placa: string;
+          estado_contrato: string;
+          estado_vehiculo: string;
+        }>(url, SQL_ESTADOS_POR_PLACAS, [chunk]);
+        for (const r of rows) {
+          const placa = String(r.placa ?? "")
+            .toUpperCase()
+            .replace(/\s/g, "");
+          if (!placa || map.has(placa)) continue;
+          map.set(placa, {
+            placa,
+            estado_contrato: String(r.estado_contrato ?? "").trim(),
+            estado_vehiculo: String(r.estado_vehiculo ?? "").trim(),
+          });
+        }
+      } catch (e) {
+        console.warn(
+          "[reporteFromDb] estados placas:",
+          e instanceof Error ? e.message : e,
+        );
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Pagos ERP (cuotas) por placa entre dos fechas YYYY-MM-DD inclusive.
+ * Atribución por placa, no por quién anotó la gestión.
+ */
+export async function fetchPagosErpPorPlacas(
+  placas: string[],
+  desdeYmd: string,
+  hastaYmd: string,
+): Promise<PagoErpPlaca[]> {
+  const uniq = [
+    ...new Set(
+      placas
+        .map((p) => p.toUpperCase().replace(/\s/g, ""))
+        .filter(Boolean),
+    ),
+  ];
+  if (
+    !uniq.length ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(desdeYmd) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(hastaYmd)
+  ) {
+    return [];
+  }
+
+  const byKey = new Map<string, PagoErpPlaca>();
+  const urls = getDatabaseUrls();
+  for (const chunk of chunkPlacas(uniq)) {
+    for (const url of urls) {
+      try {
+        const rows = await queryPg<{
+          placa: string;
+          fecha: string;
+          monto: string | number;
+        }>(url, SQL_PAGOS_POR_PLACAS_RANGO, [chunk, desdeYmd, hastaYmd]);
+        for (const r of rows) {
+          const placa = String(r.placa ?? "")
+            .toUpperCase()
+            .replace(/\s/g, "");
+          const fecha = String(r.fecha ?? "").slice(0, 10);
+          const monto = Math.round(Number(r.monto) || 0);
+          if (!placa || !fecha || monto <= 0) continue;
+          const key = `${placa}|${fecha}`;
+          // ponytail: primera base gana; evita sumar el mismo pago en 2 URLs
+          if (byKey.has(key)) continue;
+          byKey.set(key, { placa, fecha, monto });
+        }
+      } catch (e) {
+        console.warn(
+          "[reporteFromDb] pagos ERP placas:",
+          e instanceof Error ? e.message : e,
+        );
+      }
+    }
+  }
+  return [...byKey.values()];
 }

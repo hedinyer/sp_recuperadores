@@ -5,6 +5,11 @@ import {
 } from "@/lib/extractoCliente";
 import { getDatabaseUrls } from "@/lib/dbUrls";
 import { queryPg } from "@/lib/pgPool";
+import {
+  SQL_EXPR_VALOR_CUOTA,
+  SQL_FILTRO_PAGO_TARIFA,
+  SQL_JOINS_PAGO_TARIFA,
+} from "@/lib/sqlPagosCuota";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 
 type ClienteDbRow = {
@@ -17,24 +22,74 @@ type ClienteDbRow = {
   fecha_inicio: Date;
   valor_cuota: string | number;
   fecha_final: string | null;
-  /** Estado del contrato en el ERP (`Activo`, `Inactivo`, etc.). */
+  /** Estado del contrato en el ERP (`Activo`, `Inactivo`, `Retenido`, etc.). */
   estado?: string | null;
   /** Estado del vehículo (`Activo`, `Vitrina`, `Inactivo`, etc.). */
   estado_vehiculo?: string | null;
+  /** Corte de deuda cuando el contrato deja de estar activo. */
+  fecha_cancelacion?: Date | string | null;
 };
 
-/** Solo contratos y motos activos generan deuda cobrable. */
+function normEstado(v: string | null | undefined): string {
+  return String(v ?? "").trim();
+}
+
+/** Solo contratos y motos activos se cobran en cartera / lotes. */
 export function esDeudaCobrable(
   estadoContrato: string | null | undefined,
   estadoVehiculo?: string | null,
 ): boolean {
-  const ct = String(estadoContrato ?? "Activo").trim().toLowerCase();
+  const ct = normEstado(estadoContrato).toLowerCase() || "activo";
   if (ct !== "activo") return false;
   // Sin dato de vehículo (p. ej. reportes masivos) se asume activo.
-  if (estadoVehiculo == null || String(estadoVehiculo).trim() === "") {
+  if (estadoVehiculo == null || normEstado(estadoVehiculo) === "") {
     return true;
   }
-  return String(estadoVehiculo).trim().toLowerCase() === "activo";
+  return normEstado(estadoVehiculo).toLowerCase() === "activo";
+}
+
+/**
+ * Etiqueta grande para UI: RETENIDO / INACTIVO / VITRINA…
+ * Prioriza estado del contrato; si el contrato sigue activo, usa el del vehículo.
+ */
+export function etiquetaEstadoDestacado(
+  estadoContrato: string | null | undefined,
+  estadoVehiculo?: string | null,
+): string | null {
+  const ct = normEstado(estadoContrato);
+  const veh = normEstado(estadoVehiculo);
+  const ctLow = ct.toLowerCase();
+  const vehLow = veh.toLowerCase();
+  if (ct && ctLow !== "activo") return ct.toUpperCase();
+  if (veh && vehLow !== "activo") return veh.toUpperCase();
+  return null;
+}
+
+/** Texto corto cuando el contrato/moto no está activo. */
+export function motivoDeudaNoCobrable(
+  estadoContrato: string | null | undefined,
+  estadoVehiculo?: string | null,
+): string | null {
+  const etiqueta = etiquetaEstadoDestacado(estadoContrato, estadoVehiculo);
+  if (!etiqueta) return null;
+  const ct = normEstado(estadoContrato).toLowerCase();
+  if (ct && ct !== "activo") {
+    return `Contrato ${etiqueta}: deuda al corte (no sigue generando mora)`;
+  }
+  return `Vehículo ${etiqueta}: deuda al corte (no sigue generando mora)`;
+}
+
+/** Fecha de corte para congelar cuotas (cancelación / retención). */
+export function fechaCorteDeuda(
+  estadoContrato: string | null | undefined,
+  estadoVehiculo: string | null | undefined,
+  fechaCancelacion: Date | string | null | undefined,
+): Date | undefined {
+  if (esDeudaCobrable(estadoContrato, estadoVehiculo)) return undefined;
+  if (fechaCancelacion == null || fechaCancelacion === "") return undefined;
+  const d = new Date(fechaCancelacion);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d;
 }
 
 type RegistroDbRow = {
@@ -56,7 +111,8 @@ SELECT
     ct.tarifa::numeric AS valor_cuota,
     ct.dias_contrato::text AS fecha_final,
     ct.estado,
-    v.estado AS estado_vehiculo
+    v.estado AS estado_vehiculo,
+    ct.fecha_cancelacion
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
@@ -64,7 +120,10 @@ LEFT JOIN clientes_vendedor ven ON ven.id = ct.vendedor_id
 WHERE ct.fecha_inicio IS NOT NULL
   AND ct.tarifa > 0
   AND upper(replace(v.placa, ' ', '')) = $1
-ORDER BY (ct.estado = 'Activo') DESC, ct.fecha_inicio DESC
+ORDER BY
+  (ct.estado = 'Activo') DESC,
+  (ct.estado = 'Retenido') DESC,
+  ct.fecha_inicio DESC
 LIMIT 1
 `;
 
@@ -80,7 +139,8 @@ SELECT
     ct.tarifa::numeric AS valor_cuota,
     ct.dias_contrato::text AS fecha_final,
     ct.estado,
-    v.estado AS estado_vehiculo
+    v.estado AS estado_vehiculo,
+    ct.fecha_cancelacion
 FROM arrendamientos_contrato ct
 JOIN clientes_cliente cl ON cl.id = ct.cliente_id
 JOIN vehiculos_vehiculo v ON v.id = ct.vehiculo_id
@@ -91,15 +151,14 @@ WHERE ct.fecha_inicio IS NOT NULL
 ORDER BY
   upper(replace(v.placa, ' ', '')),
   (ct.estado = 'Activo') DESC,
+  (ct.estado = 'Retenido') DESC,
   ct.fecha_inicio DESC
 LIMIT 1
 `;
 
 /**
  * Pagos que abonan cuotas del arriendo.
- * - Solo facturas con ítem `tarifa` (excluye pago_inicial / abono_credito).
- * - Resta lo aplicado a multas (`terminal_pagos_pagomulta`).
- * - Excluye cargos DALE de $25.000 (publicación/GPS), que no son cuota.
+ * Prorratea por ítem `tarifa` (excluye pago_inicial / abono / multa ítem).
  */
 const SQL_REGISTROS_CONTRATO = `
 SELECT
@@ -110,38 +169,15 @@ SELECT
 FROM (
   SELECT
       pf.fecha_pago::date AS fecha_registro,
-      pf.valor::numeric
-        - CASE
-            WHEN ROW_NUMBER() OVER (
-              PARTITION BY f.id ORDER BY pf.fecha_pago, pf.id
-            ) = 1
-            THEN COALESCE(pm.valor_multa, 0)
-            ELSE 0
-          END AS valor,
+      (${SQL_EXPR_VALOR_CUOTA.trim()}) AS valor,
       COALESCE(mp.nombre, '') AS tipo,
       COALESCE(pf.referencia, '') AS referencia
   FROM terminal_pagos_pagofactura pf
   JOIN terminal_pagos_factura f ON f.id = pf.factura_id
   JOIN arrendamientos_contrato ct ON ct.id = f.contrato_id
-  LEFT JOIN terminal_pagos_canalpago cp ON cp.id = pf.canal_id
-  LEFT JOIN terminal_pagos_mediopago mp ON mp.id = cp.medio_id
-  LEFT JOIN (
-    SELECT factura_id, SUM(valor::numeric) AS valor_multa
-    FROM terminal_pagos_pagomulta
-    GROUP BY factura_id
-  ) pm ON pm.factura_id = f.id
+  ${SQL_JOINS_PAGO_TARIFA}
   WHERE ct.id = $1
-    AND lower(f.estado) <> 'anulada'
-    AND EXISTS (
-      SELECT 1
-      FROM terminal_pagos_itemfactura i
-      WHERE i.factura_id = f.id
-        AND i.tipo_item = 'tarifa'
-    )
-    AND NOT (
-      pf.valor::numeric = 25000
-      AND lower(COALESCE(mp.nombre, '')) = 'dale'
-    )
+    AND ${SQL_FILTRO_PAGO_TARIFA.trim()}
 ) pagos_cuota
 WHERE valor > 0
 ORDER BY fecha_registro
@@ -216,24 +252,28 @@ export function buildFilaReporte(
   fechasCongeladas: Iterable<string> = [],
 ): Record<string, string> {
   const valorCuota = Number(c.valor_cuota);
-  const estadoContrato = String(c.estado ?? "Activo").trim() || "Activo";
-  const estadoVehiculo =
-    c.estado_vehiculo == null || String(c.estado_vehiculo).trim() === ""
-      ? ""
-      : String(c.estado_vehiculo).trim();
+  const estadoContrato = normEstado(c.estado) || "Activo";
+  const estadoVehiculo = normEstado(c.estado_vehiculo);
   const cobrable = esDeudaCobrable(estadoContrato, c.estado_vehiculo);
+  const etiqueta = etiquetaEstadoDestacado(estadoContrato, c.estado_vehiculo);
+  const fechaCorte = fechaCorteDeuda(
+    estadoContrato,
+    c.estado_vehiculo,
+    c.fecha_cancelacion,
+  );
 
   const m = calcularMetricasExtracto(
     new Date(c.fecha_inicio),
     valorCuota,
     registros,
     parseDiasCredito(c.fecha_final),
-    undefined,
+    fechaCorte,
     fechasCongeladas,
   );
 
-  const deudaCuotas = cobrable ? Math.round(m.deuda_total) : 0;
-  const multas = cobrable ? Math.round(deudaMultas) : 0;
+  // Siempre mostrar deuda real; si no es cobrable, queda al corte (cancelación).
+  const deudaCuotas = Math.round(m.deuda_total);
+  const multas = Math.round(deudaMultas);
 
   return {
     cedula: c.cedula,
@@ -246,16 +286,20 @@ export function buildFilaReporte(
     cuotas_generadas: String(m.cuotas_generadas),
     cuotas_completas: String(m.cuotas_completas),
     cuotas_pagadas: m.cuotas_pagadas.toFixed(1),
-    cuotas_pendientes: cobrable ? m.cuotas_pendientes.toFixed(1) : "0",
+    cuotas_pendientes: m.cuotas_pendientes.toFixed(1),
     total_pagado: String(Math.round(m.total_pagado)),
     deuda_cuotas: String(deudaCuotas),
     deuda_multas: String(multas),
     deuda_total: String(deudaCuotas + multas),
     ultimo_pago: m.ultimo_pago,
-    dias_mora: cobrable ? String(m.dias_mora) : "0",
+    dias_mora: String(m.dias_mora),
     cumplimiento_pct: String(m.cumplimiento_pct),
     estado_contrato: estadoContrato,
     estado_vehiculo: estadoVehiculo,
+    etiqueta_estado: etiqueta ?? "",
+    deuda_al_corte: cobrable ? "" : "1",
+    fecha_corte: fechaCorte ? fechaAString(fechaCorte) : "",
+    motivo_estado: motivoDeudaNoCobrable(estadoContrato, c.estado_vehiculo) ?? "",
   };
 }
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { HistorialPlaca } from "@/components/HistorialPlaca";
+import { EstadoContratoBanner } from "@/components/EstadoContratoBanner";
 import { NavFooter } from "@/components/NavFooter";
 import type { ItemHistorialPlaca } from "@/lib/historialPlaca";
 import {
@@ -774,21 +775,30 @@ export default function Home() {
               </div>
 
               {(() => {
-                const ct = (v.estado_contrato ?? "").trim();
-                const veh = (v.estado_vehiculo ?? "").trim();
-                const ctOk = !ct || ct.toLowerCase() === "activo";
-                const vehOk = !veh || veh.toLowerCase() === "activo";
-                if (ctOk && vehOk) return null;
-                const partes: string[] = [];
-                if (!ctOk) partes.push(`contrato ${ct}`);
-                if (!vehOk) partes.push(`moto ${veh}`);
+                const etiqueta =
+                  (v.etiqueta_estado ?? "").trim() ||
+                  (() => {
+                    const ct = (v.estado_contrato ?? "").trim();
+                    const veh = (v.estado_vehiculo ?? "").trim();
+                    if (ct && ct.toLowerCase() !== "activo") {
+                      return ct.toUpperCase();
+                    }
+                    if (veh && veh.toLowerCase() !== "activo") {
+                      return veh.toUpperCase();
+                    }
+                    return "";
+                  })();
+                if (!etiqueta) return null;
                 return (
-                  <div
-                    role="status"
-                    className="px-4 py-2 border-b border-amber-900/50 bg-amber-950/40 text-sm text-amber-200"
-                  >
-                    {partes.join(" · ")} — sin deuda cobrable ($0)
-                  </div>
+                  <EstadoContratoBanner
+                    etiqueta={etiqueta}
+                    motivo={
+                      (v.motivo_estado ?? "").trim() ||
+                      `Contrato/moto ${etiqueta}`
+                    }
+                    fechaCorte={(v.fecha_corte ?? "").trim() || null}
+                    deudaAlCorte={v.deuda_al_corte === "1" || Boolean(etiqueta)}
+                  />
                 );
               })()}
 
@@ -796,7 +806,17 @@ export default function Home() {
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
-                    Valor para estar al día
+                    {(v.etiqueta_estado ?? "").trim() ||
+                    ((v.estado_contrato ?? "").trim() &&
+                      (v.estado_contrato ?? "").toLowerCase() !== "activo")
+                      ? `Deuda al quedar ${(
+                          v.etiqueta_estado ||
+                          v.estado_contrato ||
+                          "inactivo"
+                        )
+                          .toString()
+                          .toLowerCase()}`
+                      : "Valor para estar al día"}
                   </p>
                   {modoMaster ? (
                     <div className="flex items-center gap-1.5 shrink-0 -mt-0.5">

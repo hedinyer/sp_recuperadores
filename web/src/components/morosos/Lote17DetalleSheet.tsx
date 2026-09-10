@@ -109,6 +109,30 @@ export function Lote17DetalleSheet({
                 <span className="text-muted-foreground">Teléfono: </span>
                 <span className="tabular-nums">{item.telefono || "—"}</span>
               </p>
+              <p className="mt-1">
+                <span className="text-muted-foreground">Contrato: </span>
+                {item.estado_contrato || "—"}
+              </p>
+              <p className="mt-1">
+                <span className="text-muted-foreground">Vehículo: </span>
+                {item.estado_vehiculo || "—"}
+              </p>
+              {item.etiqueta_estado ? (
+                <p
+                  className={
+                    item.etiqueta_estado.includes("RETEN")
+                      ? "mt-3 rounded-xl bg-orange-600 px-3 py-3 text-center text-2xl font-black tracking-[0.14em] text-white uppercase"
+                      : "mt-3 rounded-xl bg-zinc-700 px-3 py-3 text-center text-2xl font-black tracking-[0.14em] text-white uppercase"
+                  }
+                >
+                  {item.etiqueta_estado}
+                </p>
+              ) : null}
+              {item.motivo_estado ? (
+                <p className="mt-2 text-pretty text-amber-800 dark:text-amber-200">
+                  {item.motivo_estado}
+                </p>
+              ) : null}
             </div>
 
             {telCliente ? (
@@ -146,7 +170,6 @@ export function Lote17DetalleSheet({
                   Última gestión
                 </p>
                 <p className="mt-1 text-sm text-pretty text-foreground">
-                  {item.gestion_ayer ? "Ayer: " : ""}
                   {item.ultima_gestion_texto}
                 </p>
               </div>

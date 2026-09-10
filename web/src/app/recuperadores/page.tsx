@@ -66,6 +66,10 @@ type DeudaPlaca = {
   dias_mora: number;
   cuotas_pendientes?: number | null;
   telefono?: string;
+  etiqueta_estado?: string;
+  motivo_estado?: string;
+  fecha_corte?: string;
+  deuda_al_corte?: boolean;
 };
 
 function enlaceWhatsApp(telefono: string | undefined): string | null {
@@ -297,6 +301,10 @@ export default function RecuperadoresPage() {
                   ? cuotasRaw
                   : null,
               telefono: v.telefono || undefined,
+              etiqueta_estado: v.etiqueta_estado || undefined,
+              motivo_estado: v.motivo_estado || undefined,
+              fecha_corte: v.fecha_corte || undefined,
+              deuda_al_corte: v.deuda_al_corte === "1",
             },
             false,
           ] as const;
@@ -996,6 +1004,10 @@ export default function RecuperadoresPage() {
                       cuotasPendientes={deuda?.cuotas_pendientes}
                       loading={cargandoDeudas && !deuda}
                       sinDatos={!cargandoDeudas && !deuda}
+                      etiquetaEstado={deuda?.etiqueta_estado}
+                      motivoEstado={deuda?.motivo_estado}
+                      fechaCorte={deuda?.fecha_corte}
+                      deudaAlCorte={deuda?.deuda_al_corte}
                     />
 
                     {deuda?.nombre ? (

@@ -6,12 +6,17 @@ import type {
   CasoCartera,
   GestionCartera,
 } from "@/lib/carteraMorososTypes";
-import { inicioDiaBogotaMs } from "@/lib/carteraMorososTypes";
+import { formatearTextoGestion, inicioDiaBogotaMs } from "@/lib/carteraMorososTypes";
 import type { CarteraPerfilId } from "@/lib/carteraPerfiles";
 import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
 import { normalizarDiasMora } from "@/lib/extractoCliente";
 import { ESTADO_GPS_SIN_DISPOSITIVO } from "@/lib/gpsEstadoPlacas";
+import {
+  fetchEstadosPorPlacas,
+  fetchPagosErpPorPlacas,
+} from "@/lib/reporteFromDb";
 import { supabase } from "@/lib/supabase";
+import { motivoDeudaNoCobrable, etiquetaEstadoDestacado } from "@/lib/vehiculoPorPlaca";
 import {
   calcularEndsAt,
   esLote17Perfil,
@@ -56,6 +61,8 @@ export {
   type MetricasAdminPayload,
 };
 
+export { formatearTextoGestion } from "@/lib/carteraMorososTypes";
+
 function normalizarPlaca(placa: string): string {
   return placa.toUpperCase().replace(/\s/g, "");
 }
@@ -66,28 +73,6 @@ function inicioAyerBogotaMs(ahora = Date.now()): number {
 
 function finAyerBogotaMs(ahora = Date.now()): number {
   return inicioDiaBogotaMs(ahora) - 1;
-}
-
-function etiquetaStatus(status: string): string {
-  const map: Record<string, string> = {
-    pendiente: "Pendiente",
-    contactado: "Contactado",
-    compromiso: "Compromiso de pago",
-    abono: "Abono",
-    no_contesta: "No contesta",
-    visita: "Visita",
-    en_ruta: "En ruta",
-    recuperada: "Recuperada",
-    cerrado: "Cerrado",
-  };
-  return map[status] ?? status;
-}
-
-export function formatearTextoGestion(g: GestionCartera | undefined): string | null {
-  if (!g) return null;
-  const base = etiquetaStatus(g.status);
-  const nota = g.notas?.trim();
-  return nota ? `${base}: ${nota}` : base;
 }
 
 export function splitPlacasEquitativo(
@@ -122,16 +107,35 @@ async function fetchGestionesPorPlacas(
   const map = new Map<string, GestionCartera[]>();
   if (!placas.length) return map;
 
-  const { data, error } = await supabase
+  const selectConMonto =
+    "id, placa, perfil_id, status, notas, monto, created_at";
+  const selectSinMonto = "id, placa, perfil_id, status, notas, created_at";
+
+  let data: Array<Record<string, unknown>> | null = null;
+  const first = await supabase
     .from("cartera_gestiones")
-    .select("id, placa, perfil_id, status, notas, monto, created_at")
+    .select(selectConMonto)
     .in("placa", placas)
     .order("created_at", { ascending: false })
     .limit(4000);
 
-  if (error) {
-    console.warn("[carteraLotes17] gestiones:", error.message);
+  if (first.error && /monto/i.test(first.error.message)) {
+    const retry = await supabase
+      .from("cartera_gestiones")
+      .select(selectSinMonto)
+      .in("placa", placas)
+      .order("created_at", { ascending: false })
+      .limit(4000);
+    if (retry.error) {
+      console.warn("[carteraLotes17] gestiones:", retry.error.message);
+      return map;
+    }
+    data = (retry.data ?? []) as Array<Record<string, unknown>>;
+  } else if (first.error) {
+    console.warn("[carteraLotes17] gestiones:", first.error.message);
     return map;
+  } else {
+    data = (first.data ?? []) as Array<Record<string, unknown>>;
   }
 
   for (const row of data ?? []) {
@@ -139,16 +143,17 @@ async function fetchGestionesPorPlacas(
     if (!placa) continue;
     const list = map.get(placa) ?? [];
     if (list.length >= 8) continue;
+    const montoRaw = row.monto;
     list.push({
       id: Number(row.id) || undefined,
       placa,
       perfil_id: String(row.perfil_id ?? ""),
       status: String(row.status ?? ""),
-      notas: row.notas ?? null,
+      notas: (row.notas as string | null) ?? null,
       created_at: String(row.created_at ?? ""),
       monto:
-        row.monto != null && Number.isFinite(Number(row.monto))
-          ? Number(row.monto)
+        montoRaw != null && Number.isFinite(Number(montoRaw))
+          ? Number(montoRaw)
           : null,
     });
     map.set(placa, list);
@@ -686,6 +691,21 @@ export async function crearLoteAtraso38(opts: {
   return { lote, asignadas: sorted.length };
 }
 
+function ymdBogota(ms = Date.now()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
+function ymdDesdeIso(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return ymdBogota();
+  return ymdBogota(t);
+}
+
 function gestionEnRango(
   gestiones: GestionCartera[],
   perfilId: string,
@@ -760,18 +780,24 @@ export async function cargarListaLote17(
   const rows = (asignadas ?? []) as Lote17PlacaRow[];
   const placas = rows.map((r) => normalizarPlaca(r.placa));
 
-  const [candidatosLive, gestionesByPlaca, casosByPlaca] = await Promise.all([
-    listarCandidatos17().catch(() => []),
-    fetchGestionesPorPlacas(placas),
-    fetchCasosPorPlacas(placas),
-  ]);
+  const [candidatosLive, gestionesByPlaca, casosByPlaca, estadosByPlaca] =
+    await Promise.all([
+      listarCandidatos17().catch(() => []),
+      fetchGestionesPorPlacas(placas),
+      fetchCasosPorPlacas(placas),
+      fetchEstadosPorPlacas(placas).catch(() => new Map()),
+    ]);
 
   // También enriquecer con atrasos generales (pago_hoy aunque salió de 17+)
-  const { atrasos } = await fetchAtrasosDesdeDb(false);
+  const [{ atrasos }, pagosErpHoy] = await Promise.all([
+    fetchAtrasosDesdeDb(false),
+    fetchPagosErpPorPlacas(placas, ymdBogota(), ymdBogota()).catch(() => []),
+  ]);
   const atrasoByPlaca = new Map(
     atrasos.map((a) => [normalizarPlaca(a.placa), a]),
   );
   const live17ByPlaca = new Map(candidatosLive.map((c) => [c.placa, c]));
+  const pagoErpHoySet = new Set(pagosErpHoy.map((p) => p.placa));
 
   const hoyMs = inicioDiaBogotaMs();
   const ayerDesde = inicioAyerBogotaMs();
@@ -783,6 +809,7 @@ export async function cargarListaLote17(
     const atraso = atrasoByPlaca.get(placa);
     const gestiones = gestionesByPlaca.get(placa) ?? [];
     const caso = casosByPlaca.get(placa) ?? null;
+    const estado = estadosByPlaca.get(placa);
     const ultimoG = gestiones[0];
     const gestionHoy = gestionEnRango(
       gestiones,
@@ -806,6 +833,9 @@ export async function cargarListaLote17(
       live?.cuotas_pendientes ??
       (row.cuotas_pendientes != null ? Number(row.cuotas_pendientes) : 0);
 
+    const estado_contrato = estado?.estado_contrato ?? "";
+    const estado_vehiculo = estado?.estado_vehiculo ?? "";
+
     return {
       placa,
       cedula: atraso?.cedula ?? live?.cedula ?? row.cedula ?? "",
@@ -823,7 +853,8 @@ export async function cargarListaLote17(
         atraso?.cumplimiento_pct ?? live?.cumplimiento_pct ?? 0,
       total_pagado: atraso?.total_pagado ?? live?.total_pagado ?? 0,
       ultimo_pago: atraso?.ultimo_pago ?? live?.ultimo_pago ?? "",
-      pago_hoy: Boolean(atraso?.pago_hoy ?? live?.pago_hoy),
+      pago_hoy:
+        Boolean(atraso?.pago_hoy ?? live?.pago_hoy) || pagoErpHoySet.has(placa),
       categoria: "cuotas_17",
       gps: ESTADO_GPS_SIN_DISPOSITIVO,
       caso,
@@ -841,6 +872,13 @@ export async function cargarListaLote17(
       gestion_ayer: Boolean(gestionAyer),
       ultima_gestion_texto: formatearTextoGestion(
         gestionAyer ?? gestionHoy ?? ultimoG,
+      ),
+      estado_contrato,
+      estado_vehiculo,
+      motivo_estado: motivoDeudaNoCobrable(estado_contrato, estado_vehiculo),
+      etiqueta_estado: etiquetaEstadoDestacado(estado_contrato, estado_vehiculo),
+      deuda_al_corte: !!(
+        etiquetaEstadoDestacado(estado_contrato, estado_vehiculo)
       ),
     };
   });
@@ -925,11 +963,15 @@ export async function cargarMetricasLotePorTipo(
   const startsMs = new Date(activo.starts_at).getTime();
   const endsMs = Math.min(Date.now(), new Date(activo.ends_at).getTime());
   const hoyMs = inicioDiaBogotaMs();
+  const hoyYmd = ymdBogota();
+  const desdeYmd = ymdDesdeIso(activo.starts_at);
+  const hastaYmd = ymdBogota(endsMs);
 
   let abonosLote: Array<{
     placa: string;
     monto: number;
     created_at: string;
+    fuente: "gestion" | "erp";
   }> = [];
 
   if (placas.length) {
@@ -942,7 +984,32 @@ export async function cargarMetricasLotePorTipo(
       .lte("created_at", new Date(endsMs).toISOString())
       .limit(5000);
 
-    if (errAbonos) {
+    if (errAbonos && /monto/i.test(errAbonos.message)) {
+      const retry = await supabase
+        .from("cartera_gestiones")
+        .select("placa, status, notas, created_at")
+        .eq("status", "abono")
+        .in("placa", placas)
+        .gte("created_at", activo.starts_at)
+        .lte("created_at", new Date(endsMs).toISOString())
+        .limit(5000);
+      if (retry.error) {
+        console.warn("[carteraLotes17] abonos métricas:", retry.error.message);
+      } else {
+        abonosLote = (retry.data ?? [])
+          .map((row) => ({
+            placa: normalizarPlaca(String(row.placa ?? "")),
+            monto: montoDesdeGestion({
+              status: String(row.status ?? "abono"),
+              notas: row.notas ?? null,
+              monto: null,
+            }),
+            created_at: String(row.created_at ?? ""),
+            fuente: "gestion" as const,
+          }))
+          .filter((a) => a.placa && a.monto > 0);
+      }
+    } else if (errAbonos) {
       console.warn("[carteraLotes17] abonos métricas:", errAbonos.message);
       for (const placa of placas) {
         for (const g of gestionesByPlaca.get(placa) ?? []) {
@@ -950,7 +1017,12 @@ export async function cargarMetricasLotePorTipo(
           if (Number.isNaN(t) || t < startsMs || t > endsMs) continue;
           const monto = montoDesdeGestion(g);
           if (monto > 0) {
-            abonosLote.push({ placa, monto, created_at: g.created_at });
+            abonosLote.push({
+              placa,
+              monto,
+              created_at: g.created_at,
+              fuente: "gestion",
+            });
           }
         }
       }
@@ -967,9 +1039,36 @@ export async function cargarMetricasLotePorTipo(
                 : null,
           }),
           created_at: String(row.created_at ?? ""),
+          fuente: "gestion" as const,
         }))
         .filter((a) => a.placa && a.monto > 0);
     }
+
+    // Pagos subidos al ERP en la ventana de 4 días del lote
+    const pagosErp = await fetchPagosErpPorPlacas(
+      placas,
+      desdeYmd,
+      hastaYmd,
+    ).catch(() => []);
+    const placasConErpHoy = new Set(
+      pagosErp.filter((p) => p.fecha === hoyYmd).map((p) => p.placa),
+    );
+    for (const p of pagosErp) {
+      abonosLote.push({
+        placa: p.placa,
+        monto: p.monto,
+        // Medianoche Bogotá de la fecha del pago (para filtrar "hoy")
+        created_at: new Date(`${p.fecha}T12:00:00-05:00`).toISOString(),
+        fuente: "erp",
+      });
+    }
+    // Evita doble conteo: si hay pago ERP hoy, ignora abonos-gestión del mismo día
+    abonosLote = abonosLote.filter((a) => {
+      if (a.fuente !== "gestion") return true;
+      const t = new Date(a.created_at).getTime();
+      if (Number.isNaN(t) || t < hoyMs) return true;
+      return !placasConErpHoy.has(a.placa);
+    });
   }
 
   const asignacionByPlaca = new Map<string, LoteMetricasPerfilId>();
@@ -1150,11 +1249,13 @@ export async function cargarListaLoteNicolas(
   }
 
   const placas = rows.map((r) => normalizarPlaca(r.placa));
-  const [gestionesByPlaca, casosByPlaca, { atrasos }] = await Promise.all([
-    fetchGestionesPorPlacas(placas),
-    fetchCasosPorPlacas(placas),
-    fetchAtrasosDesdeDb(false),
-  ]);
+  const [gestionesByPlaca, casosByPlaca, { atrasos }, estadosByPlaca] =
+    await Promise.all([
+      fetchGestionesPorPlacas(placas),
+      fetchCasosPorPlacas(placas),
+      fetchAtrasosDesdeDb(false),
+      fetchEstadosPorPlacas(placas).catch(() => new Map()),
+    ]);
   const atrasoByPlaca = new Map(
     atrasos.map((a) => [normalizarPlaca(a.placa), a]),
   );
@@ -1168,6 +1269,7 @@ export async function cargarListaLoteNicolas(
     const atraso = atrasoByPlaca.get(placa);
     const gestiones = gestionesByPlaca.get(placa) ?? [];
     const caso = casosByPlaca.get(placa) ?? null;
+    const estado = estadosByPlaca.get(placa);
     const ultimoG = gestiones[0];
     const gestionHoy = gestionEnRango(
       gestiones,
@@ -1191,6 +1293,9 @@ export async function cargarListaLoteNicolas(
           atraso?.cuotas_pendientes ??
           (row.cuotas_pendientes != null ? Number(row.cuotas_pendientes) : 0),
       }) ?? "cuotas_1_5";
+
+    const estado_contrato = estado?.estado_contrato ?? "";
+    const estado_vehiculo = estado?.estado_vehiculo ?? "";
 
     return {
       placa,
@@ -1225,6 +1330,13 @@ export async function cargarListaLoteNicolas(
       gestion_ayer: Boolean(gestionAyer),
       ultima_gestion_texto: formatearTextoGestion(
         gestionAyer ?? gestionHoy ?? ultimoG,
+      ),
+      estado_contrato,
+      estado_vehiculo,
+      motivo_estado: motivoDeudaNoCobrable(estado_contrato, estado_vehiculo),
+      etiqueta_estado: etiquetaEstadoDestacado(estado_contrato, estado_vehiculo),
+      deuda_al_corte: !!(
+        etiquetaEstadoDestacado(estado_contrato, estado_vehiculo)
       ),
     };
   });

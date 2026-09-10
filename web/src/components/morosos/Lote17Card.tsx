@@ -45,7 +45,6 @@ export function Lote17Card({
   );
   const wa = enlaceWhatsApp(item.telefono, waTexto);
   const tel = telHref(item.telefono);
-  const prefijoAyer = item.gestion_ayer ? "Ayer: " : "";
 
   return (
     <article
@@ -65,6 +64,28 @@ export function Lote17Card({
           <p className="mt-1 text-base font-semibold tabular-nums text-destructive">
             Debe {formatearCOP(item.deuda_total)}
           </p>
+          {item.etiqueta_estado ? (
+            <p
+              className={cn(
+                "mt-2 rounded-lg px-2.5 py-2 text-center text-lg font-black tracking-[0.14em] uppercase text-white",
+                item.etiqueta_estado.includes("RETEN")
+                  ? "bg-orange-600"
+                  : "bg-zinc-700",
+              )}
+            >
+              {item.etiqueta_estado}
+            </p>
+          ) : item.estado_contrato || item.estado_vehiculo ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Contrato {item.estado_contrato || "—"} · Vehículo{" "}
+              {item.estado_vehiculo || "—"}
+            </p>
+          ) : null}
+          {item.motivo_estado ? (
+            <p className="mt-0.5 text-xs text-pretty text-amber-800 dark:text-amber-200">
+              {item.motivo_estado}
+            </p>
+          ) : null}
         </div>
         {item.pago_hoy ? (
           <span className="shrink-0 rounded-lg bg-success/15 px-2 py-1 text-xs font-semibold text-success">
@@ -75,7 +96,6 @@ export function Lote17Card({
 
       {item.ultima_gestion_texto ? (
         <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm text-pretty text-foreground">
-          <span className="font-medium">{prefijoAyer}</span>
           {item.ultima_gestion_texto}
         </p>
       ) : (

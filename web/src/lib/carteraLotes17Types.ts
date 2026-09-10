@@ -41,6 +41,12 @@ export type Lote17Item = MorosoBandeja & {
   orden: number;
   gestion_ayer: boolean;
   ultima_gestion_texto: string | null;
+  estado_contrato?: string;
+  estado_vehiculo?: string;
+  motivo_estado?: string | null;
+  etiqueta_estado?: string | null;
+  fecha_corte?: string | null;
+  deuda_al_corte?: boolean;
 };
 
 export type Lote17Payload = {
