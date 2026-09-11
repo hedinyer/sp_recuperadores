@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { PaperclipIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -14,8 +14,68 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { formatFechaHora } from "@/lib/fechas";
 import { nombrePerfilCartera, type CarteraPerfilId } from "@/lib/carteraPerfiles";
 import { cn } from "@/lib/utils";
+
+type TabIa = "alertas" | "analizar" | "chat";
+
+type AlertaUi = {
+  id: number;
+  placa: string;
+  titulo: string;
+  cuerpo: string | null;
+  kind: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+/** Logo IA: “AI” en marco redondeado con destellos (como el icono de referencia). */
+function IconoIA({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      {/* Marco redondeado con esquina superior derecha abierta */}
+      <path
+        d="M15.2 3.8H7.2C5.1 3.8 3.4 5.5 3.4 7.6v8.8c0 2.1 1.7 3.8 3.8 3.8h8.8c2.1 0 3.8-1.7 3.8-3.8V9.6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Destellos */}
+      <path
+        d="M17.6 4.2l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7.7-1.7Z"
+        fill="currentColor"
+      />
+      <path
+        d="M21.1 5.6l.35.85.85.35-.85.35-.35.85-.35-.85-.85-.35.85-.35.35-.85Z"
+        fill="currentColor"
+      />
+      <path
+        d="M19.6 2.5l.28.68.68.28-.68.28-.28.68-.28-.68-.68-.28.68-.28.28-.68Z"
+        fill="currentColor"
+      />
+      <text
+        x="11.2"
+        y="15.2"
+        textAnchor="middle"
+        fill="currentColor"
+        fontSize="8"
+        fontWeight="700"
+        fontFamily="system-ui, Segoe UI, sans-serif"
+        letterSpacing="-0.04em"
+      >
+        AI
+      </text>
+    </svg>
+  );
+}
 
 type ContentPart =
   | { type: "text"; text: string }
@@ -225,26 +285,107 @@ function isTextFile(file: File): boolean {
 export function ChatCarteraHermes({
   perfilId,
   onAfterReply,
+  onVerPlaca,
 }: {
   perfilId: CarteraPerfilId | null;
   onAfterReply?: () => void;
+  onVerPlaca?: (placa: string) => void;
 }) {
   const titleId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<TabIa>("alertas");
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [analizando, setAnalizando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<WireMsg[]>([]);
   const [pending, setPending] = useState<PendingFile[]>([]);
+  const [alertas, setAlertas] = useState<AlertaUi[]>([]);
+  const [noLeidas, setNoLeidas] = useState(0);
+  const [analisisMsg, setAnalisisMsg] = useState<string | null>(null);
+
+  const puedeAnalizar =
+    perfilId === "jhon_saenz" || perfilId === "james_blanco";
+
+  const cargarAlertas = useCallback(async () => {
+    if (!perfilId || !puedeAnalizar) {
+      setAlertas([]);
+      setNoLeidas(0);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/cartera/alertas?perfil_id=${encodeURIComponent(perfilId)}`,
+        { cache: "no-store" },
+      );
+      const data = await res.json();
+      setAlertas((data.items as AlertaUi[]) ?? []);
+      setNoLeidas(Number(data.no_leidas) || 0);
+    } catch {
+      // silencioso en badge
+    }
+  }, [perfilId, puedeAnalizar]);
+
+  useEffect(() => {
+    void cargarAlertas();
+    const id = window.setInterval(() => void cargarAlertas(), 20_000);
+    return () => window.clearInterval(id);
+  }, [cargarAlertas]);
 
   useEffect(() => {
     if (!open) return;
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages, open, busy, pending]);
+    void cargarAlertas();
+  }, [open, cargarAlertas]);
 
+  useEffect(() => {
+    if (!open || tab !== "chat") return;
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+  }, [messages, open, busy, pending, tab]);
+
+  async function marcarLeidas(ids?: number[]) {
+    if (!perfilId) return;
+    try {
+      await fetch("/api/cartera/alertas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ perfil_id: perfilId, ids }),
+      });
+      await cargarAlertas();
+    } catch {
+      // ignore
+    }
+  }
+
+  async function correrAnalisis() {
+    if (!perfilId || !puedeAnalizar || analizando) return;
+    setAnalizando(true);
+    setAnalisisMsg(null);
+    setError(null);
+    try {
+      const res = await fetch("/api/cartera/analizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ perfil_id: perfilId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo analizar");
+      setAnalisisMsg(
+        `Procesadas ${data.procesadas ?? 0} · compromisos ${data.compromisos ?? 0} · follow-ups ${data.followups ?? 0} · alertas ${data.alertas ?? 0}` +
+          (Array.isArray(data.errores) && data.errores.length
+            ? ` · ${data.errores.length} con error`
+            : ""),
+      );
+      await cargarAlertas();
+      onAfterReply?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al analizar");
+    } finally {
+      setAnalizando(false);
+    }
+  }
   async function addFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList);
     if (!files.length) return;
@@ -350,12 +491,24 @@ export function ChatCarteraHermes({
     <>
       <Button
         type="button"
+        aria-label={
+          noLeidas > 0
+            ? `Ayuda con IA, ${noLeidas} alertas sin leer`
+            : "Ayuda con IA"
+        }
+        title="Ayuda con IA"
         aria-expanded={open}
         aria-controls={open ? titleId : undefined}
         onClick={() => setOpen(true)}
-        className="fixed right-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 h-12 rounded-full px-4 shadow-lg active:scale-[0.96] sm:right-4"
+        size="icon"
+        className="relative fixed right-4 bottom-[calc(8.25rem+env(safe-area-inset-bottom))] z-40 size-12 rounded-full shadow-lg active:scale-[0.96]"
       >
-        Ayuda con IA
+        <IconoIA className="size-6" />
+        {noLeidas > 0 ? (
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+            {noLeidas > 99 ? "99+" : noLeidas}
+          </span>
+        ) : null}
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
@@ -368,11 +521,155 @@ export function ChatCarteraHermes({
             <SheetTitle>Ayuda con IA</SheetTitle>
             <SheetDescription>
               {perfilId
-                ? `Como ${nombrePerfilCartera(perfilId)} · pega chat o captura`
+                ? `Como ${nombrePerfilCartera(perfilId)} · alertas, análisis y chat`
                 : "Elige quién eres arriba"}
             </SheetDescription>
           </SheetHeader>
 
+          <div
+            role="tablist"
+            aria-label="Secciones IA"
+            className="grid shrink-0 grid-cols-3 gap-1 border-b border-border px-2 py-2"
+          >
+            {(
+              [
+                { id: "alertas" as const, label: "Alertas" },
+                { id: "analizar" as const, label: "Analizar" },
+                { id: "chat" as const, label: "Chat" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={cn(
+                  "relative min-h-10 rounded-lg text-sm font-semibold touch-manipulation",
+                  tab === t.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground",
+                )}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+                {t.id === "alertas" && noLeidas > 0 ? (
+                  <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground">
+                    {noLeidas}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          {tab === "alertas" ? (
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+              {!puedeAnalizar ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Las alertas IA están para Jhon y James.
+                </p>
+              ) : alertas.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Sin alertas. Analiza gestiones nuevas en la pestaña Analizar.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {alertas.map((a) => (
+                    <li
+                      key={a.id}
+                      className={cn(
+                        "rounded-xl border border-border px-3 py-2.5",
+                        !a.read_at && "border-primary/40 bg-primary/5",
+                      )}
+                    >
+                      <p className="text-sm font-semibold text-foreground">
+                        {a.titulo}
+                      </p>
+                      {a.cuerpo ? (
+                        <p className="mt-0.5 text-xs text-pretty text-muted-foreground">
+                          {a.cuerpo}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                        {formatFechaHora(a.created_at)} · {a.kind}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        {onVerPlaca ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-9 flex-1 rounded-lg text-xs"
+                            onClick={() => {
+                              onVerPlaca(a.placa);
+                              setOpen(false);
+                            }}
+                          >
+                            Ver {a.placa}
+                          </Button>
+                        ) : null}
+                        {!a.read_at ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="h-9 flex-1 rounded-lg text-xs"
+                            onClick={() => void marcarLeidas([a.id])}
+                          >
+                            Marcar leída
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {puedeAnalizar && alertas.some((a) => !a.read_at) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3 h-10 w-full rounded-xl"
+                  onClick={() => void marcarLeidas()}
+                >
+                  Marcar todas leídas
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {tab === "analizar" ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
+              {!puedeAnalizar ? (
+                <p className="text-sm text-muted-foreground">
+                  El harness de cobro analiza gestiones de Jhon y James en el
+                  lote 17+.
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-pretty text-muted-foreground">
+                    Lee gestiones nuevas (botones + notas), cruza con pagos y
+                    crea follow-ups / alertas (ej. «paga hoy en la tarde», «el
+                    sábado»).
+                  </p>
+                  <Button
+                    type="button"
+                    className="h-12 rounded-xl text-base font-semibold"
+                    disabled={analizando || !perfilId}
+                    onClick={() => void correrAnalisis()}
+                  >
+                    {analizando
+                      ? "Analizando con Hermes…"
+                      : "Analizar gestiones nuevas"}
+                  </Button>
+                  {analisisMsg ? (
+                    <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm text-foreground">
+                      {analisisMsg}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
+
+          {tab === "chat" ? (
+            <>
           <div
             ref={listRef}
             className="min-h-0 flex-1 overflow-y-auto px-3 py-2"
@@ -425,15 +722,6 @@ export function ChatCarteraHermes({
               )}
             </div>
           </div>
-
-          {error && (
-            <p
-              className="shrink-0 border-t border-border px-3 py-1.5 text-xs text-destructive"
-              role="alert"
-            >
-              {error}
-            </p>
-          )}
 
           {pending.length > 0 && (
             <div className="flex shrink-0 flex-wrap gap-1.5 border-t border-border px-2 pt-2">
@@ -532,6 +820,17 @@ export function ChatCarteraHermes({
               Enviar
             </Button>
           </form>
+            </>
+          ) : null}
+
+          {error && (
+            <p
+              className="shrink-0 border-t border-border px-3 py-1.5 text-xs text-destructive"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
         </SheetContent>
       </Sheet>
     </>

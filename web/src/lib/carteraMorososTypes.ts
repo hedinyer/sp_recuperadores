@@ -1,6 +1,8 @@
 import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
 import type { CategoriaMoroso } from "@/lib/categoriasMorosos";
 import type { CarteraStatus } from "@/lib/carteraPerfiles";
+import { etiquetaCarteraStatus } from "@/lib/carteraPerfiles";
+import { formatFechaHora } from "@/lib/fechas";
 
 export type CasoCartera = {
   placa: string;
@@ -53,6 +55,18 @@ export function conteoGestiones(
   moto: Pick<MorosoBandeja, "gestiones" | "n_gestiones">,
 ): number {
   return moto.n_gestiones ?? moto.gestiones?.length ?? 0;
+}
+
+/** Estado + nota + fecha/hora de la gestión. */
+export function formatearTextoGestion(
+  g: GestionCartera | undefined,
+): string | null {
+  if (!g) return null;
+  const base = etiquetaCarteraStatus(g.status);
+  const nota = g.notas?.trim();
+  const cuerpo = nota ? `${base}: ${nota}` : base;
+  const cuando = formatFechaHora(g.created_at);
+  return cuando !== "—" ? `${cuerpo} · ${cuando}` : cuerpo;
 }
 
 /** Inicio del día en Bogotá (UTC-5). */

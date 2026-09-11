@@ -308,8 +308,8 @@ export function Lote17MetricasPanel({ tick = 0 }: { tick?: number }) {
               ))}
 
               <p className="text-[11px] tabular-nums text-muted-foreground">
-                {loading ? "Actualizando…" : "En vivo"} · abonos de las placas
-                del lote en estos 4 días
+                {loading ? "Actualizando…" : "En vivo"} · abonos y pagos ERP de
+                las placas del lote en estos 4 días
               </p>
             </>
           ) : loading ? (

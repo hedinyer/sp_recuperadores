@@ -558,6 +558,9 @@ export default function PlacasMorososPage() {
             if (modoLoteFijo) setLoteRefreshTick((n) => n + 1);
             else void cargar(false);
           }}
+          onVerPlaca={(placa) => {
+            setBusqueda(placa);
+          }}
         />
       </MasterGate>
       <NavFooter />

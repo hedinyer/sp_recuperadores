@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   inicioDiaBogotaMs,
+  formatearTextoGestion,
   type GestionCartera,
 } from "@/lib/carteraMorososTypes";
 import type {
@@ -22,7 +23,7 @@ import type {
   Lote17Payload,
   LoteOperativoPerfilId,
 } from "@/lib/carteraLotes17Types";
-import { etiquetaCarteraStatus, nombrePerfilCartera } from "@/lib/carteraPerfiles";
+import { nombrePerfilCartera } from "@/lib/carteraPerfiles";
 import { cn } from "@/lib/utils";
 
 type FiltroLote = "por_hacer" | "ayer" | "pagaron" | "buscar";
@@ -58,6 +59,15 @@ const API_POR_MODO: Record<
   },
 };
 
+function contactadoHoy(m: Lote17Item, perfilId: string, hoyMs: number): boolean {
+  if (m.pago_hoy) return true;
+  return (m.gestiones ?? []).some((g) => {
+    if (g.perfil_id !== perfilId) return false;
+    const t = new Date(g.created_at).getTime();
+    return !Number.isNaN(t) && t >= hoyMs;
+  });
+}
+
 function filtrarItems(
   items: Lote17Item[],
   filtro: FiltroLote,
@@ -69,14 +79,8 @@ function filtrarItems(
 
   let list = items;
   if (filtro === "por_hacer") {
-    list = items.filter((m) => {
-      const hoy = (m.gestiones ?? []).some((g) => {
-        if (g.perfil_id !== perfilId) return false;
-        const t = new Date(g.created_at).getTime();
-        return !Number.isNaN(t) && t >= hoyMs;
-      });
-      return !hoy && !m.pago_hoy;
-    });
+    // Toda la lista: no contactados primero (el sort abajo los ordena)
+    list = items;
   } else if (filtro === "ayer") {
     list = items.filter((m) => m.gestion_ayer);
   } else if (filtro === "pagaron") {
@@ -90,11 +94,19 @@ function filtrarItems(
             new Date(g.created_at).getTime() >= hoyMs,
         ),
     );
+  } else if (filtro === "buscar") {
+    list = !q
+      ? items
+      : items.filter(
+          (m) =>
+            m.placa.includes(q) ||
+            m.nombre.toUpperCase().includes(q) ||
+            m.cedula.includes(q),
+        );
   }
 
-  if (filtro === "buscar") {
-    if (!q) return items;
-    return items.filter(
+  if (filtro !== "buscar" && q) {
+    list = list.filter(
       (m) =>
         m.placa.includes(q) ||
         m.nombre.toUpperCase().includes(q) ||
@@ -102,21 +114,13 @@ function filtrarItems(
     );
   }
 
-  if (q) {
-    return list.filter(
-      (m) =>
-        m.placa.includes(q) ||
-        m.nombre.toUpperCase().includes(q) ||
-        m.cedula.includes(q),
-    );
-  }
-  return list;
-}
-
-function textoGestion(g: GestionCartera): string {
-  const base = etiquetaCarteraStatus(g.status);
-  const nota = g.notas?.trim();
-  return nota ? `${base}: ${nota}` : base;
+  // No contactados primero; contactados / pagaron hoy al final
+  return [...list].sort((a, b) => {
+    const ca = contactadoHoy(a, perfilId, hoyMs) ? 1 : 0;
+    const cb = contactadoHoy(b, perfilId, hoyMs) ? 1 : 0;
+    if (ca !== cb) return ca - cb;
+    return a.orden - b.orden;
+  });
 }
 
 export function Lote17Vista({
@@ -184,6 +188,17 @@ export function Lote17Vista({
     setPayload((prev) => {
       if (!prev) return prev;
       const { placa, gestion: nueva, caso } = pendingPatch;
+      const hoyMs = inicioDiaBogotaMs();
+      const actual = prev.items.find((m) => m.placa === placa);
+      const yaGestionadaHoy = (actual?.gestiones ?? []).some((g) => {
+        if (g.perfil_id !== perfilId) return false;
+        const t = new Date(g.created_at).getTime();
+        return !Number.isNaN(t) && t >= hoyMs;
+      });
+      const yaPagoHoy = Boolean(actual?.pago_hoy);
+      const sumaGestion = Boolean(nueva) && !yaGestionadaHoy;
+      const sumaPago = nueva?.status === "abono" && !yaPagoHoy;
+
       return {
         ...prev,
         items: prev.items.map((m) => {
@@ -196,18 +211,23 @@ export function Lote17Vista({
               : m.gestiones,
             n_gestiones: (m.n_gestiones ?? 0) + (nueva ? 1 : 0),
             ultima_gestion_texto: nueva
-              ? textoGestion(nueva)
+              ? formatearTextoGestion(nueva)
               : m.ultima_gestion_texto,
             pago_hoy: m.pago_hoy || nueva?.status === "abono",
           };
         }),
         resumen: {
           ...prev.resumen,
-          gestionados_hoy: prev.resumen.gestionados_hoy + (nueva ? 1 : 0),
+          gestionados_hoy: prev.resumen.gestionados_hoy + (sumaGestion ? 1 : 0),
+          por_hacer: Math.max(
+            0,
+            prev.resumen.por_hacer - (sumaGestion ? 1 : 0),
+          ),
+          pagaron_hoy: prev.resumen.pagaron_hoy + (sumaPago ? 1 : 0),
         },
       };
     });
-  }, [pendingPatch]);
+  }, [pendingPatch, perfilId]);
 
   const crearLote = useCallback(async () => {
     setCreando(true);
@@ -250,7 +270,7 @@ export function Lote17Vista({
 
   const emptyCopy =
     filtro === "por_hacer"
-      ? "No hay motos por hacer. ¡Bien!"
+      ? "No hay motos en tu lista."
       : filtro === "ayer"
         ? "Ayer no contactaste ninguna de esta lista."
         : filtro === "pagaron"

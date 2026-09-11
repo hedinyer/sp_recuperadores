@@ -308,3 +308,124 @@ def register_tools(ctx) -> None:
         handler=handle_efectividad,
         description="Efectividad cobro y ranking de métodos.",
     )
+
+    def handle_alertas(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        perfil = str(params.get("perfil_id") or "").strip()
+        if not perfil:
+            raise RuntimeError("perfil_id requerido (jhon_saenz | james_blanco)")
+        qs = urllib.parse.urlencode(
+            {
+                "action": "alertas",
+                "perfil_id": perfil,
+                "unread": "1" if params.get("solo_no_leidas") else "0",
+            }
+        )
+        data = _request("GET", f"/api/cartera/agent?{qs}")
+        return _tool_result({"success": True, **data})
+
+    ctx.register_tool(
+        name="cartera_alertas",
+        toolset=TOOLSET,
+        schema={
+            "name": "cartera_alertas",
+            "description": (
+                "Lista alertas IA del cobrador (compromisos próximos/vencidos, "
+                "ruptura de promesa, prioridad). perfil_id: jhon_saenz | james_blanco."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "perfil_id": {
+                        "type": "string",
+                        "description": "jhon_saenz o james_blanco",
+                    },
+                    "solo_no_leidas": {
+                        "type": "boolean",
+                        "description": "Si true, solo alertas sin leer.",
+                    },
+                },
+                "required": ["perfil_id"],
+            },
+        },
+        handler=handle_alertas,
+        description="Alertas IA del cobrador.",
+    )
+
+    def handle_analizar(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        perfil = str(params.get("perfil_id") or "").strip()
+        if not perfil:
+            raise RuntimeError("perfil_id requerido")
+        body: dict[str, Any] = {
+            "action": "analizar",
+            "perfil_id": perfil,
+        }
+        if params.get("force"):
+            body["force"] = True
+        data = _request("POST", "/api/cartera/agent", body)
+        return _tool_result({"success": True, **data})
+
+    ctx.register_tool(
+        name="cartera_analizar",
+        toolset=TOOLSET,
+        schema={
+            "name": "cartera_analizar",
+            "description": (
+                "Dispara el harness multi-agente: analiza gestiones nuevas del lote "
+                "17+ (notas + botones + pagos), crea follow-ups y alertas. "
+                "Solo jhon_saenz / james_blanco."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "perfil_id": {
+                        "type": "string",
+                        "description": "jhon_saenz o james_blanco",
+                    },
+                    "force": {
+                        "type": "boolean",
+                        "description": "Reanalizar aunque ya estén analizadas.",
+                    },
+                },
+                "required": ["perfil_id"],
+            },
+        },
+        handler=handle_analizar,
+        description="Analizar gestiones nuevas del lote.",
+    )
+
+    def handle_followups(params: dict[str, Any], **_kwargs) -> str:
+        del _kwargs
+        perfil = str(params.get("perfil_id") or "").strip()
+        if not perfil:
+            raise RuntimeError("perfil_id requerido")
+        qs = urllib.parse.urlencode(
+            {"action": "followups", "perfil_id": perfil}
+        )
+        data = _request("GET", f"/api/cartera/agent?{qs}")
+        return _tool_result({"success": True, **data})
+
+    ctx.register_tool(
+        name="cartera_followups",
+        toolset=TOOLSET,
+        schema={
+            "name": "cartera_followups",
+            "description": (
+                "Compromisos/follow-ups pendientes del cobrador en las próximas 72h "
+                "(fechas extraídas de notas como «paga mañana» o «el sábado»)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "perfil_id": {
+                        "type": "string",
+                        "description": "jhon_saenz o james_blanco",
+                    },
+                },
+                "required": ["perfil_id"],
+            },
+        },
+        handler=handle_followups,
+        description="Follow-ups de compromiso próximos.",
+    )

@@ -28,6 +28,12 @@ import { getDatabaseUrls } from "@/lib/dbUrls";
 import { queryPg } from "@/lib/pgPool";
 import { supabase } from "@/lib/supabase";
 import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
+import {
+  analizarGestionesPerfil,
+  listarAlertasPerfil,
+  listarFollowupsProximos,
+} from "@/lib/carteraIaHarness";
+import { LOTE_17_PERFILES } from "@/lib/carteraLotes17Types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -466,11 +472,33 @@ export async function GET(request: Request) {
     if (action === "kpis") {
       return await actionKpis();
     }
+    if (action === "alertas") {
+      const perfilId = (searchParams.get("perfil_id") ?? "").trim();
+      if (!esPerfilCarteraId(perfilId)) {
+        return NextResponse.json({ error: "perfil_id inválido" }, { status: 400 });
+      }
+      const items = await listarAlertasPerfil(perfilId, {
+        soloNoLeidas: searchParams.get("unread") === "1",
+        limit: 50,
+      });
+      return NextResponse.json({
+        items,
+        no_leidas: items.filter((a) => !a.read_at).length,
+      });
+    }
+    if (action === "followups") {
+      const perfilId = (searchParams.get("perfil_id") ?? "").trim();
+      if (!esPerfilCarteraId(perfilId)) {
+        return NextResponse.json({ error: "perfil_id inválido" }, { status: 400 });
+      }
+      const items = await listarFollowupsProximos(perfilId, 72);
+      return NextResponse.json({ items });
+    }
 
     return NextResponse.json(
       {
         error:
-          "action inválida. Usa: buscar | historial | pendientes | kpis",
+          "action inválida. Usa: buscar | historial | pendientes | kpis | alertas | followups",
       },
       { status: 400 },
     );
@@ -496,9 +524,29 @@ export async function POST(request: Request) {
     };
 
     const action = String(body.action ?? "registrar").trim();
+    if (action === "analizar") {
+      const perfilId = String(body.perfil_id ?? "").trim();
+      if (!esPerfilCarteraId(perfilId)) {
+        return NextResponse.json({ error: "perfil_id inválido" }, { status: 400 });
+      }
+      if (
+        !(LOTE_17_PERFILES as readonly string[]).includes(perfilId)
+      ) {
+        return NextResponse.json(
+          { error: "analizar solo para jhon_saenz / james_blanco" },
+          { status: 400 },
+        );
+      }
+      const resumen = await analizarGestionesPerfil(perfilId, {
+        force: Boolean(
+          (body as { force?: boolean }).force,
+        ),
+      });
+      return NextResponse.json({ ok: true, ...resumen });
+    }
     if (action !== "registrar") {
       return NextResponse.json(
-        { error: "POST solo soporta action=registrar" },
+        { error: "POST soporta action=registrar | analizar" },
         { status: 400 },
       );
     }

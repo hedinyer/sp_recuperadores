@@ -70,6 +70,20 @@ Reiniciar Hermes. Tools disponibles:
 | `cartera_registrar` | Guarda gestión / abono + notas del chat |
 | `cartera_kpis` | Recaudo y gestiones de hoy (James Blanco / Jhon) |
 | `cartera_efectividad` | Días/gestiones hasta pago, ranking de métodos, sugerencia |
+| `cartera_alertas` | Alertas IA (compromisos, ruptura, prioridad) |
+| `cartera_analizar` | Harness multi-agente: analiza gestiones nuevas del lote 17+ |
+| `cartera_followups` | Compromisos pendientes próximas 72h |
+
+---
+
+## Harness IA de cobro (Jhon / James)
+
+1. Aplica en Supabase: `web/sql/cartera_ia_cobro.sql`
+2. En la app (`/placas`), con perfil Jhon o James: botón IA → pestañas **Alertas** | **Analizar** | **Chat**
+3. **Analizar** lee gestiones nuevas (notas + botones), cruza pagos ERP y crea follow-ups/alertas
+4. Cron Vercel cada 15 min: `/api/cron/cartera-followups` (header `Authorization: Bearer $CRON_SECRET` o Bearer Hermes)
+
+Variables opcionales: `CRON_SECRET`, `HERMES_COBRADOR_BASE_URL`, `HERMES_COBRADOR_MODEL`
 
 ---
 
