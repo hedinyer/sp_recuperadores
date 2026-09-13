@@ -8,3 +8,4 @@ data/reporte_clientes_actual.csv
 web/node_modules/
 web/.next/
 web/out/
+.vercel

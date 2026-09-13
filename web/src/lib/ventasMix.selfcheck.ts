@@ -5,7 +5,7 @@ import {
   normalizarColor,
   normalizarFrecuencia,
   normalizarModelo,
-} from "./ventasMix.ts";
+} from "./ventasMix";
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
