@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+/** Página pública: sin MasterGate / sin clave de acceso. */
 export const metadata: Metadata = {
   title: "Ventas de motos",
   robots: { index: false, follow: false },
