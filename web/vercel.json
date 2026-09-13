@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/cartera-followups",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/ventas-refresh",
