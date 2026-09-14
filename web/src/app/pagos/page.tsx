@@ -119,6 +119,8 @@ function PagosWorkspace() {
   const [movimientos, setMovimientos] = useState<MovimientoExtracto[]>([]);
   const [archivosNombres, setArchivosNombres] = useState<string[]>([]);
   const [ingresos, setIngresos] = useState(0);
+  const [viaAgente, setViaAgente] = useState(false);
+  const [sinHora, setSinHora] = useState(false);
   const [usados, setUsados] = useState<string[]>([]);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -164,11 +166,15 @@ function PagosWorkspace() {
         : [String(json.archivo ?? files.map((f) => f.name).join(", "))];
       setArchivosNombres(nombres);
       setIngresos(Number(json.ingresos ?? 0));
+      setViaAgente(json.via === "agente");
+      setSinHora(Boolean(json.sin_hora));
       setUsados([]);
     } catch (e) {
       setMovimientos([]);
       setArchivosNombres([]);
       setIngresos(0);
+      setViaAgente(false);
+      setSinHora(false);
       setExcelError(e instanceof Error ? e.message : "Error al leer el Excel");
       excelRef.current?.focus();
     } finally {
@@ -305,8 +311,8 @@ function PagosWorkspace() {
             Extracto del banco
           </label>
           <p className="text-xs text-muted-foreground text-pretty">
-            Uno o varios Excel Bancolombia (.xlsx) con Fecha de Movimiento, Hora
-            y Valor Total
+            Uno o varios Excel (.xlsx). Si el formato no es el clásico de
+            Bancolombia, Hermes interpreta las columnas.
           </p>
           <input
             ref={excelRef}
@@ -336,6 +342,8 @@ function PagosWorkspace() {
                   {ingresos}
                 </span>{" "}
                 ingresos listos
+                {viaAgente ? " · Hermes interpretó el formato" : null}
+                {sinHora ? " · sin columna de hora (cruce por monto y fecha)" : null}
                 {usados.length > 0 ? (
                   <>
                     {" "}

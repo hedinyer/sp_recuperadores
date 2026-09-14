@@ -86,18 +86,21 @@ Reglas:
 Solo JSON.`;
 
 const SYSTEM_MATCH = `Eres validador de cruce extracto bancario ↔ comprobante.
-Te dan el OCR consensuado del comprobante y una lista corta de candidatos del extracto (ya filtrados por monto/fecha/hora).
+Te dan el OCR consensuado del comprobante y una lista corta de candidatos del extracto (ya filtrados por monto/fecha y hora si existe).
 Responde SOLO JSON:
 {
   "documento": string|null,   // documento del candidato elegido, o null
   "coincide": true|false,
   "razon": string
 }
-Elige el candidato cuya hora esté más cerca del OCR. Si ninguno encaja bien → coincide false y documento null.
+Si los candidatos tienen hora, elige el más cercano al OCR (±20 min).
+Si el extracto no trae hora (hora vacía), elige por monto+fecha y referencia/motivo si ayuda; si hay varios iguales y no puedes decidir → coincide false.
+Si ninguno encaja → coincide false y documento null.
 Solo JSON.`;
 
 const SYSTEM_EVAL = `Eres juez de calidad del cruce pago/comprobante.
-Confirma solo si monto, fecha y hora (±20 min) del OCR cuadran con el movimiento del extracto.
+Confirma si monto y fecha del OCR cuadran con el movimiento del extracto.
+Si el extracto trae hora, exige también ±20 min. Si el extracto no trae hora, no exijas hora.
 Responde SOLO JSON:
 {
   "confirma": true|false,
@@ -262,7 +265,7 @@ async function pasadaEval(
         hora: candidato.hora,
         monto_cop: candidato.monto_cop,
       },
-      regla: "mismo monto, misma fecha, hora ±20 minutos",
+      regla: "mismo monto, misma fecha; hora ±20 min si el extracto la trae",
     };
     const userContent: string | HermesContentPart[] = imageDataUrl
       ? [

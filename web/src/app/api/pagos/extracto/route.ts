@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 
 import {
-  parseExtractoBuffer,
+  parseExtractoFlexible,
   type MovimientoExtracto,
 } from "@/lib/pagosExtracto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const MAX_BYTES = 8_000_000;
 const MAX_FILES = 30;
@@ -41,6 +41,8 @@ export async function POST(request: Request) {
     const byId = new Map<string, MovimientoExtracto>();
     const archivos: string[] = [];
     let total_filas = 0;
+    let viaAgente = false;
+    let sinHora = false;
 
     for (const file of files) {
       const name = file.name.toLowerCase();
@@ -57,8 +59,10 @@ export async function POST(request: Request) {
         );
       }
       const buf = Buffer.from(await file.arrayBuffer());
-      const parsed = parseExtractoBuffer(buf);
+      const parsed = await parseExtractoFlexible(buf);
       total_filas += parsed.total_filas;
+      if (parsed.via === "agente") viaAgente = true;
+      if (parsed.sin_hora) sinHora = true;
       for (const m of parsed.movimientos) {
         if (!byId.has(m.id)) byId.set(m.id, m);
       }
@@ -73,6 +77,8 @@ export async function POST(request: Request) {
       movimientos,
       total_filas,
       ingresos: movimientos.length,
+      via: viaAgente ? "agente" : "reglas",
+      sin_hora: sinHora,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al leer el Excel";

@@ -84,4 +84,24 @@ const fuera = filtrarCandidatos(movs, {
 });
 assert(fuera.length === 0, "fuera de ventana");
 
+const sinHora: MovimientoExtracto[] = [
+  {
+    id: "999|2026-09-10|sin-hora",
+    fecha: "2026-09-10",
+    hora: "",
+    monto_cop: 40000,
+    documento: "999",
+    transaccion: "Nota Crédito",
+    oficina: "Redeban BreB",
+    referencia2: "x",
+    motivo: "Pago",
+  },
+];
+const cSinHora = filtrarCandidatos(sinHora, {
+  monto_cop: 40000,
+  fecha: "2026-09-10",
+  hora: "15:22:00",
+});
+assert(cSinHora.length === 1 && cSinHora[0]!.documento === "999", "sin hora acepta por monto+fecha");
+
 console.log("pagosMatch.check: ok");

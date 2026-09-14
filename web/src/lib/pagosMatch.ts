@@ -36,7 +36,7 @@ export function claveMovimiento(m: MovimientoExtracto): string {
   return m.id;
 }
 
-/** Candidatos: mismo monto, misma fecha, hora dentro de ventana; excluye ya usados. */
+/** Candidatos: mismo monto, misma fecha; hora ±ventana si el extracto trae hora. */
 export function filtrarCandidatos(
   movimientos: MovimientoExtracto[],
   ocr: Pick<OcrConsenso, "monto_cop" | "fecha" | "hora">,
@@ -48,6 +48,11 @@ export function filtrarCandidatos(
     if (usados.has(claveMovimiento(m))) continue;
     if (m.monto_cop !== ocr.monto_cop) continue;
     if (m.fecha !== ocr.fecha) continue;
+    // Extractos sin columna de hora (p.ej. Fecha de Sistema): solo monto + fecha
+    if (!m.hora.trim()) {
+      out.push({ m, delta: 0 });
+      continue;
+    }
     const delta = diferenciaMinutos(m.hora, ocr.hora);
     if (delta == null || delta > ventanaMin) continue;
     out.push({ m, delta });

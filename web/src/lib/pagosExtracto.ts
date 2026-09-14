@@ -116,11 +116,16 @@ export function esIngreso(transaccion: string): boolean {
   return t.includes("nota credito") || t.includes("deposito especial");
 }
 
-export function parseExtractoBuffer(buf: ArrayBuffer | Buffer): {
+export type ExtractoParseado = {
   movimientos: MovimientoExtracto[];
   total_filas: number;
   ingresos: number;
-} {
+  via: "reglas" | "agente";
+  sin_hora: boolean;
+};
+
+/** Formato Bancolombia clásico (Fecha de Movimiento + Hora + Valor Total). */
+export function parseExtractoBuffer(buf: ArrayBuffer | Buffer): ExtractoParseado {
   const wb = XLSX.read(buf, { type: "buffer", cellDates: false });
   const sheetName = wb.SheetNames[0];
   if (!sheetName) throw new Error("El Excel no tiene hojas");
@@ -167,5 +172,23 @@ export function parseExtractoBuffer(buf: ArrayBuffer | Buffer): {
     });
   });
 
-  return { movimientos, total_filas: rows.length, ingresos };
+  return {
+    movimientos,
+    total_filas: rows.length,
+    ingresos,
+    via: "reglas",
+    sin_hora: false,
+  };
+}
+
+/** Reglas clásicas si aplican; si no, Hermes interpreta cualquier formato. */
+export async function parseExtractoFlexible(
+  buf: ArrayBuffer | Buffer,
+): Promise<ExtractoParseado> {
+  try {
+    return parseExtractoBuffer(buf);
+  } catch {
+    const { parseExtractoConAgente } = await import("@/lib/pagosExtractoAgente");
+    return parseExtractoConAgente(buf);
+  }
 }
