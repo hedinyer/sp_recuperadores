@@ -1,6 +1,6 @@
 /**
- * Harness pagos: 10 OCR (Qwen vía Hermes) → consenso → 5 validadores Excel → 3 evals.
- * Concurrencia limitada a 5 (DGX).
+ * Harness pagos (rápido): OCR Qwen → filtro determinista → match solo si hay empate → 1 eval.
+ * Antes: 10+5+3 = 18 llamadas. Ahora: ~3–5 (2–3 OCR + 0–1 match + 1 eval).
  */
 
 import {
@@ -19,10 +19,14 @@ import {
   type OcrConsenso,
 } from "@/lib/pagosMatch";
 
-const OCR_N = 10;
-const MATCH_N = 5;
-const EVAL_N = 3;
-const CONCURRENCY = 5;
+/** OCR: 2 en paralelo; 3.ª solo si discrepan. */
+const OCR_FIRST = 2;
+const OCR_TIEBREAK = 1;
+const MATCH_N = 1;
+const EVAL_N = 1;
+const CONCURRENCY = 3;
+const OCR_TIMEOUT_MS = 55_000;
+const TEXT_TIMEOUT_MS = 35_000;
 
 export type VeredictoPago = "entro" | "no_entro" | "revisar";
 
@@ -192,7 +196,7 @@ async function pasadaOcr(imageDataUrl: string): Promise<OcrRaw | null> {
         { role: "user", content: parts },
       ],
       temperature: 0.1,
-      timeoutMs: 90_000,
+      timeoutMs: OCR_TIMEOUT_MS,
     });
     return parseJsonLoose<OcrRaw>(raw);
   } catch {
@@ -232,7 +236,7 @@ async function pasadaMatch(
         },
       ],
       temperature: 0.1,
-      timeoutMs: 60_000,
+      timeoutMs: TEXT_TIMEOUT_MS,
     });
     return parseJsonLoose<MatchRaw>(raw);
   } catch {
@@ -276,12 +280,50 @@ async function pasadaEval(
         { role: "user", content: userContent },
       ],
       temperature: 0.05,
-      timeoutMs: 90_000,
+      timeoutMs: imageDataUrl ? OCR_TIMEOUT_MS : TEXT_TIMEOUT_MS,
     });
     return parseJsonLoose<EvalRaw>(raw);
   } catch {
     return null;
   }
+}
+
+/** 2 OCR en paralelo; si no hay mayoría, 1 tiebreak. */
+async function correrOcrRapido(imageDataUrl: string): Promise<{
+  ocrNorm: OcrNorm[];
+  total_intentos: number;
+}> {
+  const firstRaws = await mapPool(
+    Array.from({ length: OCR_FIRST }, (_, i) => i),
+    CONCURRENCY,
+    () => pasadaOcr(imageDataUrl),
+  );
+  const firstNorm = firstRaws
+    .map((r) => (r ? normalizeOcr(r) : null))
+    .filter((x): x is OcrNorm => x != null);
+
+  if (firstNorm.length >= 2) {
+    const k0 = votoKey(firstNorm[0]!.monto_cop, firstNorm[0]!.fecha, firstNorm[0]!.hora);
+    const k1 = votoKey(firstNorm[1]!.monto_cop, firstNorm[1]!.fecha, firstNorm[1]!.hora);
+    if (k0 === k1) {
+      return { ocrNorm: firstNorm, total_intentos: OCR_FIRST };
+    }
+  }
+
+  // Un solo OCR válido o discrepancia → tiebreak
+  const extraRaws = await mapPool(
+    Array.from({ length: OCR_TIEBREAK }, (_, i) => i),
+    1,
+    () => pasadaOcr(imageDataUrl),
+  );
+  const extraNorm = extraRaws
+    .map((r) => (r ? normalizeOcr(r) : null))
+    .filter((x): x is OcrNorm => x != null);
+
+  return {
+    ocrNorm: [...firstNorm, ...extraNorm],
+    total_intentos: OCR_FIRST + OCR_TIEBREAK,
+  };
 }
 
 export async function comprobarPagoHarness(opts: {
@@ -291,13 +333,7 @@ export async function comprobarPagoHarness(opts: {
 }): Promise<PagosHarnessResult> {
   const usados = new Set(opts.usados ?? []);
 
-  const ocrSlots = Array.from({ length: OCR_N }, (_, i) => i);
-  const ocrRaws = await mapPool(ocrSlots, CONCURRENCY, () =>
-    pasadaOcr(opts.imageDataUrl),
-  );
-  const ocrNorm = ocrRaws
-    .map((r) => (r ? normalizeOcr(r) : null))
-    .filter((x): x is OcrNorm => x != null);
+  const { ocrNorm, total_intentos } = await correrOcrRapido(opts.imageDataUrl);
   const ocr_ok = ocrNorm.length;
 
   const voteMap = new Map<string, number>();
@@ -309,8 +345,10 @@ export async function comprobarPagoHarness(opts: {
     .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count);
 
-  const ocr = consensoOcr(ocrNorm, OCR_N);
-  if (!ocr || ocr.votos < 3) {
+  const ocr = consensoOcr(ocrNorm, total_intentos);
+  // Con 2–3 lecturas: basta mayoría (2) o 1 sola si solo esa salió bien
+  const minVotos = ocr_ok >= 2 ? 2 : 1;
+  if (!ocr || ocr.votos < minVotos) {
     return {
       veredicto: "revisar",
       resumen:
@@ -342,47 +380,54 @@ export async function comprobarPagoHarness(opts: {
     };
   }
 
-  const matchSlots = Array.from({ length: MATCH_N }, (_, i) => i);
-  const matchRaws = await mapPool(matchSlots, CONCURRENCY, () =>
-    pasadaMatch(ocr, candidatos.slice(0, 8)),
-  );
-  const matchCounts = new Map<string | null, number>();
-  let match_ok = 0;
-  for (const r of matchRaws) {
-    if (!r) continue;
-    match_ok += 1;
-    const doc =
-      r.coincide === false
-        ? null
-        : r.documento != null
-          ? String(r.documento).trim() || null
-          : null;
-    matchCounts.set(doc, (matchCounts.get(doc) ?? 0) + 1);
-  }
-  const match_votes = [...matchCounts.entries()]
-    .map(([documento, count]) => ({ documento, count }))
-    .sort((a, b) => b.count - a.count);
-
   let elegido: MovimientoExtracto | null = null;
-  const topDoc = match_votes[0]?.documento;
-  if (topDoc) {
-    elegido =
-      candidatos.find((c) => c.documento === topDoc) ??
-      candidatos.find((c) => c.id.includes(topDoc)) ??
-      null;
-  }
-  if (!elegido && candidatos.length === 1) {
+  let match_ok = 0;
+  let match_votes: Array<{ documento: string | null; count: number }> = [];
+
+  // ponytail: 1 candidato = el filtro ya decidió; Hermes match solo si hay empate
+  if (candidatos.length === 1) {
     elegido = candidatos[0]!;
-  }
-  // Empate o varios sin acuerdo claro → Revisar si no hay ganador claro
-  const topCount = match_votes[0]?.count ?? 0;
-  const secondCount = match_votes[1]?.count ?? 0;
-  if (
-    !elegido ||
-    (candidatos.length > 1 && topCount <= secondCount) ||
-    (match_votes[0]?.documento == null && candidatos.length > 1)
-  ) {
-    if (candidatos.length > 1 && (!elegido || topCount <= secondCount)) {
+    match_votes = [{ documento: elegido.documento, count: 1 }];
+    match_ok = 1;
+  } else {
+    const matchRaws = await mapPool(
+      Array.from({ length: MATCH_N }, (_, i) => i),
+      CONCURRENCY,
+      () => pasadaMatch(ocr, candidatos.slice(0, 8)),
+    );
+    const matchCounts = new Map<string | null, number>();
+    for (const r of matchRaws) {
+      if (!r) continue;
+      match_ok += 1;
+      const doc =
+        r.coincide === false
+          ? null
+          : r.documento != null
+            ? String(r.documento).trim() || null
+            : null;
+      matchCounts.set(doc, (matchCounts.get(doc) ?? 0) + 1);
+    }
+    match_votes = [...matchCounts.entries()]
+      .map(([documento, count]) => ({ documento, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const topDoc = match_votes[0]?.documento;
+    if (topDoc) {
+      elegido =
+        candidatos.find((c) => c.documento === topDoc) ??
+        candidatos.find((c) => c.id.includes(topDoc)) ??
+        null;
+    }
+    // Fallback: el más cercano en hora (ya ordenado por filtrarCandidatos)
+    if (!elegido) elegido = candidatos[0]!;
+
+    const topCount = match_votes[0]?.count ?? 0;
+    const secondCount = match_votes[1]?.count ?? 0;
+    if (
+      match_votes.length > 1 &&
+      topCount === secondCount &&
+      match_votes[0]?.documento !== match_votes[1]?.documento
+    ) {
       return {
         veredicto: "revisar",
         resumen: `Hay ${candidatos.length} movimientos similares. Revisa manualmente.`,
@@ -396,10 +441,11 @@ export async function comprobarPagoHarness(opts: {
       };
     }
   }
+
   if (!elegido) {
     return {
       veredicto: "no_entro",
-      resumen: "Los validadores no encontraron coincidencia en el extracto.",
+      resumen: "No se encontró coincidencia clara en el extracto.",
       ocr,
       candidato: null,
       candidatos,
@@ -410,14 +456,12 @@ export async function comprobarPagoHarness(opts: {
     };
   }
 
-  const needVision = ocr.votos < 7 || candidatos.length > 1;
-  const evalSlots = Array.from({ length: EVAL_N }, (_, i) => i);
-  const evalRaws = await mapPool(evalSlots, CONCURRENCY, (i) =>
-    pasadaEval(
-      ocr,
-      elegido!,
-      needVision || i === 0 ? opts.imageDataUrl : null,
-    ),
+  // 1 eval: visión solo si OCR flojo o varios candidatos
+  const needVision = ocr.votos < 2 || candidatos.length > 1;
+  const evalRaws = await mapPool(
+    Array.from({ length: EVAL_N }, (_, i) => i),
+    1,
+    () => pasadaEval(ocr, elegido!, needVision ? opts.imageDataUrl : null),
   );
   let eval_si = 0;
   let eval_ok = 0;
@@ -427,7 +471,21 @@ export async function comprobarPagoHarness(opts: {
     if (r.confirma) eval_si += 1;
   }
 
-  if (eval_si >= 2) {
+  if (eval_ok === 0) {
+    return {
+      veredicto: "revisar",
+      resumen: "No se pudo confirmar el cruce. Revisa el movimiento sugerido.",
+      ocr,
+      candidato: elegido,
+      candidatos,
+      ocr_ok,
+      match_ok,
+      eval_ok,
+      detalle: { ocr_votos, match_votes, eval_si },
+    };
+  }
+
+  if (eval_si >= 1) {
     return {
       veredicto: "entro",
       resumen: `Entró: $${elegido.monto_cop.toLocaleString("es-CO")} el ${elegido.fecha} a las ${elegido.hora.slice(0, 5)} (doc ${elegido.documento}).`,
@@ -440,22 +498,10 @@ export async function comprobarPagoHarness(opts: {
       detalle: { ocr_votos, match_votes, eval_si },
     };
   }
-  if (eval_si === 0 && eval_ok >= 2) {
-    return {
-      veredicto: "no_entro",
-      resumen: "Los jueces rechazaron el cruce con el extracto.",
-      ocr,
-      candidato: elegido,
-      candidatos,
-      ocr_ok,
-      match_ok,
-      eval_ok,
-      detalle: { ocr_votos, match_votes, eval_si },
-    };
-  }
+
   return {
-    veredicto: "revisar",
-    resumen: "Sin consenso claro entre los jueces. Revisa el movimiento sugerido.",
+    veredicto: "no_entro",
+    resumen: "El juez rechazó el cruce con el extracto.",
     ocr,
     candidato: elegido,
     candidatos,

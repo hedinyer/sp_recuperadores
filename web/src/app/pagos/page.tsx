@@ -353,8 +353,8 @@ function PagosWorkspace() {
           </Button>
           {comprobando ? (
             <p className="text-xs text-muted-foreground text-pretty" role="status">
-              Hermes lee la imagen (OCR Qwen) y la cruza con el extracto. Puede
-              tardar un minuto.
+              Hermes lee la imagen y la cruza con el extracto. Suele tardar
+              ~15–30 s.
             </p>
           ) : null}
           {formError ? (
