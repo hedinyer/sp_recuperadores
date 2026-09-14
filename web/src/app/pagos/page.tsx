@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2Icon, CircleHelpIcon, XCircleIcon } from "lucide-react";
 
@@ -73,6 +73,24 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
+/** Imagen del portapapeles (Ctrl+V / captura). */
+function imagenDesdeClipboard(data: DataTransfer | null): File | null {
+  if (!data) return null;
+  for (const item of Array.from(data.items ?? [])) {
+    if (!item.type.startsWith("image/")) continue;
+    const blob = item.getAsFile();
+    if (!blob) continue;
+    const ext = item.type.split("/")[1]?.replace("jpeg", "jpg") || "png";
+    return new File([blob], `comprobante-pegado.${ext}`, {
+      type: item.type || "image/png",
+    });
+  }
+  for (const f of Array.from(data.files ?? [])) {
+    if (f.type.startsWith("image/")) return f;
+  }
+  return null;
+}
+
 function etiquetaVeredicto(v: VeredictoPago): string {
   if (v === "entro") return "Entró";
   if (v === "no_entro") return "No entró";
@@ -96,6 +114,7 @@ function PagosWorkspace() {
   const fotoErrId = useId();
   const excelRef = useRef<HTMLInputElement>(null);
   const fotoRef = useRef<HTMLInputElement>(null);
+  const pegarZonaRef = useRef<HTMLDivElement>(null);
 
   const [movimientos, setMovimientos] = useState<MovimientoExtracto[]>([]);
   const [archivoNombre, setArchivoNombre] = useState<string | null>(null);
@@ -155,7 +174,7 @@ function PagosWorkspace() {
     setFormError(null);
     setResultado(null);
     if (!file) {
-      setFotoError("Sube una foto del comprobante");
+      setFotoError("Sube o pega una foto del comprobante");
       return;
     }
     const okType =
@@ -180,18 +199,39 @@ function PagosWorkspace() {
     }
   }, []);
 
+  // Ctrl+V / Cmd+V en cualquier parte de la página
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      if (comprobando) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
+        (target as HTMLInputElement).type !== "file"
+      ) {
+        return;
+      }
+      const file = imagenDesdeClipboard(e.clipboardData);
+      if (!file) return;
+      e.preventDefault();
+      void onFoto(file);
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [comprobando, onFoto]);
+
   const comprobar = useCallback(async () => {
     setFormError(null);
     setExcelError(null);
     setFotoError(null);
-    let firstInvalid: HTMLInputElement | null = null;
+    let firstInvalid: HTMLElement | null = null;
     if (!movimientos.length) {
       setExcelError("Carga el extracto del banco antes de comprobar");
       firstInvalid = excelRef.current;
     }
     if (!imageDataUrl) {
-      setFotoError("Sube una foto del comprobante");
-      if (!firstInvalid) firstInvalid = fotoRef.current;
+      setFotoError("Sube o pega una foto del comprobante");
+      if (!firstInvalid) firstInvalid = pegarZonaRef.current ?? fotoRef.current;
     }
     if (firstInvalid) {
       firstInvalid.focus();
@@ -309,20 +349,48 @@ function PagosWorkspace() {
             Foto del comprobante
           </label>
           <p className="text-xs text-muted-foreground text-pretty">
-            Cualquier banco o voucher (Nequi, Bre-B, transferencia, etc.)
+            Sube, captura o pega (Ctrl+V) un voucher de cualquier banco
           </p>
-          <input
-            ref={fotoRef}
-            id={fotoId}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            aria-invalid={fotoError ? true : undefined}
-            aria-describedby={fotoError ? fotoErrId : undefined}
-            disabled={comprobando}
-            onChange={(e) => void onFoto(e.target.files?.[0])}
-            className="block w-full min-h-11 cursor-pointer rounded-xl border border-border bg-zinc-900/60 px-3 py-2.5 text-base text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
+          <div
+            ref={pegarZonaRef}
+            tabIndex={0}
+            role="group"
+            aria-label="Zona para pegar o subir el comprobante"
+            onPaste={(e) => {
+              if (comprobando) return;
+              const file = imagenDesdeClipboard(e.clipboardData);
+              if (!file) return;
+              e.preventDefault();
+              void onFoto(file);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (comprobando) return;
+              const file = e.dataTransfer.files?.[0];
+              if (file) void onFoto(file);
+            }}
+            className="rounded-xl border border-dashed border-zinc-600 bg-zinc-900/50 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <input
+              ref={fotoRef}
+              id={fotoId}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              aria-invalid={fotoError ? true : undefined}
+              aria-describedby={fotoError ? fotoErrId : undefined}
+              disabled={comprobando}
+              onChange={(e) => void onFoto(e.target.files?.[0])}
+              className="block w-full min-h-11 cursor-pointer rounded-lg border border-border bg-zinc-900/60 px-3 py-2.5 text-base text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <p className="mt-2 text-center text-xs text-zinc-500 text-pretty">
+              O pega aquí una captura · Ctrl+V / Cmd+V
+            </p>
+          </div>
           {fotoError ? (
             <p id={fotoErrId} role="alert" className="text-sm text-red-300">
               {fotoError}
