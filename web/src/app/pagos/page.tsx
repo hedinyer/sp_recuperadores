@@ -117,7 +117,7 @@ function PagosWorkspace() {
   const pegarZonaRef = useRef<HTMLDivElement>(null);
 
   const [movimientos, setMovimientos] = useState<MovimientoExtracto[]>([]);
-  const [archivoNombre, setArchivoNombre] = useState<string | null>(null);
+  const [archivosNombres, setArchivosNombres] = useState<string[]>([]);
   const [ingresos, setIngresos] = useState(0);
   const [usados, setUsados] = useState<string[]>([]);
 
@@ -133,34 +133,41 @@ function PagosWorkspace() {
   const [comprobando, setComprobando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoUi | null>(null);
 
-  const onExcel = useCallback(async (file: File | undefined) => {
+  const onExcel = useCallback(async (fileList: FileList | File[] | null) => {
     setExcelError(null);
     setFormError(null);
     setResultado(null);
-    if (!file) {
-      setExcelError("Elige un Excel .xlsx");
+    const files = Array.from(fileList ?? []).filter((f) => f.size > 0);
+    if (!files.length) {
+      setExcelError("Elige uno o más Excel .xlsx");
       return;
     }
-    const name = file.name.toLowerCase();
-    if (!name.endsWith(".xlsx") && !name.endsWith(".xls")) {
-      setExcelError("Elige un Excel .xlsx");
+    const invalid = files.find((f) => {
+      const n = f.name.toLowerCase();
+      return !n.endsWith(".xlsx") && !n.endsWith(".xls");
+    });
+    if (invalid) {
+      setExcelError(`"${invalid.name}" no es un Excel .xlsx`);
       excelRef.current?.focus();
       return;
     }
     setSubiendoExcel(true);
     try {
       const fd = new FormData();
-      fd.set("file", file);
+      for (const file of files) fd.append("file", file);
       const res = await fetch("/api/pagos/extracto", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "No se pudo leer el Excel");
       setMovimientos(json.movimientos as MovimientoExtracto[]);
-      setArchivoNombre(String(json.archivo ?? file.name));
+      const nombres = Array.isArray(json.archivos)
+        ? (json.archivos as string[])
+        : [String(json.archivo ?? files.map((f) => f.name).join(", "))];
+      setArchivosNombres(nombres);
       setIngresos(Number(json.ingresos ?? 0));
       setUsados([]);
     } catch (e) {
       setMovimientos([]);
-      setArchivoNombre(null);
+      setArchivosNombres([]);
       setIngresos(0);
       setExcelError(e instanceof Error ? e.message : "Error al leer el Excel");
       excelRef.current?.focus();
@@ -298,17 +305,19 @@ function PagosWorkspace() {
             Extracto del banco
           </label>
           <p className="text-xs text-muted-foreground text-pretty">
-            Excel Bancolombia (.xlsx) con Fecha de Movimiento, Hora y Valor Total
+            Uno o varios Excel Bancolombia (.xlsx) con Fecha de Movimiento, Hora
+            y Valor Total
           </p>
           <input
             ref={excelRef}
             id={excelId}
             type="file"
+            multiple
             accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             aria-invalid={excelError ? true : undefined}
             aria-describedby={excelError ? excelErrId : undefined}
             disabled={subiendoExcel || comprobando}
-            onChange={(e) => void onExcel(e.target.files?.[0])}
+            onChange={(e) => void onExcel(e.target.files)}
             className="block w-full min-h-11 cursor-pointer rounded-xl border border-border bg-zinc-900/60 px-3 py-2.5 text-base text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           {excelError ? (
@@ -316,26 +325,40 @@ function PagosWorkspace() {
               {excelError}
             </p>
           ) : null}
-          {archivoNombre && !excelError ? (
-            <p className="text-xs text-zinc-400">
-              {archivoNombre}:{" "}
-              <span className="tabular-nums font-medium text-zinc-200">
-                {ingresos}
-              </span>{" "}
-              ingresos listos
-              {usados.length > 0 ? (
-                <>
-                  {" "}
-                  ·{" "}
-                  <span className="tabular-nums">{usados.length}</span> ya
-                  confirmados en esta sesión
-                </>
+          {archivosNombres.length > 0 && !excelError ? (
+            <div className="flex flex-col gap-1 text-xs text-zinc-400">
+              <p>
+                {archivosNombres.length === 1
+                  ? archivosNombres[0]
+                  : `${archivosNombres.length} extractos`}
+                :{" "}
+                <span className="tabular-nums font-medium text-zinc-200">
+                  {ingresos}
+                </span>{" "}
+                ingresos listos
+                {usados.length > 0 ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="tabular-nums">{usados.length}</span> ya
+                    confirmados en esta sesión
+                  </>
+                ) : null}
+              </p>
+              {archivosNombres.length > 1 ? (
+                <ul className="list-disc pl-4 text-zinc-500">
+                  {archivosNombres.map((n) => (
+                    <li key={n} className="truncate">
+                      {n}
+                    </li>
+                  ))}
+                </ul>
               ) : null}
-            </p>
+            </div>
           ) : null}
-          {!archivoNombre && !excelError ? (
+          {archivosNombres.length === 0 && !excelError ? (
             <p className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 px-3.5 py-4 text-sm text-zinc-400 text-pretty">
-              Carga el extracto para comprobar comprobantes.
+              Carga uno o varios extractos para comprobar comprobantes.
             </p>
           ) : null}
         </section>
