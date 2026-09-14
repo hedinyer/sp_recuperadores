@@ -119,14 +119,16 @@ async function mapPool<T, R>(
   return out;
 }
 
-function normalizeOcr(raw: OcrRaw): {
-  monto_cop: number | null;
-  fecha: string | null;
-  hora: string | null;
+type OcrNorm = {
+  monto_cop: number;
+  fecha: string;
+  hora: string;
   banco: string | null;
   referencia: string | null;
-  es_comprobante_pago: boolean;
-} | null {
+  es_comprobante_pago: true;
+};
+
+function normalizeOcr(raw: OcrRaw): OcrNorm | null {
   if (raw.es_comprobante_pago === false) return null;
   const monto_cop = parseMontoCop(raw.monto_cop);
   const fecha = parseFechaYmd(raw.fecha);
@@ -148,21 +150,18 @@ function votoKey(monto: number, fecha: string, hora: string): string {
 }
 
 function consensoOcr(
-  samples: Array<NonNullable<ReturnType<typeof normalizeOcr>>>,
+  samples: OcrNorm[],
   total: number,
 ): OcrConsenso | null {
   if (!samples.length) return null;
-  const counts = new Map<
-    string,
-    { count: number; sample: (typeof samples)[0] }
-  >();
+  const counts = new Map<string, { count: number; sample: OcrNorm }>();
   for (const s of samples) {
     const k = votoKey(s.monto_cop, s.fecha, s.hora);
     const prev = counts.get(k);
     if (prev) prev.count += 1;
     else counts.set(k, { count: 1, sample: s });
   }
-  let best: { count: number; sample: (typeof samples)[0] } | null = null;
+  let best: { count: number; sample: OcrNorm } | null = null;
   for (const v of counts.values()) {
     if (!best || v.count > best.count) best = v;
   }
@@ -298,7 +297,7 @@ export async function comprobarPagoHarness(opts: {
   );
   const ocrNorm = ocrRaws
     .map((r) => (r ? normalizeOcr(r) : null))
-    .filter((x): x is NonNullable<typeof x> => x != null);
+    .filter((x): x is OcrNorm => x != null);
   const ocr_ok = ocrNorm.length;
 
   const voteMap = new Map<string, number>();
