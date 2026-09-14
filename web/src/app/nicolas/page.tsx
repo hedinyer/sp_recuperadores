@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { DetalleAsignacion } from "@/components/DetalleAsignacion";
 import { MasterGate } from "@/components/MasterGate";
@@ -601,6 +602,12 @@ function NicolasAdminPanel() {
         <p className="text-[11px] text-zinc-500 mt-0.5">
           Publicar y asignar placas del día
         </p>
+        <Link
+          href="/pagos"
+          className="mt-2 inline-flex min-h-11 items-center text-xs font-medium text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+        >
+          Ir a Pagos (extracto + comprobante)
+        </Link>
       </header>
 
       <main className="flex-1 w-full max-w-[414px] mx-auto px-3 sm:px-4 pt-3 flex flex-col gap-3 min-h-0">

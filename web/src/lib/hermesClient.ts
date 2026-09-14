@@ -5,8 +5,17 @@
 const DEFAULT_BASE = "http://159.65.228.108/cobrador/v1";
 const DEFAULT_MODEL = "hermes-cobrador";
 
+export type HermesContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+export type HermesMessage = {
+  role: "system" | "user" | "assistant";
+  content: string | HermesContentPart[];
+};
+
 export async function hermesChatCompletion(opts: {
-  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  messages: HermesMessage[];
   temperature?: number;
   timeoutMs?: number;
 }): Promise<string> {
