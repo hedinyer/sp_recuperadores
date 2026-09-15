@@ -4,6 +4,7 @@ import {
   parseExtractoFlexible,
   type MovimientoExtracto,
 } from "@/lib/pagosExtracto";
+import { uploadExtractoSpark } from "@/lib/pagosOcrClient";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,9 +41,12 @@ export async function POST(request: Request) {
 
     const byId = new Map<string, MovimientoExtracto>();
     const archivos: string[] = [];
+    const sparkIds: string[] = [];
+    const fechasSet = new Set<string>();
     let total_filas = 0;
     let viaAgente = false;
     let sinHora = false;
+    let sparkError: string | null = null;
 
     for (const file of files) {
       const name = file.name.toLowerCase();
@@ -65,11 +69,27 @@ export async function POST(request: Request) {
       if (parsed.sin_hora) sinHora = true;
       for (const m of parsed.movimientos) {
         if (!byId.has(m.id)) byId.set(m.id, m);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(m.fecha)) fechasSet.add(m.fecha);
       }
       archivos.push(file.name);
+
+      try {
+        const spark = await uploadExtractoSpark({
+          bytes: buf,
+          filename: file.name,
+          activar: true,
+        });
+        if (spark?.id) sparkIds.push(spark.id);
+      } catch (e) {
+        sparkError =
+          e instanceof Error
+            ? e.message
+            : "No se pudo guardar el extracto en la Spark";
+      }
     }
 
     const movimientos = Array.from(byId.values());
+    const fechas = Array.from(fechasSet).sort();
     return NextResponse.json({
       ok: true,
       archivo: archivos.join(", "),
@@ -79,6 +99,12 @@ export async function POST(request: Request) {
       ingresos: movimientos.length,
       via: viaAgente ? "agente" : "reglas",
       sin_hora: sinHora,
+      spark_ids: sparkIds,
+      spark_id: sparkIds[sparkIds.length - 1] ?? null,
+      fechas,
+      fecha_min: fechas[0] ?? null,
+      fecha_max: fechas[fechas.length - 1] ?? null,
+      spark_error: sparkError,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al leer el Excel";

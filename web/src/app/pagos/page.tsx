@@ -10,6 +10,7 @@ import {
   ImageIcon,
   Loader2Icon,
   SendIcon,
+  TriangleAlertIcon,
   XCircleIcon,
 } from "lucide-react";
 
@@ -22,8 +23,22 @@ import { formatearCOP } from "@/lib/formatoDinero";
 import type { MovimientoExtracto } from "@/lib/pagosExtracto";
 import type { VeredictoPago } from "@/lib/pagosHarness";
 import { claveMovimiento } from "@/lib/pagosMatch";
+import {
+  formatearFechaEs,
+  parseAlertaReuso,
+} from "@/lib/pagosOcrClient";
 
 const MAX_IMAGE_BYTES = 1_800_000;
+
+type SparkExtractoUi = {
+  id: string;
+  nombre: string;
+  filas: number;
+  activo: boolean;
+  fecha_min: string | null;
+  fecha_max: string | null;
+  fechas: string[];
+};
 
 type ResultadoUi = {
   veredicto: VeredictoPago;
@@ -40,6 +55,16 @@ type ResultadoUi = {
   match_ok: number;
   eval_ok: number;
 };
+
+function formatearPrimeraVez(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("es-CO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
 
 type ChatMsg = {
   id: string;
@@ -149,6 +174,9 @@ function PagosWorkspace() {
   const [ingresos, setIngresos] = useState(0);
   const [viaAgente, setViaAgente] = useState(false);
   const [sinHora, setSinHora] = useState(false);
+  const [extractosSpark, setExtractosSpark] = useState<SparkExtractoUi[]>([]);
+  const [fechaFaltante, setFechaFaltante] = useState<string | null>(null);
+  const [cargandoExtractos, setCargandoExtractos] = useState(true);
   const [usados, setUsados] = useState<string[]>([]);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -172,6 +200,26 @@ function PagosWorkspace() {
   const threadEndRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLTextAreaElement>(null);
 
+  const refreshExtractosSpark = useCallback(async () => {
+    try {
+      const res = await fetch("/api/pagos/extractos");
+      const json = (await res.json()) as {
+        error?: string;
+        extractos?: SparkExtractoUi[];
+      };
+      if (!res.ok) throw new Error(json.error ?? "No se listaron extractos");
+      setExtractosSpark(Array.isArray(json.extractos) ? json.extractos : []);
+    } catch {
+      // La sesión puede seguir con extractos locales si Spark falla al listar
+    } finally {
+      setCargandoExtractos(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshExtractosSpark();
+  }, [refreshExtractosSpark]);
+
   const onExcel = useCallback(async (fileList: FileList | File[] | null) => {
     setExcelError(null);
     setFormError(null);
@@ -179,6 +227,7 @@ function PagosWorkspace() {
     setPensamientos([]);
     setMensajes([]);
     setLiveMsg("");
+    setFechaFaltante(null);
     const files = Array.from(fileList ?? []).filter((f) => f.size > 0);
     if (!files.length) {
       setExcelError("Elige uno o más Excel .xlsx");
@@ -209,8 +258,14 @@ function PagosWorkspace() {
       setViaAgente(json.via === "agente");
       setSinHora(Boolean(json.sin_hora));
       setUsados([]);
+      await refreshExtractosSpark();
+      const sparkHint = json.spark_id
+        ? " · guardado en Spark"
+        : json.spark_error
+          ? ` · aviso Spark: ${String(json.spark_error).slice(0, 80)}`
+          : "";
       setLiveMsg(
-        `${Number(json.ingresos ?? 0)} ingresos listos en el extracto`,
+        `${Number(json.ingresos ?? 0)} ingresos listos en el extracto${sparkHint}`,
       );
     } catch (e) {
       setMovimientos([]);
@@ -223,7 +278,7 @@ function PagosWorkspace() {
     } finally {
       setSubiendoExcel(false);
     }
-  }, []);
+  }, [refreshExtractosSpark]);
 
   const onFoto = useCallback(async (file: File | undefined) => {
     setFotoError(null);
@@ -260,14 +315,11 @@ function PagosWorkspace() {
     setFormError(null);
     setExcelError(null);
     setFotoError(null);
+    setFechaFaltante(null);
     let firstInvalid: HTMLElement | null = null;
-    if (!movimientos.length) {
-      setExcelError("Carga el extracto del banco antes de comprobar");
-      firstInvalid = excelRef.current;
-    }
     if (!imageDataUrl) {
       setFotoError("Elige o pega una imagen del comprobante");
-      if (!firstInvalid) firstInvalid = pegarZonaRef.current ?? fotoRef.current;
+      firstInvalid = pegarZonaRef.current ?? fotoRef.current;
     }
     if (firstInvalid) {
       firstInvalid.focus();
@@ -302,6 +354,7 @@ function PagosWorkspace() {
       const decoder = new TextDecoder();
       let buf = "";
       let gotResult = false;
+      let faltaFecha: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -316,6 +369,8 @@ function PagosWorkspace() {
             type: string;
             text?: string;
             error?: string;
+            fecha?: string;
+            fecha_label?: string;
             result?: ResultadoUi & Record<string, unknown>;
           };
           try {
@@ -326,8 +381,23 @@ function PagosWorkspace() {
           if (ev.type === "thought" && ev.text) {
             setPensamientos((prev) => [...prev, ev.text!]);
             setLiveMsg(ev.text);
+          } else if (ev.type === "falta_extracto" && ev.fecha) {
+            faltaFecha = ev.fecha;
+            setFechaFaltante(ev.fecha);
+            setLiveMsg(
+              ev.fecha_label
+                ? `Falta el extracto del ${ev.fecha_label}`
+                : `Falta el extracto del ${ev.fecha}`,
+            );
           } else if (ev.type === "error") {
-            throw new Error(ev.error ?? "Error al comprobar el pago");
+            if (faltaFecha) {
+              setExcelError(
+                ev.error ??
+                  `Carga el extracto del ${formatearFechaEs(faltaFecha)}`,
+              );
+            } else {
+              throw new Error(ev.error ?? "Error al comprobar el pago");
+            }
           } else if (ev.type === "result" && ev.result) {
             gotResult = true;
             const r: ResultadoUi = {
@@ -340,14 +410,28 @@ function PagosWorkspace() {
               eval_ok: ev.result.eval_ok,
             };
             setResultado(r);
-            setLiveMsg(`${etiquetaVeredicto(r.veredicto)}. ${r.resumen}`);
+            const reuso = parseAlertaReuso(r.resumen);
+            setLiveMsg(
+              reuso.activa
+                ? `Alerta: comprobante ya validado antes${reuso.veces ? ` (${reuso.veces} veces)` : ""}. ${etiquetaVeredicto(r.veredicto)}. ${r.resumen}`
+                : `${etiquetaVeredicto(r.veredicto)}. ${r.resumen}`,
+            );
             if (r.veredicto === "entro" && r.candidato) {
               setUsados((prev) => [...prev, claveMovimiento(r.candidato!)]);
             }
           }
         }
       }
-      if (!gotResult) throw new Error("No llegó el veredicto del harness");
+      if (!gotResult) {
+        if (faltaFecha) {
+          setExcelError(
+            `Carga el extracto del ${formatearFechaEs(faltaFecha)}`,
+          );
+          excelRef.current?.focus();
+          return;
+        }
+        throw new Error("No llegó el veredicto del harness");
+      }
     } catch (e) {
       setFormError(
         e instanceof Error ? e.message : "Error al comprobar el pago",
@@ -484,22 +568,32 @@ function PagosWorkspace() {
 
   useEffect(() => {
     if (!pensarAbierto || !pensarScrollRef.current) return;
-    pensarScrollRef.current.scrollTop = pensarScrollRef.current.scrollHeight;
+    const el = pensarScrollRef.current;
+    el.scrollTop = el.scrollHeight;
   }, [pensamientos, pensarAbierto, comprobando]);
 
   const scrollPensamiento = useCallback(() => {
     const el = pensarScrollRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    // rAF: el typewriter pinta y luego bajamos al fondo
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, []);
 
-  const tieneExtracto = archivosNombres.length > 0 && !excelError;
+  const tieneExtracto =
+    (archivosNombres.length > 0 && !excelError) || extractosSpark.length > 0;
   const tieneThread =
     pensamientos.length > 0 ||
     comprobando ||
     resultado != null ||
     mensajes.length > 0 ||
-    enviando;
+    enviando ||
+    fechaFaltante != null;
+
+  const alertaReuso = resultado
+    ? parseAlertaReuso(resultado.resumen)
+    : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -549,8 +643,8 @@ function PagosWorkspace() {
             <div>
               <p className="text-sm font-medium text-foreground">Extracto</p>
               <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
-                Uno o varios Excel (.xlsx). Hermes interpreta formatos no
-                clásicos.
+                Se guarda en la Spark. Al comprobar, se busca el día del
+                comprobante.
               </p>
             </div>
 
@@ -582,8 +676,30 @@ function PagosWorkspace() {
               ) : (
                 <FileSpreadsheetIcon className="size-4" aria-hidden />
               )}
-              {subiendoExcel ? "Leyendo Excel…" : "Elegir extracto Excel"}
+              {subiendoExcel
+                ? "Guardando en Spark…"
+                : fechaFaltante
+                  ? `Cargar extracto del ${fechaFaltante}`
+                  : "Elegir extracto Excel"}
             </Button>
+
+            {fechaFaltante ? (
+              <div
+                role="alert"
+                className="rounded-xl border border-amber-400/50 bg-amber-500/15 px-3 py-3"
+              >
+                <p className="text-sm font-semibold text-amber-100">
+                  Falta extracto del día
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-50/90 text-pretty">
+                  El comprobante es del{" "}
+                  <span className="font-medium">
+                    {formatearFechaEs(fechaFaltante)}
+                  </span>
+                  . Sube el Excel del banco de esa fecha.
+                </p>
+              </div>
+            ) : null}
 
             {excelError ? (
               <p id={excelErrId} role="alert" className="text-sm text-red-300">
@@ -591,27 +707,25 @@ function PagosWorkspace() {
               </p>
             ) : null}
 
-            {tieneExtracto ? (
+            {ingresos > 0 ? (
               <div className="flex flex-col gap-2 rounded-xl border border-border bg-zinc-900/50 p-3">
                 <p className="text-xs text-zinc-400 text-pretty">
                   <span className="tabular-nums font-medium text-zinc-200">
                     {ingresos}
                   </span>{" "}
-                  ingresos listos
-                  {viaAgente ? " · formato leído por Hermes" : null}
-                  {sinHora
-                    ? " · sin hora (cruce por monto y fecha)"
-                    : null}
+                  ingresos en esta sesión
+                  {viaAgente ? " · Hermes" : null}
+                  {sinHora ? " · sin hora" : null}
                   {usados.length > 0 ? (
                     <>
                       {" "}
                       ·{" "}
                       <span className="tabular-nums">{usados.length}</span>{" "}
-                      confirmados en esta sesión
+                      usados
                     </>
                   ) : null}
                 </p>
-                <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto text-xs text-zinc-500">
+                <ul className="flex max-h-24 flex-col gap-1 overflow-y-auto text-xs text-zinc-500">
                   {archivosNombres.map((n) => (
                     <li key={n} className="flex items-start gap-1.5 truncate">
                       <FileSpreadsheetIcon
@@ -625,16 +739,50 @@ function PagosWorkspace() {
                   ))}
                 </ul>
               </div>
-            ) : !excelError ? (
-              <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 px-3 py-4">
-                <p className="text-sm font-medium text-zinc-300">
-                  Sin extracto aún
-                </p>
-                <p className="mt-1 text-xs text-zinc-500 text-pretty">
-                  Carga el Excel del banco para cruzar comprobantes.
-                </p>
-              </div>
             ) : null}
+
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-zinc-400">
+                En la Spark
+                {cargandoExtractos ? "…" : null}
+              </p>
+              {extractosSpark.length > 0 ? (
+                <ul className="pagos-think-scroll flex max-h-48 flex-col gap-2">
+                  {extractosSpark.map((e) => (
+                    <li
+                      key={e.id}
+                      className={`rounded-lg border px-2.5 py-2 text-xs ${
+                        e.activo
+                          ? "border-zinc-600 bg-zinc-900/70"
+                          : "border-border bg-zinc-950/50"
+                      }`}
+                    >
+                      <p className="truncate font-medium text-zinc-200" title={e.nombre}>
+                        {e.nombre}
+                      </p>
+                      <p className="mt-0.5 tabular-nums text-zinc-500">
+                        {e.filas} filas
+                        {e.fecha_min && e.fecha_max
+                          ? e.fecha_min === e.fecha_max
+                            ? ` · ${e.fecha_min}`
+                            : ` · ${e.fecha_min} → ${e.fecha_max}`
+                          : null}
+                        {e.activo ? " · activo" : null}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : !cargandoExtractos ? (
+                <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 px-3 py-4">
+                  <p className="text-sm font-medium text-zinc-300">
+                    Sin extractos en Spark
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500 text-pretty">
+                    Carga un Excel; queda guardado para cruzar por fecha.
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         </aside>
 
@@ -644,7 +792,7 @@ function PagosWorkspace() {
             id="pagos-main"
             className="flex min-h-0 flex-1 flex-col overflow-y-auto"
           >
-            <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
+            <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">
               {!tieneThread ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
                   <div className="flex size-12 items-center justify-center rounded-2xl border border-border bg-zinc-900/60">
@@ -658,110 +806,194 @@ function PagosWorkspace() {
                   </h2>
                   <p className="max-w-md text-sm text-muted-foreground text-pretty">
                     {tieneExtracto
-                      ? "Comprueba el voucher o pregunta lo que necesites sobre el cruce."
-                      : "Primero carga el extracto en la barra lateral. Luego pega el comprobante o escribe."}
+                      ? "Pega el voucher: si falta el extracto de ese día, te lo pedimos."
+                      : "Puedes pegar el comprobante ya. Si no hay extracto del día en la Spark, te pediremos cargarlo."}
                   </p>
                 </div>
               ) : (
                 <div className="flex flex-col gap-5">
-                  {pensamientos.length > 0 || comprobando ? (
-                    <div
-                      className={`pagos-think-shell rounded-2xl border border-border bg-zinc-900/40 ${comprobando ? "pagos-think-shell--active" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setPensarAbierto((v) => !v)}
-                        className="pagos-think-font flex w-full min-h-10 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/40 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-expanded={pensarAbierto}
-                        aria-controls={pensarPanelId}
-                      >
-                        <ChevronDownIcon
-                          className={`size-4 shrink-0 transition-transform motion-reduce:transition-none ${pensarAbierto ? "" : "-rotate-90"}`}
+                  {pensamientos.length > 0 ||
+                  comprobando ||
+                  resultado != null ? (
+                    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
+                      {pensamientos.length > 0 || comprobando ? (
+                        <div
+                          className={`pagos-think-shell h-full max-h-[min(28rem,52vh)] rounded-2xl border border-border bg-zinc-900/40 ${comprobando ? "pagos-think-shell--active" : ""}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPensarAbierto((v) => !v)}
+                            className="pagos-think-font flex w-full min-h-10 shrink-0 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/40 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-expanded={pensarAbierto}
+                            aria-controls={pensarPanelId}
+                          >
+                            <ChevronDownIcon
+                              className={`size-4 shrink-0 transition-transform motion-reduce:transition-none ${pensarAbierto ? "" : "-rotate-90"}`}
+                              aria-hidden
+                            />
+                            <span
+                              className={`flex-1 ${comprobando ? "pagos-think-label--active" : ""}`}
+                            >
+                              {comprobando ? "Pensando…" : "Pensamiento"}
+                            </span>
+                            {!comprobando && pensamientos.length > 0 ? (
+                              <span className="tabular-nums text-zinc-600">
+                                {pensamientos.length}
+                              </span>
+                            ) : null}
+                          </button>
+                          {pensarAbierto ? (
+                            <div
+                              id={pensarPanelId}
+                              ref={pensarScrollRef}
+                              className="pagos-think-scroll border-t border-border/80 px-4 py-3"
+                            >
+                              <PagosPensamientoTypewriter
+                                lines={pensamientos}
+                                active={comprobando}
+                                onReveal={scrollPensamiento}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div
+                          className="hidden min-h-[18rem] rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/40 lg:block"
                           aria-hidden
                         />
-                        <span
-                          className={`flex-1 ${comprobando ? "pagos-think-label--active" : ""}`}
+                      )}
+
+                      {resultado ? (
+                        <article
+                          className={`pagos-think-scroll flex h-full max-h-[min(28rem,52vh)] flex-col rounded-2xl border p-5 ${
+                            alertaReuso?.activa
+                              ? "border-amber-500/60 bg-amber-950/40"
+                              : "border-border bg-zinc-900/60"
+                          }`}
                         >
-                          {comprobando ? "Pensando…" : "Pensamiento"}
-                        </span>
-                        {!comprobando && pensamientos.length > 0 ? (
-                          <span className="tabular-nums text-zinc-600">
-                            {pensamientos.length}
-                          </span>
-                        ) : null}
-                      </button>
-                      {pensarAbierto ? (
-                        <div
-                          id={pensarPanelId}
-                          ref={pensarScrollRef}
-                          className="max-h-64 overflow-y-auto border-t border-border/80 px-4 py-3"
-                        >
-                          <PagosPensamientoTypewriter
-                            lines={pensamientos}
-                            active={comprobando}
-                            onReveal={scrollPensamiento}
-                          />
+                          {alertaReuso?.activa ? (
+                            <div
+                              role="alert"
+                              className="mb-4 shrink-0 rounded-xl border border-amber-400/50 bg-amber-500/15 px-4 py-3"
+                            >
+                              <div className="flex items-start gap-3">
+                                <TriangleAlertIcon
+                                  className="mt-0.5 size-5 shrink-0 text-amber-300"
+                                  aria-hidden
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-base font-semibold tracking-tight text-amber-100">
+                                    Comprobante ya validado
+                                  </p>
+                                  <p className="mt-1 text-sm leading-relaxed text-amber-50/90 text-pretty">
+                                    {alertaReuso.aviso ??
+                                      "Este comprobante ya se validó antes. Posible reuso entre personas."}
+                                  </p>
+                                  {(alertaReuso.veces != null ||
+                                    alertaReuso.primera_vez) && (
+                                    <p className="mt-2 text-xs font-medium tabular-nums text-amber-200/90">
+                                      {alertaReuso.veces != null
+                                        ? `Ya va ${alertaReuso.veces} ${alertaReuso.veces === 1 ? "vez" : "veces"}`
+                                        : null}
+                                      {alertaReuso.veces != null &&
+                                      alertaReuso.primera_vez
+                                        ? " · "
+                                        : null}
+                                      {alertaReuso.primera_vez
+                                        ? `Primera vez: ${formatearPrimeraVez(alertaReuso.primera_vez)}`
+                                        : null}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <div className="flex items-start gap-3">
+                            <IconoVeredicto v={resultado.veredicto} />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-base font-semibold text-white">
+                                {etiquetaVeredicto(resultado.veredicto)}
+                                {alertaReuso?.activa ? (
+                                  <span className="ml-2 text-sm font-medium text-amber-300">
+                                    · con alerta de reuso
+                                  </span>
+                                ) : null}
+                              </p>
+                              {(alertaReuso?.activa
+                                ? alertaReuso.cuerpo
+                                : resultado.resumen) ? (
+                                <p className="mt-1 text-sm leading-relaxed text-zinc-300 text-pretty">
+                                  {alertaReuso?.activa
+                                    ? alertaReuso.cuerpo
+                                    : resultado.resumen}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                          {resultado.ocr ? (
+                            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border/80 pt-4 text-sm sm:grid-cols-3">
+                              <div>
+                                <dt className="text-xs text-zinc-500">
+                                  Monto leído
+                                </dt>
+                                <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
+                                  {formatearCOP(resultado.ocr.monto_cop)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-xs text-zinc-500">
+                                  Fecha y hora
+                                </dt>
+                                <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
+                                  {resultado.ocr.fecha}{" "}
+                                  {resultado.ocr.hora.slice(0, 5)}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-xs text-zinc-500">
+                                  Lecturas OCR
+                                </dt>
+                                <dd className="mt-0.5 tabular-nums text-zinc-200">
+                                  {resultado.ocr.votos}/
+                                  {resultado.ocr.total_ocr}
+                                </dd>
+                              </div>
+                            </dl>
+                          ) : null}
+                          {resultado.candidato ? (
+                            <p className="mt-3 text-sm text-zinc-400 text-pretty">
+                              Movimiento: doc{" "}
+                              <span className="tabular-nums text-zinc-200">
+                                {resultado.candidato.documento}
+                              </span>
+                              {" · "}
+                              {formatearCOP(resultado.candidato.monto_cop)}
+                              {" · "}
+                              <span className="tabular-nums">
+                                {resultado.candidato.fecha}{" "}
+                                {resultado.candidato.hora.slice(0, 5)}
+                              </span>
+                            </p>
+                          ) : null}
+                        </article>
+                      ) : comprobando ? (
+                        <div className="flex min-h-[18rem] items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-5 py-8 text-center">
+                          <div>
+                            <Loader2Icon
+                              className="mx-auto size-5 animate-spin text-zinc-400 motion-reduce:animate-none"
+                              aria-hidden
+                            />
+                            <p className="mt-3 text-sm font-medium text-zinc-300">
+                              Esperando veredicto…
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500 text-pretty">
+                              El resultado aparecerá aquí al terminar el cruce.
+                            </p>
+                          </div>
                         </div>
                       ) : null}
                     </div>
-                  ) : null}
-
-                  {resultado ? (
-                    <article className="rounded-2xl border border-border bg-zinc-900/60 p-5">
-                      <div className="flex items-start gap-3">
-                        <IconoVeredicto v={resultado.veredicto} />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-base font-semibold text-white">
-                            {etiquetaVeredicto(resultado.veredicto)}
-                          </p>
-                          <p className="mt-1 text-sm leading-relaxed text-zinc-300 text-pretty">
-                            {resultado.resumen}
-                          </p>
-                        </div>
-                      </div>
-                      {resultado.ocr ? (
-                        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border/80 pt-4 text-sm sm:grid-cols-3">
-                          <div>
-                            <dt className="text-xs text-zinc-500">Monto leído</dt>
-                            <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
-                              {formatearCOP(resultado.ocr.monto_cop)}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-zinc-500">
-                              Fecha y hora
-                            </dt>
-                            <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
-                              {resultado.ocr.fecha}{" "}
-                              {resultado.ocr.hora.slice(0, 5)}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs text-zinc-500">
-                              Lecturas OCR
-                            </dt>
-                            <dd className="mt-0.5 tabular-nums text-zinc-200">
-                              {resultado.ocr.votos}/{resultado.ocr.total_ocr}
-                            </dd>
-                          </div>
-                        </dl>
-                      ) : null}
-                      {resultado.candidato ? (
-                        <p className="mt-3 text-sm text-zinc-400 text-pretty">
-                          Movimiento: doc{" "}
-                          <span className="tabular-nums text-zinc-200">
-                            {resultado.candidato.documento}
-                          </span>
-                          {" · "}
-                          {formatearCOP(resultado.candidato.monto_cop)}
-                          {" · "}
-                          <span className="tabular-nums">
-                            {resultado.candidato.fecha}{" "}
-                            {resultado.candidato.hora.slice(0, 5)}
-                          </span>
-                        </p>
-                      ) : null}
-                    </article>
                   ) : null}
 
                   {mensajes.map((m) => (
@@ -804,7 +1036,7 @@ function PagosWorkspace() {
 
           {/* Composer sticky */}
           <div className="shrink-0 border-t border-border bg-zinc-950/95 px-6 py-4 backdrop-blur-sm">
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
               <input
                 ref={fotoRef}
                 id={fotoId}
@@ -957,9 +1189,11 @@ function PagosWorkspace() {
               ) : null}
 
               <p className="text-xs text-zinc-600">
-                {tieneExtracto
-                  ? `${ingresos} ingresos · ${usados.length} usados`
-                  : "Sin extracto"}
+                {extractosSpark.length > 0
+                  ? `${extractosSpark.length} extracto(s) en Spark${ingresos ? ` · ${ingresos} en sesión` : ""}`
+                  : ingresos
+                    ? `${ingresos} ingresos en sesión`
+                    : "Sin extracto — se pedirá según la fecha del comprobante"}
               </p>
             </div>
           </div>

@@ -2,7 +2,10 @@ import type { PagosHarnessResult } from "@/lib/pagosHarness";
 import type { MovimientoExtracto } from "@/lib/pagosExtracto";
 import {
   dataUrlToBase64,
+  findExtractoParaFecha,
+  formatearFechaEs,
   mapPagosOcrToHarness,
+  ocrComprobanteSpark,
   thoughtsFromPagosOcr,
   validarPagoEnSpark,
 } from "@/lib/pagosOcrClient";
@@ -16,6 +19,7 @@ const DATA_URL_RE = /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i;
 
 type StreamEvent =
   | { type: "thought"; text: string }
+  | { type: "falta_extracto"; fecha: string; fecha_label: string }
   | { type: "result"; ok: true; result: PagosHarnessResult }
   | { type: "error"; error: string };
 
@@ -57,12 +61,6 @@ export async function POST(request: Request) {
     );
   }
   const movimientos = Array.isArray(body.movimientos) ? body.movimientos : [];
-  if (!movimientos.length) {
-    return Response.json(
-      { error: "Carga el extracto del banco antes de comprobar" },
-      { status: 400 },
-    );
-  }
 
   const clean: MovimientoExtracto[] = [];
   for (const m of movimientos.slice(0, 2000)) {
@@ -70,7 +68,6 @@ export async function POST(request: Request) {
     const monto = Number(m.monto_cop);
     const fecha = String(m.fecha ?? "");
     const hora = String(m.hora ?? "");
-    // hora vacía permitida (extractos sin columna de hora)
     if (!Number.isFinite(monto) || monto <= 0 || !fecha) continue;
     clean.push({
       id: String(m.id ?? `${m.documento}|${fecha}|${hora || "sin-hora"}`),
@@ -84,16 +81,12 @@ export async function POST(request: Request) {
       motivo: String(m.motivo ?? ""),
     });
   }
-  if (!clean.length) {
-    return Response.json(
-      { error: "El extracto no tiene movimientos de ingreso válidos" },
-      { status: 400 },
-    );
-  }
 
   const usados = Array.isArray(body.usados)
     ? body.usados.map(String).slice(0, 2000)
     : [];
+
+  const imageBase64 = dataUrlToBase64(image);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -103,11 +96,76 @@ export async function POST(request: Request) {
       try {
         push({
           type: "thought",
-          text: `Enviando comprobante + ${clean.length} ingresos a pagos-ocr (Spark)…`,
+          text: "Leyendo fecha del comprobante en la Spark…",
         });
+        const ocr = await ocrComprobanteSpark({ imageBase64 });
+        if (!ocr.es_comprobante_pago || !ocr.fecha) {
+          push({
+            type: "error",
+            error:
+              "No se pudo leer la fecha del comprobante. Prueba otra foto más nítida.",
+          });
+          return;
+        }
+
+        const fecha = ocr.fecha.trim();
+        const fechaLabel = formatearFechaEs(fecha);
+        push({
+          type: "thought",
+          text: `Comprobante del ${fechaLabel}${ocr.monto_cop != null ? ` · $${ocr.monto_cop.toLocaleString("es-CO")}` : ""}${ocr.hora ? ` · ${ocr.hora.slice(0, 5)}` : ""}.`,
+        });
+
+        const localDelDia = clean.filter((m) => m.fecha === fecha);
+        let extractoId: string | null = null;
+        let movsParaValidar: MovimientoExtracto[] = [];
+
+        if (localDelDia.length) {
+          push({
+            type: "thought",
+            text: `Usando extracto de esta sesión: ${localDelDia.length} ingresos del ${fecha}.`,
+          });
+          movsParaValidar = localDelDia;
+        } else {
+          push({
+            type: "thought",
+            text: `Buscando en la Spark un extracto con movimientos del ${fecha}…`,
+          });
+          const sparkExt = await findExtractoParaFecha(fecha);
+          if (sparkExt) {
+            extractoId = sparkExt.id;
+            push({
+              type: "thought",
+              text: `Encontré «${sparkExt.nombre}» (${sparkExt.filas} filas) con el día ${fecha}.`,
+            });
+          } else {
+            push({
+              type: "falta_extracto",
+              fecha,
+              fecha_label: fechaLabel,
+            });
+            push({
+              type: "thought",
+              text: `No hay extracto cargado para el ${fechaLabel}. Hay que subir el Excel de ese día.`,
+            });
+            push({
+              type: "error",
+              error: `Falta el extracto del ${fechaLabel}. Carga el Excel del banco de ese día.`,
+            });
+            return;
+          }
+        }
+
+        push({
+          type: "thought",
+          text: extractoId
+            ? `Validando contra extracto ${extractoId} en la Spark…`
+            : `Validando contra ${movsParaValidar.length} ingresos del día…`,
+        });
+
         const spark = await validarPagoEnSpark({
-          imageBase64: dataUrlToBase64(image),
-          movimientos: clean,
+          imageBase64,
+          movimientos: movsParaValidar,
+          extractoId,
           usados,
           askCobradorSiAmbiguo: false,
         });
