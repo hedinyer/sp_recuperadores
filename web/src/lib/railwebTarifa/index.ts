@@ -7,13 +7,7 @@ import type { PoolClient, QueryResultRow } from "pg";
 
 import { getDatabaseUrls } from "@/lib/dbUrls";
 import { getPgPool } from "@/lib/pgPool";
-import { planFifo, type FacturaPendiente } from "@/lib/railwebTarifa/fifo";
-import {
-  SQL_FACTURAS_PENDIENTES,
-  ensureFacturasParaMonto,
-  facturasConEmisionSimulada,
-  mapFacturaRows,
-} from "@/lib/railwebTarifa/facturaTarifa";
+import { crearFacturaTarifa } from "@/lib/railwebTarifa/facturaTarifa";
 import type {
   ContratoOpt,
   Destinatario,
@@ -24,7 +18,6 @@ import type {
 } from "@/lib/railwebTarifa/types";
 
 const MEDIO_NEQUI = "Transfer Nequi";
-const ESTADO_PREPAGO = "disponible";
 
 const toInt = (v: unknown): number => Math.round(Number(v));
 
@@ -116,11 +109,6 @@ async function fetchContratos(placa: string): Promise<ContratoOpt[]> {
   }));
 }
 
-async function fetchFacturas(contratoId: number): Promise<FacturaPendiente[]> {
-  const rows = await query(SQL_FACTURAS_PENDIENTES, [contratoId]);
-  return mapFacturaRows(rows);
-}
-
 function pickContrato(
   contratos: ContratoOpt[],
   contratoId?: number,
@@ -158,44 +146,36 @@ export async function previewPagoTarifa(input: {
     return { contratos, contratoId: null, facturas: [], plan: [], sobrante: 0 };
   }
 
-  const existentes = await fetchFacturas(contrato.contratoId);
-  const facturas =
+  // Un solo recibo por el monto total (no se parte en cuotas diarias).
+  const facturasView: FacturaView[] =
     monto > 0
-      ? await facturasConEmisionSimulada(
-          (text, params) =>
-            query(text, params).then((rows) => ({
-              rows: rows as Record<string, unknown>[],
-            })),
-          contrato.contratoId,
-          contrato.tarifa,
-          fechaPago,
-          monto,
-          existentes,
-        )
-      : existentes;
-
-  const facturasView: FacturaView[] = facturas.map((f) => ({
-    id: f.id,
-    fecha: f.fecha,
-    total: f.total,
-    saldo: f.saldo,
-  }));
-
-  const { plan, sobrante } =
-    monto > 0 ? planFifo(facturas, monto) : { plan: [], sobrante: 0 };
+      ? [
+          {
+            id: -1,
+            fecha: fechaPago,
+            total: monto,
+            saldo: monto,
+          },
+        ]
+      : [];
 
   return {
     contratos,
     contratoId: contrato.contratoId,
     facturas: facturasView,
-    plan: plan.map((a) => ({
-      facturaId: a.facturaId,
-      fecha: a.fecha,
-      saldoAntes: a.saldoAntes,
-      aplicar: a.aplicar,
-      queda: a.saldoAntes - a.aplicar,
-    })),
-    sobrante,
+    plan:
+      monto > 0
+        ? [
+            {
+              facturaId: -1,
+              fecha: fechaPago,
+              saldoAntes: monto,
+              aplicar: monto,
+              queda: 0,
+            },
+          ]
+        : [],
+    sobrante: 0,
   };
 }
 
@@ -257,7 +237,6 @@ export async function registrarPagoTarifa(input: {
     }
 
     const contratoId = Number(contratoRow!.contrato_id);
-    const clienteId = Number(contratoRow!.cliente_id);
 
     const dup = (
       await client.query(
@@ -274,83 +253,43 @@ export async function registrarPagoTarifa(input: {
       );
     }
 
-    const facturas = await ensureFacturasParaMonto(
+    // Un solo recibo por el monto total del comprobante (más claro para el cliente).
+    const facturaId = await crearFacturaTarifa(
       client,
       contratoId,
-      toInt(contratoRow!.tarifa),
-      fechaPago,
       monto,
+      fechaPago,
     );
 
-    const { plan, sobrante } = planFifo(facturas, monto);
-    if (plan.length === 0) {
-      throw new Error("No se pudo aplicar el pago a facturas de tarifa.");
-    }
+    const ins = await client.query(
+      `INSERT INTO terminal_pagos_pagofactura
+         (valor, referencia, canal_id, configuracion_id, factura_id,
+          fecha_pago, validado, es_compensacion, referencia_original)
+       VALUES ($1, $2, $3, $4, $5, $6, false, false, NULL)
+       RETURNING id`,
+      [monto, referencia, canalId, configuracionId, facturaId, fechaPago],
+    );
+    const pagoId = Number(ins.rows[0]!.id);
 
-    const pagos: PagoAplicado[] = [];
-    for (const a of plan) {
-      const f = facturas.find((x) => x.id === a.facturaId)!;
-      const ins = await client.query(
-        `INSERT INTO terminal_pagos_pagofactura
-           (valor, referencia, canal_id, configuracion_id, factura_id,
-            fecha_pago, validado, es_compensacion, referencia_original)
-         VALUES ($1, $2, $3, $4, $5, $6, false, false, NULL)
-         RETURNING id`,
-        [
-          a.aplicar,
-          referencia,
-          canalId,
-          configuracionId,
-          a.facturaId,
-          fechaPago,
-        ],
-      );
-      const pagoId = Number(ins.rows[0]!.id);
-
-      const nuevoPagado = f.pagado + a.aplicar;
-      const nuevoEstado = nuevoPagado >= f.total ? "pagada" : "pendiente";
-      await client.query(
-        `UPDATE terminal_pagos_factura
-         SET total_pagado = $1, estado_pago = $2 WHERE id = $3`,
-        [nuevoPagado, nuevoEstado, a.facturaId],
-      );
-
-      pagos.push({
-        pagoId,
-        facturaId: a.facturaId,
-        aplicado: a.aplicar,
-        estado: nuevoEstado,
-      });
-    }
-
-    let prepagoId: number | null = null;
-    if (sobrante > 0) {
-      const facturaOrigenId = plan[plan.length - 1]!.facturaId;
-      const pre = await client.query(
-        `INSERT INTO terminal_pagos_prepago
-           (fecha, valor, saldo_disponible, estado, cliente_id, contrato_id,
-            factura_origen_id, factura_aplicacion_id, usuario_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL)
-         RETURNING id`,
-        [
-          fechaPago,
-          sobrante,
-          sobrante,
-          ESTADO_PREPAGO,
-          clienteId,
-          contratoId,
-          facturaOrigenId,
-        ],
-      );
-      prepagoId = Number(pre.rows[0]!.id);
-    }
+    await client.query(
+      `UPDATE terminal_pagos_factura
+       SET total_pagado = $1, estado_pago = 'pagada' WHERE id = $2`,
+      [monto, facturaId],
+    );
 
     return {
       clienteNombre: String(contratoRow!.nombre),
       contratoId,
-      pagos,
-      sobrante,
-      prepagoId,
+      pagos: [
+        {
+          pagoId,
+          facturaId,
+          aplicado: monto,
+          estado: "pagada",
+        },
+      ],
+      sobrante: 0,
+      prepagoId: null,
     };
   });
 }

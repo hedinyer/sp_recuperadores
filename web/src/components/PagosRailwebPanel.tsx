@@ -191,14 +191,9 @@ export function PagosRailwebPanel({
         }
         throw new Error(json.error ?? "No se pudo registrar la tarifa");
       }
-      const n = json.result.pagos.length;
       const placaOk = String(json.vehiculo?.placa || p).toUpperCase();
       setOkMsg(
-        `Tarifa subida a ${placaOk} (${n} pago${n === 1 ? "" : "s"})${
-          json.result.sobrante > 0
-            ? ` · sobrante ${formatearCOP(json.result.sobrante)} a prepago`
-            : ""
-        }.`,
+        `Tarifa subida a ${placaOk}: ${formatearCOP(m)} en un solo recibo.`,
       );
       if (json.vehiculo) setVehiculo(json.vehiculo);
       setConfirmado(false);
