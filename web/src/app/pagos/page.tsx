@@ -17,6 +17,7 @@ import {
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { MasterGate } from "@/components/MasterGate";
 import { PagosPensamientoTypewriter } from "@/components/PagosPensamientoTypewriter";
+import { PagosRailwebPanel } from "@/components/PagosRailwebPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { formatearCOP } from "@/lib/formatoDinero";
@@ -49,6 +50,8 @@ type ResultadoUi = {
     hora: string;
     votos: number;
     total_ocr: number;
+    referencia?: string | null;
+    banco?: string | null;
   } | null;
   candidato: MovimientoExtracto | null;
   ocr_ok: number;
@@ -790,9 +793,9 @@ function PagosWorkspace() {
         <div className="flex min-w-0 flex-1 flex-col">
           <main
             id="pagos-main"
-            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
-            <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-8">
+            <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3 px-4 py-4 lg:px-6">
               {!tieneThread ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
                   <div className="flex size-12 items-center justify-center rounded-2xl border border-border bg-zinc-900/60">
@@ -811,19 +814,25 @@ function PagosWorkspace() {
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-5">
+                <div className="flex min-h-0 flex-1 flex-col gap-3">
                   {pensamientos.length > 0 ||
                   comprobando ||
                   resultado != null ? (
-                    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
+                    <div
+                      className={`grid min-h-0 flex-1 gap-3 ${
+                        resultado?.veredicto === "entro"
+                          ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+                          : "grid-cols-1 md:grid-cols-2"
+                      }`}
+                    >
                       {pensamientos.length > 0 || comprobando ? (
                         <div
-                          className={`pagos-think-shell h-full max-h-[min(28rem,52vh)] rounded-2xl border border-border bg-zinc-900/40 ${comprobando ? "pagos-think-shell--active" : ""}`}
+                          className={`pagos-think-shell min-h-0 rounded-2xl border border-border bg-zinc-900/40 ${comprobando ? "pagos-think-shell--active" : ""}`}
                         >
                           <button
                             type="button"
                             onClick={() => setPensarAbierto((v) => !v)}
-                            className="pagos-think-font flex w-full min-h-10 shrink-0 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/40 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="pagos-think-font flex w-full min-h-9 shrink-0 items-center gap-2 px-3 py-2 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/40 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             aria-expanded={pensarAbierto}
                             aria-controls={pensarPanelId}
                           >
@@ -846,7 +855,7 @@ function PagosWorkspace() {
                             <div
                               id={pensarPanelId}
                               ref={pensarScrollRef}
-                              className="pagos-think-scroll border-t border-border/80 px-4 py-3"
+                              className="pagos-think-scroll border-t border-border/80 px-3 py-2"
                             >
                               <PagosPensamientoTypewriter
                                 lines={pensamientos}
@@ -856,16 +865,11 @@ function PagosWorkspace() {
                             </div>
                           ) : null}
                         </div>
-                      ) : (
-                        <div
-                          className="hidden min-h-[18rem] rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/40 lg:block"
-                          aria-hidden
-                        />
-                      )}
+                      ) : null}
 
                       {resultado ? (
                         <article
-                          className={`pagos-think-scroll flex h-full max-h-[min(28rem,52vh)] flex-col rounded-2xl border p-5 ${
+                          className={`pagos-think-scroll flex min-h-0 flex-col rounded-2xl border p-4 ${
                             alertaReuso?.activa
                               ? "border-amber-500/60 bg-amber-950/40"
                               : "border-border bg-zinc-900/60"
@@ -874,24 +878,24 @@ function PagosWorkspace() {
                           {alertaReuso?.activa ? (
                             <div
                               role="alert"
-                              className="mb-4 shrink-0 rounded-xl border border-amber-400/50 bg-amber-500/15 px-4 py-3"
+                              className="mb-3 shrink-0 rounded-xl border border-amber-400/50 bg-amber-500/15 px-3 py-2.5"
                             >
-                              <div className="flex items-start gap-3">
+                              <div className="flex items-start gap-2.5">
                                 <TriangleAlertIcon
-                                  className="mt-0.5 size-5 shrink-0 text-amber-300"
+                                  className="mt-0.5 size-4 shrink-0 text-amber-300"
                                   aria-hidden
                                 />
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-base font-semibold tracking-tight text-amber-100">
+                                  <p className="text-sm font-semibold tracking-tight text-amber-100">
                                     Comprobante ya validado
                                   </p>
-                                  <p className="mt-1 text-sm leading-relaxed text-amber-50/90 text-pretty">
+                                  <p className="mt-1 text-xs leading-relaxed text-amber-50/90 text-pretty">
                                     {alertaReuso.aviso ??
                                       "Este comprobante ya se validó antes. Posible reuso entre personas."}
                                   </p>
                                   {(alertaReuso.veces != null ||
                                     alertaReuso.primera_vez) && (
-                                    <p className="mt-2 text-xs font-medium tabular-nums text-amber-200/90">
+                                    <p className="mt-1.5 text-[11px] font-medium tabular-nums text-amber-200/90">
                                       {alertaReuso.veces != null
                                         ? `Ya va ${alertaReuso.veces} ${alertaReuso.veces === 1 ? "vez" : "veces"}`
                                         : null}
@@ -909,13 +913,13 @@ function PagosWorkspace() {
                             </div>
                           ) : null}
 
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-2.5">
                             <IconoVeredicto v={resultado.veredicto} />
                             <div className="min-w-0 flex-1">
-                              <p className="text-base font-semibold text-white">
+                              <p className="text-sm font-semibold text-white">
                                 {etiquetaVeredicto(resultado.veredicto)}
                                 {alertaReuso?.activa ? (
-                                  <span className="ml-2 text-sm font-medium text-amber-300">
+                                  <span className="ml-2 text-xs font-medium text-amber-300">
                                     · con alerta de reuso
                                   </span>
                                 ) : null}
@@ -923,7 +927,7 @@ function PagosWorkspace() {
                               {(alertaReuso?.activa
                                 ? alertaReuso.cuerpo
                                 : resultado.resumen) ? (
-                                <p className="mt-1 text-sm leading-relaxed text-zinc-300 text-pretty">
+                                <p className="mt-1 text-xs leading-relaxed text-zinc-300 text-pretty">
                                   {alertaReuso?.activa
                                     ? alertaReuso.cuerpo
                                     : resultado.resumen}
@@ -932,9 +936,9 @@ function PagosWorkspace() {
                             </div>
                           </div>
                           {resultado.ocr ? (
-                            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border/80 pt-4 text-sm sm:grid-cols-3">
+                            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border/80 pt-3 text-xs sm:grid-cols-3">
                               <div>
-                                <dt className="text-xs text-zinc-500">
+                                <dt className="text-[11px] text-zinc-500">
                                   Monto leído
                                 </dt>
                                 <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
@@ -942,7 +946,7 @@ function PagosWorkspace() {
                                 </dd>
                               </div>
                               <div>
-                                <dt className="text-xs text-zinc-500">
+                                <dt className="text-[11px] text-zinc-500">
                                   Fecha y hora
                                 </dt>
                                 <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
@@ -951,7 +955,7 @@ function PagosWorkspace() {
                                 </dd>
                               </div>
                               <div>
-                                <dt className="text-xs text-zinc-500">
+                                <dt className="text-[11px] text-zinc-500">
                                   Lecturas OCR
                                 </dt>
                                 <dd className="mt-0.5 tabular-nums text-zinc-200">
@@ -962,7 +966,7 @@ function PagosWorkspace() {
                             </dl>
                           ) : null}
                           {resultado.candidato ? (
-                            <p className="mt-3 text-sm text-zinc-400 text-pretty">
+                            <p className="mt-2 text-xs text-zinc-400 text-pretty">
                               Movimiento: doc{" "}
                               <span className="tabular-nums text-zinc-200">
                                 {resultado.candidato.documento}
@@ -978,55 +982,98 @@ function PagosWorkspace() {
                           ) : null}
                         </article>
                       ) : comprobando ? (
-                        <div className="flex min-h-[18rem] items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-5 py-8 text-center">
+                        <div className="flex min-h-0 items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 px-4 py-6 text-center">
                           <div>
                             <Loader2Icon
                               className="mx-auto size-5 animate-spin text-zinc-400 motion-reduce:animate-none"
                               aria-hidden
                             />
-                            <p className="mt-3 text-sm font-medium text-zinc-300">
+                            <p className="mt-2 text-sm font-medium text-zinc-300">
                               Esperando veredicto…
                             </p>
-                            <p className="mt-1 text-xs text-zinc-500 text-pretty">
-                              El resultado aparecerá aquí al terminar el cruce.
-                            </p>
                           </div>
+                        </div>
+                      ) : null}
+
+                      {resultado?.veredicto === "entro" ? (
+                        <div className="min-h-0 md:col-span-2 xl:col-span-1">
+                          <PagosRailwebPanel
+                            variant="chat"
+                            disabled={
+                              comprobando || subiendoExcel || enviando
+                            }
+                            montoPrefill={resultado.ocr?.monto_cop ?? null}
+                            fechaPrefill={resultado.ocr?.fecha ?? null}
+                            referenciaPrefill={
+                              resultado.ocr?.referencia?.trim() ||
+                              resultado.candidato?.documento?.trim() ||
+                              null
+                            }
+                            onRegistrado={({ placa, monto }) => {
+                              setLiveMsg(`Tarifa subida · ${placa}`);
+                              setMensajes((prev) => [
+                                ...prev,
+                                {
+                                  id: `tarifa-ok-${Date.now()}`,
+                                  role: "assistant",
+                                  content: `Tarifa registrada en Railweb para **${placa}**: ${formatearCOP(monto)}.`,
+                                },
+                              ]);
+                            }}
+                            onRepetida={({ placa, referencia, message }) => {
+                              setLiveMsg(`Referencia repetida · ${placa}`);
+                              setMensajes((prev) => [
+                                ...prev,
+                                {
+                                  id: `tarifa-dup-${Date.now()}`,
+                                  role: "assistant",
+                                  content: `**Referencia repetida** \`${referencia}\` · placa **${placa}**.\n\n${message}`,
+                                },
+                              ]);
+                            }}
+                          />
                         </div>
                       ) : null}
                     </div>
                   ) : null}
 
-                  {mensajes.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[min(100%,36rem)] rounded-2xl px-4 py-3 text-sm leading-relaxed text-pretty ${
-                          m.role === "user"
-                            ? "bg-zinc-100 text-zinc-950"
-                            : "border border-border bg-zinc-900/60 text-zinc-200"
-                        }`}
-                      >
-                        <ChatMarkdown
-                          text={m.content}
-                          tone={m.role === "user" ? "light" : "dark"}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                  {(mensajes.length > 0 || enviando) && (
+                    <div className="pagos-think-scroll max-h-[22vh] shrink-0 space-y-2">
+                      {mensajes.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[min(100%,36rem)] rounded-2xl px-3 py-2 text-sm leading-relaxed text-pretty ${
+                              m.role === "user"
+                                ? "bg-zinc-100 text-zinc-950"
+                                : "border border-border bg-zinc-900/60 text-zinc-200"
+                            }`}
+                          >
+                            <ChatMarkdown
+                              text={m.content}
+                              tone={m.role === "user" ? "light" : "dark"}
+                            />
+                          </div>
+                        </div>
+                      ))}
 
-                  {enviando ? (
-                    <div className="flex justify-start">
-                      <div className="rounded-2xl border border-border bg-zinc-900/60 px-4 py-3 text-sm text-zinc-400">
-                        <Loader2Icon
-                          className="size-4 animate-spin motion-reduce:animate-none"
-                          aria-hidden
-                        />
-                        <span className="sr-only">Escribiendo respuesta…</span>
-                      </div>
+                      {enviando ? (
+                        <div className="flex justify-start">
+                          <div className="rounded-2xl border border-border bg-zinc-900/60 px-3 py-2 text-sm text-zinc-400">
+                            <Loader2Icon
+                              className="size-4 animate-spin motion-reduce:animate-none"
+                              aria-hidden
+                            />
+                            <span className="sr-only">
+                              Escribiendo respuesta…
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
+                  )}
 
                   <div ref={threadEndRef} className="h-px w-full shrink-0" />
                 </div>
@@ -1036,7 +1083,7 @@ function PagosWorkspace() {
 
           {/* Composer sticky */}
           <div className="shrink-0 border-t border-border bg-zinc-950/95 px-6 py-4 backdrop-blur-sm">
-            <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
               <input
                 ref={fotoRef}
                 id={fotoId}

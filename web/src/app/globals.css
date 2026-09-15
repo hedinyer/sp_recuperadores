@@ -173,7 +173,8 @@ body {
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  min-height: 18rem;
+  min-height: 0;
+  height: 100%;
 }
 
 .pagos-think-scroll {
