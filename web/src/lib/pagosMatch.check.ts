@@ -10,7 +10,9 @@ import {
   esIngreso,
 } from "./pagosExtracto";
 import {
+  deltaMinutosOcr,
   diferenciaMinutos,
+  esFastAccept,
   filtrarCandidatos,
   marcarUsado,
   claveMovimiento,
@@ -103,5 +105,29 @@ const cSinHora = filtrarCandidatos(sinHora, {
   hora: "15:22:00",
 });
 assert(cSinHora.length === 1 && cSinHora[0]!.documento === "999", "sin hora acepta por monto+fecha");
+
+assert(deltaMinutosOcr(c1[0]!, ocr) === 2, "deltaMinutosOcr cercano");
+assert(deltaMinutosOcr(sinHora[0]!, ocr) === null, "deltaMinutosOcr sin hora");
+
+const ocrCerca: OcrConsenso = {
+  ...ocr,
+  hora: "23:48:00",
+};
+assert(esFastAccept([c1[0]!], ocrCerca, 5), "fast-accept Δ≤5");
+assert(!esFastAccept(c1, ocrCerca, 5), "fast-accept rechaza varios");
+assert(
+  !esFastAccept(
+    [
+      {
+        ...movs[1]!,
+        hora: "23:40:29",
+      },
+    ],
+    ocrCerca,
+    5,
+  ),
+  "fast-accept rechaza Δ>5",
+);
+assert(!esFastAccept(cSinHora, ocrCerca, 5), "fast-accept rechaza sin hora");
 
 console.log("pagosMatch.check: ok");

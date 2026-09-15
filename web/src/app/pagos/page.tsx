@@ -2,10 +2,20 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2Icon, CircleHelpIcon, XCircleIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  ChevronDownIcon,
+  CircleHelpIcon,
+  FileSpreadsheetIcon,
+  ImageIcon,
+  Loader2Icon,
+  SendIcon,
+  XCircleIcon,
+} from "lucide-react";
 
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { MasterGate } from "@/components/MasterGate";
-import { NavFooter } from "@/components/NavFooter";
+import { PagosPensamientoTypewriter } from "@/components/PagosPensamientoTypewriter";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { formatearCOP } from "@/lib/formatoDinero";
@@ -29,6 +39,12 @@ type ResultadoUi = {
   ocr_ok: number;
   match_ok: number;
   eval_ok: number;
+};
+
+type ChatMsg = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
 };
 
 function compressImage(file: File): Promise<string> {
@@ -73,7 +89,7 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
-/** Imagen del portapapeles (Ctrl+V / captura). */
+/** Imagen del portapapeles (Ctrl+V). */
 function imagenDesdeClipboard(data: DataTransfer | null): File | null {
   if (!data) return null;
   for (const item of Array.from(data.items ?? [])) {
@@ -99,12 +115,21 @@ function etiquetaVeredicto(v: VeredictoPago): string {
 
 function IconoVeredicto({ v }: { v: VeredictoPago }) {
   if (v === "entro") {
-    return <CheckCircle2Icon className="size-6 shrink-0 text-emerald-400" aria-hidden />;
+    return (
+      <CheckCircle2Icon
+        className="size-5 shrink-0 text-emerald-400"
+        aria-hidden
+      />
+    );
   }
   if (v === "no_entro") {
-    return <XCircleIcon className="size-6 shrink-0 text-red-400" aria-hidden />;
+    return (
+      <XCircleIcon className="size-5 shrink-0 text-red-400" aria-hidden />
+    );
   }
-  return <CircleHelpIcon className="size-6 shrink-0 text-amber-400" aria-hidden />;
+  return (
+    <CircleHelpIcon className="size-5 shrink-0 text-amber-400" aria-hidden />
+  );
 }
 
 function PagosWorkspace() {
@@ -112,9 +137,12 @@ function PagosWorkspace() {
   const fotoId = useId();
   const excelErrId = useId();
   const fotoErrId = useId();
+  const pensarPanelId = useId();
+  const liveId = useId();
   const excelRef = useRef<HTMLInputElement>(null);
   const fotoRef = useRef<HTMLInputElement>(null);
   const pegarZonaRef = useRef<HTMLDivElement>(null);
+  const pensarScrollRef = useRef<HTMLDivElement>(null);
 
   const [movimientos, setMovimientos] = useState<MovimientoExtracto[]>([]);
   const [archivosNombres, setArchivosNombres] = useState<string[]>([]);
@@ -134,11 +162,23 @@ function PagosWorkspace() {
   const [subiendoExcel, setSubiendoExcel] = useState(false);
   const [comprobando, setComprobando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoUi | null>(null);
+  const [pensamientos, setPensamientos] = useState<string[]>([]);
+  const [pensarAbierto, setPensarAbierto] = useState(true);
+  const [liveMsg, setLiveMsg] = useState("");
+  const [dropActive, setDropActive] = useState(false);
+  const [mensajes, setMensajes] = useState<ChatMsg[]>([]);
+  const [draft, setDraft] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const threadEndRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef<HTMLTextAreaElement>(null);
 
   const onExcel = useCallback(async (fileList: FileList | File[] | null) => {
     setExcelError(null);
     setFormError(null);
     setResultado(null);
+    setPensamientos([]);
+    setMensajes([]);
+    setLiveMsg("");
     const files = Array.from(fileList ?? []).filter((f) => f.size > 0);
     if (!files.length) {
       setExcelError("Elige uno o más Excel .xlsx");
@@ -169,6 +209,9 @@ function PagosWorkspace() {
       setViaAgente(json.via === "agente");
       setSinHora(Boolean(json.sin_hora));
       setUsados([]);
+      setLiveMsg(
+        `${Number(json.ingresos ?? 0)} ingresos listos en el extracto`,
+      );
     } catch (e) {
       setMovimientos([]);
       setArchivosNombres([]);
@@ -187,7 +230,7 @@ function PagosWorkspace() {
     setFormError(null);
     setResultado(null);
     if (!file) {
-      setFotoError("Sube o pega una foto del comprobante");
+      setFotoError("Elige o pega una imagen del comprobante");
       return;
     }
     const okType =
@@ -203,6 +246,7 @@ function PagosWorkspace() {
       setImageDataUrl(dataUrl);
       setPreviewUrl(dataUrl);
       setFotoNombre(file.name);
+      setLiveMsg("Comprobante listo");
     } catch (e) {
       setImageDataUrl(null);
       setPreviewUrl(null);
@@ -211,27 +255,6 @@ function PagosWorkspace() {
       fotoRef.current?.focus();
     }
   }, []);
-
-  // Ctrl+V / Cmd+V en cualquier parte de la página
-  useEffect(() => {
-    function onPaste(e: ClipboardEvent) {
-      if (comprobando) return;
-      const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
-        (target as HTMLInputElement).type !== "file"
-      ) {
-        return;
-      }
-      const file = imagenDesdeClipboard(e.clipboardData);
-      if (!file) return;
-      e.preventDefault();
-      void onFoto(file);
-    }
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-  }, [comprobando, onFoto]);
 
   const comprobar = useCallback(async () => {
     setFormError(null);
@@ -243,7 +266,7 @@ function PagosWorkspace() {
       firstInvalid = excelRef.current;
     }
     if (!imageDataUrl) {
-      setFotoError("Sube o pega una foto del comprobante");
+      setFotoError("Elige o pega una imagen del comprobante");
       if (!firstInvalid) firstInvalid = pegarZonaRef.current ?? fotoRef.current;
     }
     if (firstInvalid) {
@@ -252,6 +275,9 @@ function PagosWorkspace() {
     }
     setComprobando(true);
     setResultado(null);
+    setPensamientos([]);
+    setPensarAbierto(true);
+    setLiveMsg("Comprobando pago…");
     try {
       const res = await fetch("/api/pagos/comprobar", {
         method: "POST",
@@ -262,282 +288,693 @@ function PagosWorkspace() {
           usados,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "No se pudo comprobar");
-      const r: ResultadoUi = {
-        veredicto: json.veredicto,
-        resumen: json.resumen,
-        ocr: json.ocr,
-        candidato: json.candidato,
-        ocr_ok: json.ocr_ok,
-        match_ok: json.match_ok,
-        eval_ok: json.eval_ok,
-      };
-      setResultado(r);
-      if (r.veredicto === "entro" && r.candidato) {
-        setUsados((prev) => [...prev, claveMovimiento(r.candidato!)]);
+
+      const ctype = res.headers.get("content-type") ?? "";
+      if (!ctype.includes("ndjson")) {
+        const json = (await res.json()) as { error?: string };
+        throw new Error(json.error ?? "No se pudo comprobar");
       }
+      if (!res.ok || !res.body) {
+        throw new Error("No se pudo comprobar el pago");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let gotResult = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let ev: {
+            type: string;
+            text?: string;
+            error?: string;
+            result?: ResultadoUi & Record<string, unknown>;
+          };
+          try {
+            ev = JSON.parse(trimmed) as typeof ev;
+          } catch {
+            continue;
+          }
+          if (ev.type === "thought" && ev.text) {
+            setPensamientos((prev) => [...prev, ev.text!]);
+            setLiveMsg(ev.text);
+          } else if (ev.type === "error") {
+            throw new Error(ev.error ?? "Error al comprobar el pago");
+          } else if (ev.type === "result" && ev.result) {
+            gotResult = true;
+            const r: ResultadoUi = {
+              veredicto: ev.result.veredicto,
+              resumen: ev.result.resumen,
+              ocr: ev.result.ocr,
+              candidato: ev.result.candidato,
+              ocr_ok: ev.result.ocr_ok,
+              match_ok: ev.result.match_ok,
+              eval_ok: ev.result.eval_ok,
+            };
+            setResultado(r);
+            setLiveMsg(`${etiquetaVeredicto(r.veredicto)}. ${r.resumen}`);
+            if (r.veredicto === "entro" && r.candidato) {
+              setUsados((prev) => [...prev, claveMovimiento(r.candidato!)]);
+            }
+          }
+        }
+      }
+      if (!gotResult) throw new Error("No llegó el veredicto del harness");
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Error al comprobar el pago");
+      setFormError(
+        e instanceof Error ? e.message : "Error al comprobar el pago",
+      );
+      setLiveMsg("Error al comprobar el pago");
     } finally {
       setComprobando(false);
     }
   }, [imageDataUrl, movimientos, usados]);
 
+  const contextoCruce = useCallback(() => {
+    const partes: string[] = [];
+    if (ingresos) {
+      partes.push(
+        `Extracto: ${ingresos} ingresos` +
+          (sinHora ? " (sin columna de hora)" : "") +
+          (usados.length ? `; ${usados.length} ya confirmados en sesión` : ""),
+      );
+    }
+    if (resultado) {
+      partes.push(`Último veredicto: ${etiquetaVeredicto(resultado.veredicto)}.`);
+      partes.push(resultado.resumen);
+      if (resultado.ocr) {
+        partes.push(
+          `OCR: $${resultado.ocr.monto_cop.toLocaleString("es-CO")} ${resultado.ocr.fecha} ${resultado.ocr.hora.slice(0, 5)}`,
+        );
+      }
+      if (resultado.candidato) {
+        partes.push(
+          `Candidato: doc ${resultado.candidato.documento} · $${resultado.candidato.monto_cop.toLocaleString("es-CO")} · ${resultado.candidato.fecha} ${resultado.candidato.hora.slice(0, 5) || "—"}`,
+        );
+      }
+    }
+    return partes.join("\n");
+  }, [ingresos, sinHora, usados.length, resultado]);
+
+  const enviarMensaje = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || enviando || comprobando) return;
+    setFormError(null);
+    setDraft("");
+    const userMsg: ChatMsg = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      content: text,
+    };
+    const historial = [...mensajes, userMsg];
+    setMensajes(historial);
+    setEnviando(true);
+    setLiveMsg("Enviando mensaje…");
+    try {
+      const res = await fetch("/api/pagos/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          messages: historial.slice(0, -1).map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          contexto: contextoCruce() || null,
+          image_data_url: imageDataUrl,
+        }),
+      });
+      const json = (await res.json()) as { content?: string; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "No se pudo enviar");
+      const reply = String(json.content ?? "").trim();
+      if (!reply) throw new Error("Respuesta vacía");
+      setMensajes((prev) => [
+        ...prev,
+        { id: `a-${Date.now()}`, role: "assistant", content: reply },
+      ]);
+      setLiveMsg("Respuesta recibida");
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Error al enviar el mensaje");
+      setLiveMsg("Error al enviar el mensaje");
+    } finally {
+      setEnviando(false);
+      draftRef.current?.focus();
+    }
+  }, [
+    draft,
+    enviando,
+    comprobando,
+    mensajes,
+    contextoCruce,
+    imageDataUrl,
+  ]);
+
+  // Ctrl+V en cualquier parte de la página
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      if (comprobando || enviando) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
+        (target as HTMLInputElement).type !== "file"
+      ) {
+        // En el textarea: si hay imagen en el clipboard, adjuntarla; si no, dejar pegar texto
+        if (target === draftRef.current) {
+          const file = imagenDesdeClipboard(e.clipboardData);
+          if (file) {
+            e.preventDefault();
+            void onFoto(file);
+          }
+        }
+        return;
+      }
+      const file = imagenDesdeClipboard(e.clipboardData);
+      if (!file) return;
+      e.preventDefault();
+      void onFoto(file);
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [comprobando, enviando, onFoto]);
+
+  // Ctrl+Enter → comprobar
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.key !== "Enter") return;
+      if (comprobando || subiendoExcel || enviando) return;
+      e.preventDefault();
+      void comprobar();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [comprobar, comprobando, subiendoExcel, enviando]);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [mensajes, resultado, pensamientos.length, comprobando, enviando]);
+
+  useEffect(() => {
+    if (!pensarAbierto || !pensarScrollRef.current) return;
+    pensarScrollRef.current.scrollTop = pensarScrollRef.current.scrollHeight;
+  }, [pensamientos, pensarAbierto, comprobando]);
+
+  const scrollPensamiento = useCallback(() => {
+    const el = pensarScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  const tieneExtracto = archivosNombres.length > 0 && !excelError;
+  const tieneThread =
+    pensamientos.length > 0 ||
+    comprobando ||
+    resultado != null ||
+    mensajes.length > 0 ||
+    enviando;
+
   return (
-    <>
-      <header className="shrink-0 border-b border-border px-4 py-3">
-        <div className="mx-auto w-full max-w-[414px]">
-          <h1 className="text-lg font-bold tracking-tight text-balance">Pagos</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
-            Cruza el comprobante con el extracto del banco (monto, fecha y hora)
-          </p>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <a
+        href="#pagos-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-zinc-100 focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Ir al contenido
+      </a>
+
+      <div
+        id={liveId}
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {liveMsg}
+      </div>
+
+      <header className="shrink-0 border-b border-border px-4 py-3 lg:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
+              Pagos
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground text-pretty">
+              Cruza el comprobante con el extracto del banco
+            </p>
+          </div>
           <Link
             href="/nicolas"
-            className="mt-1 inline-block min-h-11 py-2 text-xs underline underline-offset-2 text-muted-foreground hover:text-foreground"
+            className="shrink-0 rounded-lg px-2 py-1.5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Volver a Admin
+            Admin
           </Link>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[414px] flex-1 flex-col gap-5 px-3 pt-4 pb-6 sm:px-4">
-        <section className="flex flex-col gap-2" aria-labelledby={`${excelId}-label`}>
-          <label
-            id={`${excelId}-label`}
-            htmlFor={excelId}
-            className="text-sm font-medium text-foreground"
-          >
-            Extracto del banco
-          </label>
-          <p className="text-xs text-muted-foreground text-pretty">
-            Uno o varios Excel (.xlsx). Si el formato no es el clásico de
-            Bancolombia, Hermes interpreta las columnas.
-          </p>
-          <input
-            ref={excelRef}
-            id={excelId}
-            type="file"
-            multiple
-            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            aria-invalid={excelError ? true : undefined}
-            aria-describedby={excelError ? excelErrId : undefined}
-            disabled={subiendoExcel || comprobando}
-            onChange={(e) => void onExcel(e.target.files)}
-            className="block w-full min-h-11 cursor-pointer rounded-xl border border-border bg-zinc-900/60 px-3 py-2.5 text-base text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          {excelError ? (
-            <p id={excelErrId} role="alert" className="text-sm text-red-300">
-              {excelError}
-            </p>
-          ) : null}
-          {archivosNombres.length > 0 && !excelError ? (
-            <div className="flex flex-col gap-1 text-xs text-zinc-400">
-              <p>
-                {archivosNombres.length === 1
-                  ? archivosNombres[0]
-                  : `${archivosNombres.length} extractos`}
-                :{" "}
-                <span className="tabular-nums font-medium text-zinc-200">
-                  {ingresos}
-                </span>{" "}
-                ingresos listos
-                {viaAgente ? " · Hermes interpretó el formato" : null}
-                {sinHora ? " · sin columna de hora (cruce por monto y fecha)" : null}
-                {usados.length > 0 ? (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="tabular-nums">{usados.length}</span> ya
-                    confirmados en esta sesión
-                  </>
-                ) : null}
+      <div className="flex min-h-0 flex-1">
+        {/* Sidebar — extracto */}
+        <aside
+          className="flex w-[272px] shrink-0 flex-col border-r border-border bg-zinc-950/80"
+          aria-label="Extracto del banco"
+        >
+          <div className="flex flex-col gap-3 p-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">Extracto</p>
+              <p className="mt-0.5 text-xs text-muted-foreground text-pretty">
+                Uno o varios Excel (.xlsx). Hermes interpreta formatos no
+                clásicos.
               </p>
-              {archivosNombres.length > 1 ? (
-                <ul className="list-disc pl-4 text-zinc-500">
+            </div>
+
+            <input
+              ref={excelRef}
+              id={excelId}
+              type="file"
+              multiple
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              aria-invalid={excelError ? true : undefined}
+              aria-describedby={excelError ? excelErrId : undefined}
+              disabled={subiendoExcel || comprobando}
+              onChange={(e) => void onExcel(e.target.files)}
+              className="sr-only"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full justify-start gap-2 rounded-xl"
+              disabled={subiendoExcel || comprobando}
+              onClick={() => excelRef.current?.click()}
+              aria-busy={subiendoExcel}
+            >
+              {subiendoExcel ? (
+                <Loader2Icon
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                  aria-hidden
+                />
+              ) : (
+                <FileSpreadsheetIcon className="size-4" aria-hidden />
+              )}
+              {subiendoExcel ? "Leyendo Excel…" : "Elegir extracto Excel"}
+            </Button>
+
+            {excelError ? (
+              <p id={excelErrId} role="alert" className="text-sm text-red-300">
+                {excelError}
+              </p>
+            ) : null}
+
+            {tieneExtracto ? (
+              <div className="flex flex-col gap-2 rounded-xl border border-border bg-zinc-900/50 p-3">
+                <p className="text-xs text-zinc-400 text-pretty">
+                  <span className="tabular-nums font-medium text-zinc-200">
+                    {ingresos}
+                  </span>{" "}
+                  ingresos listos
+                  {viaAgente ? " · formato leído por Hermes" : null}
+                  {sinHora
+                    ? " · sin hora (cruce por monto y fecha)"
+                    : null}
+                  {usados.length > 0 ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <span className="tabular-nums">{usados.length}</span>{" "}
+                      confirmados en esta sesión
+                    </>
+                  ) : null}
+                </p>
+                <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto text-xs text-zinc-500">
                   {archivosNombres.map((n) => (
-                    <li key={n} className="truncate">
-                      {n}
+                    <li key={n} className="flex items-start gap-1.5 truncate">
+                      <FileSpreadsheetIcon
+                        className="mt-0.5 size-3 shrink-0"
+                        aria-hidden
+                      />
+                      <span className="truncate" title={n}>
+                        {n}
+                      </span>
                     </li>
                   ))}
                 </ul>
-              ) : null}
-            </div>
-          ) : null}
-          {archivosNombres.length === 0 && !excelError ? (
-            <p className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 px-3.5 py-4 text-sm text-zinc-400 text-pretty">
-              Carga uno o varios extractos para comprobar comprobantes.
-            </p>
-          ) : null}
-        </section>
-
-        <section className="flex flex-col gap-2" aria-labelledby={`${fotoId}-label`}>
-          <label
-            id={`${fotoId}-label`}
-            htmlFor={fotoId}
-            className="text-sm font-medium text-foreground"
-          >
-            Foto del comprobante
-          </label>
-          <p className="text-xs text-muted-foreground text-pretty">
-            Sube, captura o pega (Ctrl+V) un voucher de cualquier banco
-          </p>
-          <div
-            ref={pegarZonaRef}
-            tabIndex={0}
-            role="group"
-            aria-label="Zona para pegar o subir el comprobante"
-            onPaste={(e) => {
-              if (comprobando) return;
-              const file = imagenDesdeClipboard(e.clipboardData);
-              if (!file) return;
-              e.preventDefault();
-              void onFoto(file);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "copy";
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (comprobando) return;
-              const file = e.dataTransfer.files?.[0];
-              if (file) void onFoto(file);
-            }}
-            className="rounded-xl border border-dashed border-zinc-600 bg-zinc-900/50 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <input
-              ref={fotoRef}
-              id={fotoId}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              aria-invalid={fotoError ? true : undefined}
-              aria-describedby={fotoError ? fotoErrId : undefined}
-              disabled={comprobando}
-              onChange={(e) => void onFoto(e.target.files?.[0])}
-              className="block w-full min-h-11 cursor-pointer rounded-lg border border-border bg-zinc-900/60 px-3 py-2.5 text-base text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <p className="mt-2 text-center text-xs text-zinc-500 text-pretty">
-              O pega aquí una captura · Ctrl+V / Cmd+V
-            </p>
-          </div>
-          {fotoError ? (
-            <p id={fotoErrId} role="alert" className="text-sm text-red-300">
-              {fotoError}
-            </p>
-          ) : null}
-          {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl}
-              alt={
-                fotoNombre
-                  ? `Vista previa del comprobante ${fotoNombre}`
-                  : "Vista previa del comprobante de pago"
-              }
-              className="mt-1 max-h-52 w-full rounded-xl border border-zinc-700 object-contain bg-zinc-900 outline outline-1 outline-black/10"
-            />
-          ) : null}
-        </section>
-
-        <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            className="min-h-12 w-full rounded-xl text-base font-semibold active:scale-[0.96] transition-transform motion-reduce:transition-none motion-reduce:active:scale-100"
-            disabled={comprobando || subiendoExcel}
-            onClick={() => void comprobar()}
-          >
-            {comprobando ? "Comprobando…" : "Comprobar pago"}
-          </Button>
-          {comprobando ? (
-            <p className="text-xs text-muted-foreground text-pretty" role="status">
-              Hermes lee la imagen y la cruza con el extracto. Suele tardar
-              ~15–30 s.
-            </p>
-          ) : null}
-          {formError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{formError}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
-
-        {resultado ? (
-          <section
-            role="status"
-            aria-live="polite"
-            className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-3"
-          >
-            <div className="flex items-start gap-3">
-              <IconoVeredicto v={resultado.veredicto} />
-              <div className="min-w-0">
-                <p className="text-base font-semibold text-white">
-                  {etiquetaVeredicto(resultado.veredicto)}
+              </div>
+            ) : !excelError ? (
+              <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/40 px-3 py-4">
+                <p className="text-sm font-medium text-zinc-300">
+                  Sin extracto aún
                 </p>
-                <p className="mt-0.5 text-sm text-zinc-300 text-pretty">
-                  {resultado.resumen}
+                <p className="mt-1 text-xs text-zinc-500 text-pretty">
+                  Carga el Excel del banco para cruzar comprobantes.
                 </p>
               </div>
+            ) : null}
+          </div>
+        </aside>
+
+        {/* Canvas */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main
+            id="pagos-main"
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+          >
+            <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-8">
+              {!tieneThread ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center">
+                  <div className="flex size-12 items-center justify-center rounded-2xl border border-border bg-zinc-900/60">
+                    <ImageIcon
+                      className="size-5 text-zinc-400"
+                      aria-hidden
+                    />
+                  </div>
+                  <h2 className="text-lg font-medium tracking-tight text-foreground text-balance">
+                    Pega un comprobante o escribe un mensaje
+                  </h2>
+                  <p className="max-w-md text-sm text-muted-foreground text-pretty">
+                    {tieneExtracto
+                      ? "Comprueba el voucher o pregunta lo que necesites sobre el cruce."
+                      : "Primero carga el extracto en la barra lateral. Luego pega el comprobante o escribe."}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-5">
+                  {pensamientos.length > 0 || comprobando ? (
+                    <div
+                      className={`pagos-think-shell rounded-2xl border border-border bg-zinc-900/40 ${comprobando ? "pagos-think-shell--active" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setPensarAbierto((v) => !v)}
+                        className="pagos-think-font flex w-full min-h-10 items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800/40 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-expanded={pensarAbierto}
+                        aria-controls={pensarPanelId}
+                      >
+                        <ChevronDownIcon
+                          className={`size-4 shrink-0 transition-transform motion-reduce:transition-none ${pensarAbierto ? "" : "-rotate-90"}`}
+                          aria-hidden
+                        />
+                        <span
+                          className={`flex-1 ${comprobando ? "pagos-think-label--active" : ""}`}
+                        >
+                          {comprobando ? "Pensando…" : "Pensamiento"}
+                        </span>
+                        {!comprobando && pensamientos.length > 0 ? (
+                          <span className="tabular-nums text-zinc-600">
+                            {pensamientos.length}
+                          </span>
+                        ) : null}
+                      </button>
+                      {pensarAbierto ? (
+                        <div
+                          id={pensarPanelId}
+                          ref={pensarScrollRef}
+                          className="max-h-64 overflow-y-auto border-t border-border/80 px-4 py-3"
+                        >
+                          <PagosPensamientoTypewriter
+                            lines={pensamientos}
+                            active={comprobando}
+                            onReveal={scrollPensamiento}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {resultado ? (
+                    <article className="rounded-2xl border border-border bg-zinc-900/60 p-5">
+                      <div className="flex items-start gap-3">
+                        <IconoVeredicto v={resultado.veredicto} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-base font-semibold text-white">
+                            {etiquetaVeredicto(resultado.veredicto)}
+                          </p>
+                          <p className="mt-1 text-sm leading-relaxed text-zinc-300 text-pretty">
+                            {resultado.resumen}
+                          </p>
+                        </div>
+                      </div>
+                      {resultado.ocr ? (
+                        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-border/80 pt-4 text-sm sm:grid-cols-3">
+                          <div>
+                            <dt className="text-xs text-zinc-500">Monto leído</dt>
+                            <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
+                              {formatearCOP(resultado.ocr.monto_cop)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-zinc-500">
+                              Fecha y hora
+                            </dt>
+                            <dd className="mt-0.5 tabular-nums font-medium text-zinc-200">
+                              {resultado.ocr.fecha}{" "}
+                              {resultado.ocr.hora.slice(0, 5)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-zinc-500">
+                              Lecturas OCR
+                            </dt>
+                            <dd className="mt-0.5 tabular-nums text-zinc-200">
+                              {resultado.ocr.votos}/{resultado.ocr.total_ocr}
+                            </dd>
+                          </div>
+                        </dl>
+                      ) : null}
+                      {resultado.candidato ? (
+                        <p className="mt-3 text-sm text-zinc-400 text-pretty">
+                          Movimiento: doc{" "}
+                          <span className="tabular-nums text-zinc-200">
+                            {resultado.candidato.documento}
+                          </span>
+                          {" · "}
+                          {formatearCOP(resultado.candidato.monto_cop)}
+                          {" · "}
+                          <span className="tabular-nums">
+                            {resultado.candidato.fecha}{" "}
+                            {resultado.candidato.hora.slice(0, 5)}
+                          </span>
+                        </p>
+                      ) : null}
+                    </article>
+                  ) : null}
+
+                  {mensajes.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[min(100%,36rem)] rounded-2xl px-4 py-3 text-sm leading-relaxed text-pretty ${
+                          m.role === "user"
+                            ? "bg-zinc-100 text-zinc-950"
+                            : "border border-border bg-zinc-900/60 text-zinc-200"
+                        }`}
+                      >
+                        <ChatMarkdown
+                          text={m.content}
+                          tone={m.role === "user" ? "light" : "dark"}
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {enviando ? (
+                    <div className="flex justify-start">
+                      <div className="rounded-2xl border border-border bg-zinc-900/60 px-4 py-3 text-sm text-zinc-400">
+                        <Loader2Icon
+                          className="size-4 animate-spin motion-reduce:animate-none"
+                          aria-hidden
+                        />
+                        <span className="sr-only">Escribiendo respuesta…</span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div ref={threadEndRef} className="h-px w-full shrink-0" />
+                </div>
+              )}
             </div>
-            {resultado.ocr ? (
-              <dl className="grid grid-cols-2 gap-2 text-xs text-zinc-400">
-                <div>
-                  <dt>OCR monto</dt>
-                  <dd className="tabular-nums text-zinc-200 font-medium">
-                    {formatearCOP(resultado.ocr.monto_cop)}
-                  </dd>
+          </main>
+
+          {/* Composer sticky */}
+          <div className="shrink-0 border-t border-border bg-zinc-950/95 px-6 py-4 backdrop-blur-sm">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+              <input
+                ref={fotoRef}
+                id={fotoId}
+                type="file"
+                accept="image/*"
+                aria-invalid={fotoError ? true : undefined}
+                aria-describedby={fotoError ? fotoErrId : undefined}
+                disabled={comprobando || enviando}
+                onChange={(e) => void onFoto(e.target.files?.[0])}
+                className="sr-only"
+              />
+
+              <div
+                ref={pegarZonaRef}
+                role="group"
+                aria-label="Mensaje y comprobante"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                  setDropActive(true);
+                }}
+                onDragLeave={() => setDropActive(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDropActive(false);
+                  if (comprobando || enviando) return;
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void onFoto(file);
+                }}
+                className={`rounded-2xl border p-3 transition-colors focus-within:ring-2 focus-within:ring-ring ${
+                  dropActive
+                    ? "border-zinc-400 bg-zinc-800/60"
+                    : "border-zinc-700 bg-zinc-900/50"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  {previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewUrl}
+                      alt={
+                        fotoNombre
+                          ? `Vista previa del comprobante ${fotoNombre}`
+                          : "Vista previa del comprobante de pago"
+                      }
+                      className="size-14 shrink-0 rounded-lg border border-zinc-700 object-cover outline outline-1 outline-white/10"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-zinc-600 bg-zinc-900 text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      disabled={comprobando || enviando}
+                      onClick={() => fotoRef.current?.click()}
+                      aria-label="Elegir imagen del comprobante"
+                    >
+                      <ImageIcon className="size-5" aria-hidden />
+                    </button>
+                  )}
+
+                  <label htmlFor="pagos-draft" className="sr-only">
+                    Mensaje
+                  </label>
+                  <textarea
+                    ref={draftRef}
+                    id="pagos-draft"
+                    rows={2}
+                    value={draft}
+                    disabled={enviando || comprobando}
+                    placeholder="Escribe un mensaje… (Enter envía · Shift+Enter nueva línea)"
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" || e.shiftKey) return;
+                      if (e.ctrlKey || e.metaKey) return; // Ctrl+Enter = comprobar (global)
+                      e.preventDefault();
+                      void enviarMensaje();
+                    }}
+                    className="min-h-[2.75rem] w-full resize-none bg-transparent text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-500 focus:outline-none disabled:opacity-60"
+                  />
                 </div>
-                <div>
-                  <dt>OCR fecha / hora</dt>
-                  <dd className="tabular-nums text-zinc-200 font-medium">
-                    {resultado.ocr.fecha} {resultado.ocr.hora.slice(0, 5)}
-                  </dd>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
+                  <p className="mr-auto text-xs text-zinc-500">
+                    {fotoNombre
+                      ? fotoNombre
+                      : "Adjunta o pega (Ctrl+V) un comprobante"}
+                    {" · "}
+                    Ctrl+Enter comprueba
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl"
+                    disabled={comprobando || enviando}
+                    onClick={() => fotoRef.current?.click()}
+                  >
+                    Elegir imagen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-9 rounded-xl gap-1.5"
+                    disabled={
+                      enviando || comprobando || !draft.trim() || subiendoExcel
+                    }
+                    aria-busy={enviando}
+                    onClick={() => void enviarMensaje()}
+                  >
+                    {enviando ? (
+                      <Loader2Icon
+                        className="size-4 animate-spin motion-reduce:animate-none"
+                        aria-hidden
+                      />
+                    ) : (
+                      <SendIcon className="size-4" aria-hidden />
+                    )}
+                    Enviar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-9 min-w-[8.5rem] rounded-xl px-3 text-sm font-semibold active:scale-[0.96] transition-transform motion-reduce:transition-none motion-reduce:active:scale-100"
+                    disabled={comprobando || subiendoExcel || enviando}
+                    aria-busy={comprobando}
+                    onClick={() => void comprobar()}
+                  >
+                    {comprobando ? (
+                      <>
+                        <Loader2Icon
+                          className="size-4 animate-spin motion-reduce:animate-none"
+                          aria-hidden
+                        />
+                        Comprobar pago
+                      </>
+                    ) : (
+                      "Comprobar pago"
+                    )}
+                  </Button>
                 </div>
-                <div>
-                  <dt>Votos OCR</dt>
-                  <dd className="tabular-nums text-zinc-200">
-                    {resultado.ocr.votos}/{resultado.ocr.total_ocr}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Agentes</dt>
-                  <dd className="tabular-nums text-zinc-200">
-                    OCR {resultado.ocr_ok} · Match {resultado.match_ok} · Eval{" "}
-                    {resultado.eval_ok}
-                  </dd>
-                </div>
-              </dl>
-            ) : null}
-            {resultado.candidato ? (
-              <p className="text-xs text-zinc-400 text-pretty">
-                Movimiento: doc{" "}
-                <span className="tabular-nums text-zinc-200">
-                  {resultado.candidato.documento}
-                </span>
-                {" · "}
-                {formatearCOP(resultado.candidato.monto_cop)}
-                {" · "}
-                <span className="tabular-nums">
-                  {resultado.candidato.fecha}{" "}
-                  {resultado.candidato.hora.slice(0, 5)}
-                </span>
+              </div>
+
+              {fotoError ? (
+                <p id={fotoErrId} role="alert" className="text-sm text-red-300">
+                  {fotoError}
+                </p>
+              ) : null}
+
+              {formError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{formError}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <p className="text-xs text-zinc-600">
+                {tieneExtracto
+                  ? `${ingresos} ingresos · ${usados.length} usados`
+                  : "Sin extracto"}
               </p>
-            ) : null}
-          </section>
-        ) : null}
-      </main>
-    </>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function PagosPage() {
   return (
-    <div className="min-h-dvh flex flex-col bg-zinc-950 text-zinc-100 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-zinc-950 text-zinc-100">
       <MasterGate title="Pagos" subtitle="Escribe la clave para continuar">
         <PagosWorkspace />
       </MasterGate>
-      <NavFooter />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
- * Harness pagos (rápido): OCR Qwen → filtro determinista → match solo si hay empate → 1 eval.
- * Antes: 10+5+3 = 18 llamadas. Ahora: ~3–5 (2–3 OCR + 0–1 match + 1 eval).
+ * Harness pagos (ultra-rápido): 1 OCR → filtro → fast-accept o 1 eval texto.
+ * Happy path: 1 visión. Duda: +1 OCR y/o +1 eval texto. Nunca visión en eval.
  */
 
 import {
@@ -15,18 +15,22 @@ import {
   type MovimientoExtracto,
 } from "@/lib/pagosExtracto";
 import {
+  deltaMinutosOcr,
+  esFastAccept,
   filtrarCandidatos,
   type OcrConsenso,
 } from "@/lib/pagosMatch";
 
-/** OCR: 2 en paralelo; 3.ª solo si discrepan. */
-const OCR_FIRST = 2;
+const OCR_FIRST = 1;
 const OCR_TIEBREAK = 1;
-const MATCH_N = 1;
-const EVAL_N = 1;
-const CONCURRENCY = 3;
+const FAST_DELTA_MIN = 5;
+const OCR_CONF_MIN = 0.55;
 const OCR_TIMEOUT_MS = 55_000;
 const TEXT_TIMEOUT_MS = 35_000;
+/** Vision models a veces razonan antes del JSON; 180 cortaba la respuesta. */
+const OCR_MAX_TOKENS = 512;
+const MATCH_MAX_TOKENS = 160;
+const EVAL_MAX_TOKENS = 120;
 
 export type VeredictoPago = "entro" | "no_entro" | "revisar";
 
@@ -43,6 +47,12 @@ export type PagosHarnessResult = {
     ocr_votos: Array<{ key: string; count: number }>;
     match_votes: Array<{ documento: string | null; count: number }>;
     eval_si: number;
+    latencias_ms: {
+      ocr: number;
+      match: number;
+      eval: number;
+      total: number;
+    };
   };
 };
 
@@ -67,64 +77,31 @@ type EvalRaw = {
   razon?: string;
 };
 
-const SYSTEM_OCR = `Eres un lector OCR de comprobantes de pago colombianos (cualquier banco o voucher: Nequi, Bre-B, Bancolombia, Daviplata, PSE, corresponsal, transferencia, etc.).
-Usa la capacidad de visión/OCR del modelo Qwen cargado en Hermes. Lee el texto visible en la imagen; no inventes.
+const SYSTEM_OCR = `Eres un lector OCR de comprobantes de pago colombianos (Nequi, Bre-B, Bancolombia, Daviplata, PSE, corresponsal, transferencia, etc.).
+Lee el texto visible en la imagen; no inventes.
 Responde SOLO JSON:
 {
-  "monto_cop": number,          // pesos enteros COP (sin centavos)
-  "fecha": "YYYY-MM-DD",        // fecha del pago en el comprobante
-  "hora": "HH:MM:SS",           // hora del pago; si solo HH:MM usa :00
+  "monto_cop": number,
+  "fecha": "YYYY-MM-DD",
+  "hora": "HH:MM:SS",
   "banco": string|null,
   "referencia": string|null,
   "es_comprobante_pago": true|false,
-  "confianza": number           // 0..1
+  "confianza": number
 }
 Reglas:
-- Monto: quita puntos de miles y símbolo $; 40.000 → 40000.
-- Fecha: convierte dd/mm/yyyy a YYYY-MM-DD (Colombia).
-- Si la imagen no es un comprobante de pago → es_comprobante_pago false y campos null.
+- Monto: pesos enteros COP; quita puntos de miles y $; 40.000 → 40000.
+- Fecha: dd/mm/yyyy → YYYY-MM-DD (Colombia).
+- Hora: si solo HH:MM usa :00.
+- Si no es comprobante de pago → es_comprobante_pago false y campos null.
 Solo JSON.`;
 
-const SYSTEM_MATCH = `Eres validador de cruce extracto bancario ↔ comprobante.
-Te dan el OCR consensuado del comprobante y una lista corta de candidatos del extracto (ya filtrados por monto/fecha y hora si existe).
-Responde SOLO JSON:
-{
-  "documento": string|null,   // documento del candidato elegido, o null
-  "coincide": true|false,
-  "razon": string
-}
-Si los candidatos tienen hora, elige el más cercano al OCR (±20 min).
-Si el extracto no trae hora (hora vacía), elige por monto+fecha y referencia/motivo si ayuda; si hay varios iguales y no puedes decidir → coincide false.
-Si ninguno encaja → coincide false y documento null.
-Solo JSON.`;
+const SYSTEM_MATCH = `Cruce extracto↔comprobante. Solo JSON:
+{"documento":string|null,"coincide":bool,"razon":string}
+Elige el más cercano en hora (±20 min). Sin hora: monto+fecha; si varios iguales → coincide false.`;
 
-const SYSTEM_EVAL = `Eres juez de calidad del cruce pago/comprobante.
-Confirma si monto y fecha del OCR cuadran con el movimiento del extracto.
-Si el extracto trae hora, exige también ±20 min. Si el extracto no trae hora, no exijas hora.
-Responde SOLO JSON:
-{
-  "confirma": true|false,
-  "razon": string
-}
-Solo JSON.`;
-
-async function mapPool<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await fn(items[i]!, i);
-    }
-  }
-  const n = Math.min(limit, items.length);
-  await Promise.all(Array.from({ length: n }, () => worker()));
-  return out;
-}
+const SYSTEM_EVAL = `Confirma monto+fecha OCR vs extracto. Con hora en extracto: ±20 min. Solo JSON:
+{"confirma":bool,"razon":string}`;
 
 type OcrNorm = {
   monto_cop: number;
@@ -133,6 +110,7 @@ type OcrNorm = {
   banco: string | null;
   referencia: string | null;
   es_comprobante_pago: true;
+  confianza: number;
 };
 
 function normalizeOcr(raw: OcrRaw): OcrNorm | null {
@@ -141,6 +119,10 @@ function normalizeOcr(raw: OcrRaw): OcrNorm | null {
   const fecha = parseFechaYmd(raw.fecha);
   const hora = parseHora(raw.hora);
   if (monto_cop == null || !fecha || !hora) return null;
+  const confianza =
+    typeof raw.confianza === "number" && Number.isFinite(raw.confianza)
+      ? Math.min(1, Math.max(0, raw.confianza))
+      : 0.7;
   return {
     monto_cop,
     fecha,
@@ -148,11 +130,12 @@ function normalizeOcr(raw: OcrRaw): OcrNorm | null {
     banco: raw.banco != null ? String(raw.banco) : null,
     referencia: raw.referencia != null ? String(raw.referencia) : null,
     es_comprobante_pago: true,
+    confianza,
   };
 }
 
 function votoKey(monto: number, fecha: string, hora: string): string {
-  const hm = hora.slice(0, 5); // minuto
+  const hm = hora.slice(0, 5);
   return `${monto}|${fecha}|${hm}`;
 }
 
@@ -184,26 +167,57 @@ function consensoOcr(
   };
 }
 
-async function pasadaOcr(imageDataUrl: string): Promise<OcrRaw | null> {
+function emptyLatencias() {
+  return { ocr: 0, match: 0, eval: 0, total: 0 };
+}
+
+function describeOcrFail(raw: OcrRaw | null, err: string | null): string {
+  if (err) return err;
+  if (!raw) return "sin respuesta";
+  if (raw.es_comprobante_pago === false) return "no parece comprobante";
+  const faltan: string[] = [];
+  if (parseMontoCop(raw.monto_cop) == null) faltan.push("monto");
+  if (!parseFechaYmd(raw.fecha)) faltan.push("fecha");
+  if (!parseHora(raw.hora)) faltan.push("hora");
+  if (faltan.length) return `faltan ${faltan.join(", ")}`;
+  return "no normalizable";
+}
+
+async function pasadaOcr(imageDataUrl: string): Promise<{
+  raw: OcrRaw | null;
+  err: string | null;
+}> {
   try {
     const parts: HermesContentPart[] = [
       {
         type: "text",
-        text: "Lee el comprobante de pago en la imagen con OCR Qwen. Responde solo JSON.",
+        text: "Lee el comprobante de pago en la imagen. Responde solo JSON.",
       },
       { type: "image_url", image_url: { url: imageDataUrl } },
     ];
-    const raw = await hermesChatCompletion({
+    const text = await hermesChatCompletion({
       messages: [
         { role: "system", content: SYSTEM_OCR },
         { role: "user", content: parts },
       ],
       temperature: 0.1,
       timeoutMs: OCR_TIMEOUT_MS,
+      max_tokens: OCR_MAX_TOKENS,
     });
-    return parseJsonLoose<OcrRaw>(raw);
-  } catch {
-    return null;
+    try {
+      return { raw: parseJsonLoose<OcrRaw>(text), err: null };
+    } catch {
+      const tip = text.trim().slice(0, 80).replace(/\s+/g, " ");
+      return {
+        raw: null,
+        err: tip ? `JSON inválido (${tip}…)` : "JSON inválido",
+      };
+    }
+  } catch (e) {
+    return {
+      raw: null,
+      err: e instanceof Error ? e.message.slice(0, 120) : "Hermes falló",
+    };
   }
 }
 
@@ -224,8 +238,6 @@ async function pasadaMatch(
               hora: ocr.hora,
               banco: ocr.banco,
               referencia: ocr.referencia,
-              votos: ocr.votos,
-              total_ocr: ocr.total_ocr,
             },
             candidatos: candidatos.map((c) => ({
               documento: c.documento,
@@ -240,6 +252,7 @@ async function pasadaMatch(
       ],
       temperature: 0.1,
       timeoutMs: TEXT_TIMEOUT_MS,
+      max_tokens: MATCH_MAX_TOKENS,
     });
     return parseJsonLoose<MatchRaw>(raw);
   } catch {
@@ -247,10 +260,10 @@ async function pasadaMatch(
   }
 }
 
+/** Eval solo texto — nunca reenvía la imagen. */
 async function pasadaEval(
   ocr: OcrConsenso,
   candidato: MovimientoExtracto,
-  imageDataUrl: string | null,
 ): Promise<EvalRaw | null> {
   try {
     const payload = {
@@ -267,23 +280,14 @@ async function pasadaEval(
       },
       regla: "mismo monto, misma fecha; hora ±20 min si el extracto la trae",
     };
-    const userContent: string | HermesContentPart[] = imageDataUrl
-      ? [
-          {
-            type: "text",
-            text: `Confirma el cruce. Datos:\n${JSON.stringify(payload)}\nRevisa también la imagen si hace falta.`,
-          },
-          { type: "image_url", image_url: { url: imageDataUrl } },
-        ]
-      : JSON.stringify(payload);
-
     const raw = await hermesChatCompletion({
       messages: [
         { role: "system", content: SYSTEM_EVAL },
-        { role: "user", content: userContent },
+        { role: "user", content: JSON.stringify(payload) },
       ],
       temperature: 0.05,
-      timeoutMs: imageDataUrl ? OCR_TIMEOUT_MS : TEXT_TIMEOUT_MS,
+      timeoutMs: TEXT_TIMEOUT_MS,
+      max_tokens: EVAL_MAX_TOKENS,
     });
     return parseJsonLoose<EvalRaw>(raw);
   } catch {
@@ -291,52 +295,95 @@ async function pasadaEval(
   }
 }
 
-/** 2 OCR en paralelo; si no hay mayoría, 1 tiebreak. */
-async function correrOcrRapido(imageDataUrl: string): Promise<{
+/** 1 OCR; 2.ª solo si falla normalize o confianza baja. */
+async function correrOcrRapido(
+  imageDataUrl: string,
+  think: (t: string) => void,
+): Promise<{
   ocrNorm: OcrNorm[];
   total_intentos: number;
+  ms: number;
 }> {
-  const firstRaws = await mapPool(
-    Array.from({ length: OCR_FIRST }, (_, i) => i),
-    CONCURRENCY,
-    () => pasadaOcr(imageDataUrl),
-  );
-  const firstNorm = firstRaws
-    .map((r) => (r ? normalizeOcr(r) : null))
-    .filter((x): x is OcrNorm => x != null);
+  const t0 = Date.now();
+  think("Leyendo el comprobante con OCR…");
+  const first = await pasadaOcr(imageDataUrl);
+  const firstNorm = first.raw ? normalizeOcr(first.raw) : null;
+  const needsTiebreak = !firstNorm || firstNorm.confianza < OCR_CONF_MIN;
 
-  if (firstNorm.length >= 2) {
-    const k0 = votoKey(firstNorm[0]!.monto_cop, firstNorm[0]!.fecha, firstNorm[0]!.hora);
-    const k1 = votoKey(firstNorm[1]!.monto_cop, firstNorm[1]!.fecha, firstNorm[1]!.hora);
-    if (k0 === k1) {
-      return { ocrNorm: firstNorm, total_intentos: OCR_FIRST };
-    }
+  if (!needsTiebreak && firstNorm) {
+    think(
+      `OCR ok: $${firstNorm.monto_cop.toLocaleString("es-CO")} el ${firstNorm.fecha} a las ${firstNorm.hora.slice(0, 5)} (confianza ${(firstNorm.confianza * 100).toFixed(0)}%).`,
+    );
+    return {
+      ocrNorm: [firstNorm],
+      total_intentos: OCR_FIRST,
+      ms: Date.now() - t0,
+    };
   }
 
-  // Un solo OCR válido o discrepancia → tiebreak
-  const extraRaws = await mapPool(
-    Array.from({ length: OCR_TIEBREAK }, (_, i) => i),
-    1,
-    () => pasadaOcr(imageDataUrl),
+  think(
+    firstNorm
+      ? `Confianza baja (${(firstNorm.confianza * 100).toFixed(0)}%). Segunda lectura…`
+      : `No pude leer bien (${describeOcrFail(first.raw, first.err)}). Segunda lectura…`,
   );
-  const extraNorm = extraRaws
-    .map((r) => (r ? normalizeOcr(r) : null))
-    .filter((x): x is OcrNorm => x != null);
+  const extra = await pasadaOcr(imageDataUrl);
+  const extraNorm = extra.raw ? normalizeOcr(extra.raw) : null;
+  const ocrNorm = [firstNorm, extraNorm].filter((x): x is OcrNorm => x != null);
+  if (extraNorm) {
+    think(
+      `Segunda lectura: $${extraNorm.monto_cop.toLocaleString("es-CO")} el ${extraNorm.fecha} a las ${extraNorm.hora.slice(0, 5)}.`,
+    );
+  } else if (!firstNorm) {
+    think(
+      `Segunda lectura también falló (${describeOcrFail(extra.raw, extra.err)}).`,
+    );
+  }
 
   return {
-    ocrNorm: [...firstNorm, ...extraNorm],
+    ocrNorm,
     total_intentos: OCR_FIRST + OCR_TIEBREAK,
+    ms: Date.now() - t0,
   };
+}
+
+function empateDuro(
+  candidatos: MovimientoExtracto[],
+  ocr: Pick<OcrConsenso, "hora">,
+): boolean {
+  if (candidatos.length < 2) return false;
+  const sinHora = candidatos.every((c) => !c.hora.trim());
+  if (sinHora) return true;
+  const d0 = deltaMinutosOcr(candidatos[0]!, ocr);
+  const d1 = deltaMinutosOcr(candidatos[1]!, ocr);
+  if (d0 == null || d1 == null) return true;
+  return d0 === d1;
 }
 
 export async function comprobarPagoHarness(opts: {
   imageDataUrl: string;
   movimientos: MovimientoExtracto[];
   usados?: string[];
+  onThought?: (text: string) => void;
 }): Promise<PagosHarnessResult> {
-  const usados = new Set(opts.usados ?? []);
+  const think = (t: string) => {
+    try {
+      opts.onThought?.(t);
+    } catch {
+      /* ignore UI callback errors */
+    }
+  };
 
-  const { ocrNorm, total_intentos } = await correrOcrRapido(opts.imageDataUrl);
+  const tTotal = Date.now();
+  const usados = new Set(opts.usados ?? []);
+  const latencias = emptyLatencias();
+
+  think(`Tengo ${opts.movimientos.length} ingresos del extracto. Empiezo.`);
+
+  const { ocrNorm, total_intentos, ms: ocrMs } = await correrOcrRapido(
+    opts.imageDataUrl,
+    think,
+  );
+  latencias.ocr = ocrMs;
   const ocr_ok = ocrNorm.length;
 
   const voteMap = new Map<string, number>();
@@ -349,9 +396,9 @@ export async function comprobarPagoHarness(opts: {
     .sort((a, b) => b.count - a.count);
 
   const ocr = consensoOcr(ocrNorm, total_intentos);
-  // Con 2–3 lecturas: basta mayoría (2) o 1 sola si solo esa salió bien
-  const minVotos = ocr_ok >= 2 ? 2 : 1;
-  if (!ocr || ocr.votos < minVotos) {
+  if (!ocr || ocr.votos < 1) {
+    think("No hay consenso claro de monto, fecha y hora. Mejor revisar a mano.");
+    latencias.total = Date.now() - tTotal;
     return {
       veredicto: "revisar",
       resumen:
@@ -364,12 +411,17 @@ export async function comprobarPagoHarness(opts: {
       ocr_ok,
       match_ok: 0,
       eval_ok: 0,
-      detalle: { ocr_votos, match_votes: [], eval_si: 0 },
+      detalle: { ocr_votos, match_votes: [], eval_si: 0, latencias_ms: latencias },
     };
   }
 
+  think(
+    `Cruce: busco $${ocr.monto_cop.toLocaleString("es-CO")} el ${ocr.fecha} cerca de ${ocr.hora.slice(0, 5)} (±20 min)…`,
+  );
   const candidatos = filtrarCandidatos(opts.movimientos, ocr, usados);
   if (!candidatos.length) {
+    think("Ningún movimiento encaja. Parece que no entró.");
+    latencias.total = Date.now() - tTotal;
     return {
       veredicto: "no_entro",
       resumen: `No hay movimiento de $${ocr.monto_cop.toLocaleString("es-CO")} el ${ocr.fecha} cerca de ${ocr.hora.slice(0, 5)}.`,
@@ -379,58 +431,86 @@ export async function comprobarPagoHarness(opts: {
       ocr_ok,
       match_ok: 0,
       eval_ok: 0,
-      detalle: { ocr_votos, match_votes: [], eval_si: 0 },
+      detalle: { ocr_votos, match_votes: [], eval_si: 0, latencias_ms: latencias },
+    };
+  }
+
+  think(
+    candidatos.length === 1
+      ? `Un candidato: doc ${candidatos[0]!.documento}${
+          candidatos[0]!.hora.trim()
+            ? ` (${candidatos[0]!.hora.slice(0, 5)})`
+            : " (sin hora)"
+        }.`
+      : `${candidatos.length} candidatos cercanos. Ordenados por hora.`,
+  );
+
+  // Fast-accept: 1 candidato + Δ ≤ 5 min → entro sin LLM extra
+  if (esFastAccept(candidatos, ocr, FAST_DELTA_MIN)) {
+    const elegido = candidatos[0]!;
+    const delta = deltaMinutosOcr(elegido, ocr);
+    think(
+      `Match claro (Δ ${delta} min ≤ ${FAST_DELTA_MIN}). Fast-accept — sin eval extra.`,
+    );
+    latencias.total = Date.now() - tTotal;
+    return {
+      veredicto: "entro",
+      resumen: `Entró: $${elegido.monto_cop.toLocaleString("es-CO")} el ${elegido.fecha} a las ${elegido.hora.slice(0, 5)} (doc ${elegido.documento}).`,
+      ocr,
+      candidato: elegido,
+      candidatos,
+      ocr_ok,
+      match_ok: 0,
+      eval_ok: 0,
+      detalle: { ocr_votos, match_votes: [], eval_si: 0, latencias_ms: latencias },
     };
   }
 
   let elegido: MovimientoExtracto | null = null;
   let match_ok = 0;
   let match_votes: Array<{ documento: string | null; count: number }> = [];
+  const hayEmpate = empateDuro(candidatos, ocr);
 
-  // ponytail: 1 candidato = el filtro ya decidió; Hermes match solo si hay empate
   if (candidatos.length === 1) {
     elegido = candidatos[0]!;
     match_votes = [{ documento: elegido.documento, count: 1 }];
-    match_ok = 1;
-  } else {
-    const matchRaws = await mapPool(
-      Array.from({ length: MATCH_N }, (_, i) => i),
-      CONCURRENCY,
-      () => pasadaMatch(ocr, candidatos.slice(0, 8)),
+    const d = deltaMinutosOcr(elegido, ocr);
+    think(
+      d == null
+        ? "Extracto sin hora: necesito confirmar con el juez de texto."
+        : `Δ ${d} min > ${FAST_DELTA_MIN}: paso al juez de texto.`,
     );
-    const matchCounts = new Map<string | null, number>();
-    for (const r of matchRaws) {
-      if (!r) continue;
-      match_ok += 1;
+  } else if (hayEmpate) {
+    think(
+      `Empate entre ${candidatos.length} movimientos. Pido a Hermes que elija…`,
+    );
+    const tMatch = Date.now();
+    const matchRaw = await pasadaMatch(ocr, candidatos.slice(0, 8));
+    latencias.match = Date.now() - tMatch;
+    if (matchRaw) {
+      match_ok = 1;
       const doc =
-        r.coincide === false
+        matchRaw.coincide === false
           ? null
-          : r.documento != null
-            ? String(r.documento).trim() || null
+          : matchRaw.documento != null
+            ? String(matchRaw.documento).trim() || null
             : null;
-      matchCounts.set(doc, (matchCounts.get(doc) ?? 0) + 1);
+      match_votes = [{ documento: doc, count: 1 }];
+      if (doc) {
+        elegido =
+          candidatos.find((c) => c.documento === doc) ??
+          candidatos.find((c) => c.id.includes(doc)) ??
+          null;
+      }
+      think(
+        elegido
+          ? `Hermes eligió doc ${elegido.documento}${matchRaw.razon ? `: ${matchRaw.razon}` : "."}`
+          : `Hermes no pudo decidir${matchRaw.razon ? `: ${matchRaw.razon}` : "."}`,
+      );
     }
-    match_votes = [...matchCounts.entries()]
-      .map(([documento, count]) => ({ documento, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const topDoc = match_votes[0]?.documento;
-    if (topDoc) {
-      elegido =
-        candidatos.find((c) => c.documento === topDoc) ??
-        candidatos.find((c) => c.id.includes(topDoc)) ??
-        null;
-    }
-    // Fallback: el más cercano en hora (ya ordenado por filtrarCandidatos)
-    if (!elegido) elegido = candidatos[0]!;
-
-    const topCount = match_votes[0]?.count ?? 0;
-    const secondCount = match_votes[1]?.count ?? 0;
-    if (
-      match_votes.length > 1 &&
-      topCount === secondCount &&
-      match_votes[0]?.documento !== match_votes[1]?.documento
-    ) {
+    if (!elegido) {
+      think("Empate sin resolución. Mejor revisar manualmente.");
+      latencias.total = Date.now() - tTotal;
       return {
         veredicto: "revisar",
         resumen: `Hay ${candidatos.length} movimientos similares. Revisa manualmente.`,
@@ -440,12 +520,21 @@ export async function comprobarPagoHarness(opts: {
         ocr_ok,
         match_ok,
         eval_ok: 0,
-        detalle: { ocr_votos, match_votes, eval_si: 0 },
+        detalle: { ocr_votos, match_votes, eval_si: 0, latencias_ms: latencias },
       };
     }
+  } else {
+    elegido = candidatos[0]!;
+    match_votes = [{ documento: elegido.documento, count: 1 }];
+    const d = deltaMinutosOcr(elegido, ocr);
+    think(
+      `El más cercano es doc ${elegido.documento}${d != null ? ` (Δ ${d} min)` : ""}.`,
+    );
   }
 
   if (!elegido) {
+    think("Sin candidato usable.");
+    latencias.total = Date.now() - tTotal;
     return {
       veredicto: "no_entro",
       resumen: "No se encontró coincidencia clara en el extracto.",
@@ -455,24 +544,48 @@ export async function comprobarPagoHarness(opts: {
       ocr_ok,
       match_ok,
       eval_ok: 0,
-      detalle: { ocr_votos, match_votes, eval_si: 0 },
+      detalle: { ocr_votos, match_votes, eval_si: 0, latencias_ms: latencias },
     };
   }
 
-  // 1 eval: visión solo si OCR flojo o varios candidatos
-  const needVision = ocr.votos < 2 || candidatos.length > 1;
-  const evalRaws = await mapPool(
-    Array.from({ length: EVAL_N }, (_, i) => i),
-    1,
-    () => pasadaEval(ocr, elegido!, needVision ? opts.imageDataUrl : null),
-  );
+  // Tras selección clara por hora, fast-accept si Δ ≤ 5
+  const deltaElegido = deltaMinutosOcr(elegido, ocr);
+  if (deltaElegido != null && deltaElegido <= FAST_DELTA_MIN && !hayEmpate) {
+    think(`Δ ${deltaElegido} min — fast-accept.`);
+    latencias.total = Date.now() - tTotal;
+    return {
+      veredicto: "entro",
+      resumen: `Entró: $${elegido.monto_cop.toLocaleString("es-CO")} el ${elegido.fecha} a las ${elegido.hora.slice(0, 5)} (doc ${elegido.documento}).`,
+      ocr,
+      candidato: elegido,
+      candidatos,
+      ocr_ok,
+      match_ok,
+      eval_ok: 0,
+      detalle: { ocr_votos, match_votes, eval_si: 0, latencias_ms: latencias },
+    };
+  }
+
+  // Eval texto: Δ > 5, sin hora, o vino de empate
+  think("Confirmando cruce con juez de texto…");
+  const tEval = Date.now();
+  const evalRaw = await pasadaEval(ocr, elegido);
+  latencias.eval = Date.now() - tEval;
   let eval_si = 0;
   let eval_ok = 0;
-  for (const r of evalRaws) {
-    if (!r) continue;
-    eval_ok += 1;
-    if (r.confirma) eval_si += 1;
+  if (evalRaw) {
+    eval_ok = 1;
+    if (evalRaw.confirma) eval_si = 1;
+    think(
+      evalRaw.confirma
+        ? `Juez confirma${evalRaw.razon ? `: ${evalRaw.razon}` : "."}`
+        : `Juez rechaza${evalRaw.razon ? `: ${evalRaw.razon}` : "."}`,
+    );
+  } else {
+    think("El juez no respondió.");
   }
+
+  latencias.total = Date.now() - tTotal;
 
   if (eval_ok === 0) {
     return {
@@ -484,24 +597,26 @@ export async function comprobarPagoHarness(opts: {
       ocr_ok,
       match_ok,
       eval_ok,
-      detalle: { ocr_votos, match_votes, eval_si },
+      detalle: { ocr_votos, match_votes, eval_si, latencias_ms: latencias },
     };
   }
 
   if (eval_si >= 1) {
+    think("Listo: el pago entró.");
     return {
       veredicto: "entro",
-      resumen: `Entró: $${elegido.monto_cop.toLocaleString("es-CO")} el ${elegido.fecha} a las ${elegido.hora.slice(0, 5)} (doc ${elegido.documento}).`,
+      resumen: `Entró: $${elegido.monto_cop.toLocaleString("es-CO")} el ${elegido.fecha} a las ${elegido.hora.slice(0, 5) || "—"} (doc ${elegido.documento}).`,
       ocr,
       candidato: elegido,
       candidatos,
       ocr_ok,
       match_ok,
       eval_ok,
-      detalle: { ocr_votos, match_votes, eval_si },
+      detalle: { ocr_votos, match_votes, eval_si, latencias_ms: latencias },
     };
   }
 
+  think("Listo: no entró según el cruce.");
   return {
     veredicto: "no_entro",
     resumen: "El juez rechazó el cruce con el extracto.",
@@ -511,6 +626,6 @@ export async function comprobarPagoHarness(opts: {
     ocr_ok,
     match_ok,
     eval_ok,
-    detalle: { ocr_votos, match_votes, eval_si },
+    detalle: { ocr_votos, match_votes, eval_si, latencias_ms: latencias },
   };
 }

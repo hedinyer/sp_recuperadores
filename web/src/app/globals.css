@@ -140,3 +140,134 @@ body {
     @apply font-sans;
   }
 }
+
+/* Pagos: panel Pensamiento (Helvetica Neue + gradiente animado) */
+@keyframes pagos-think-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pagos-think-shine {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.pagos-think-font {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.pagos-think-shell {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.pagos-think-shell--active {
+  border-color: transparent;
+  background:
+    linear-gradient(oklch(0.2 0 0 / 0.92), oklch(0.2 0 0 / 0.92)) padding-box,
+    linear-gradient(
+        120deg,
+        oklch(0.55 0.02 240),
+        oklch(0.72 0.09 195),
+        oklch(0.78 0.06 145),
+        oklch(0.7 0.04 85),
+        oklch(0.55 0.02 240)
+      )
+      border-box;
+  background-size:
+    100% 100%,
+    280% 280%;
+  animation: pagos-think-shift 4.5s ease infinite;
+}
+
+.pagos-think-shell--active::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    oklch(0.35 0.04 220 / 0.15),
+    oklch(0.55 0.08 195 / 0.28),
+    oklch(0.5 0.07 150 / 0.22),
+    oklch(0.4 0.03 90 / 0.12),
+    oklch(0.35 0.04 220 / 0.15)
+  );
+  background-size: 240% 240%;
+  animation: pagos-think-shift 3.2s ease-in-out infinite;
+}
+
+.pagos-think-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pagos-think-label--active {
+  background-image: linear-gradient(
+    90deg,
+    oklch(0.72 0.02 240),
+    oklch(0.9 0.06 195),
+    oklch(0.88 0.08 150),
+    oklch(0.85 0.04 90),
+    oklch(0.72 0.02 240)
+  );
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: pagos-think-shine 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagos-think-shell--active,
+  .pagos-think-shell--active::before,
+  .pagos-think-label--active {
+    animation: none;
+  }
+
+  .pagos-think-shell--active {
+    background-size:
+      100% 100%,
+      100% 100%;
+  }
+
+  .pagos-think-label--active {
+    background-position: 40% 50%;
+  }
+}
+
+@keyframes pagos-think-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
+.pagos-think-caret {
+  animation: pagos-think-caret 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagos-think-caret {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+

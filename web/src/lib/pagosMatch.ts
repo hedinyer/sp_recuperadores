@@ -32,6 +32,26 @@ export function diferenciaMinutos(a: string, b: string): number | null {
   return Math.abs(ma - mb);
 }
 
+/** Δ minutos entre movimiento del extracto y OCR. null si el extracto no trae hora usable. */
+export function deltaMinutosOcr(
+  m: Pick<MovimientoExtracto, "hora">,
+  ocr: Pick<OcrConsenso, "hora">,
+): number | null {
+  if (!m.hora.trim()) return null;
+  return diferenciaMinutos(m.hora, ocr.hora);
+}
+
+/** Fast-path: un candidato con hora y Δ ≤ umbral (default 5 min). */
+export function esFastAccept(
+  candidatos: MovimientoExtracto[],
+  ocr: Pick<OcrConsenso, "hora">,
+  umbralMin = 5,
+): boolean {
+  if (candidatos.length !== 1) return false;
+  const delta = deltaMinutosOcr(candidatos[0]!, ocr);
+  return delta != null && delta <= umbralMin;
+}
+
 export function claveMovimiento(m: MovimientoExtracto): string {
   return m.id;
 }
