@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CrosshairIcon,
+  MoreHorizontalIcon,
+  NavigationIcon,
+  PhoneIcon,
   RefreshCwIcon,
   RouteIcon,
 } from "lucide-react";
@@ -13,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
 import { filtrarPuntosEnPoligono } from "@/lib/geocerca";
 import { formatearCOP } from "@/lib/formatoDinero";
@@ -124,6 +127,14 @@ function leerOrigenGuardado(): OrigenGps {
   return { ...ORIGEN_DEFAULT };
 }
 
+function hayOrigenGuardado(): boolean {
+  try {
+    return Boolean(localStorage.getItem(STORAGE_ORIGEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
 function digitosTelefono(telefono: string): string {
   return telefono.replace(/\D/g, "");
 }
@@ -175,6 +186,7 @@ function PanelLista({
   modoRuta,
   placasSeleccionadas,
   onToggleRuta,
+  compacta,
 }: {
   lista: MotoRecogerBogota[];
   loading: boolean;
@@ -188,12 +200,13 @@ function PanelLista({
   modoRuta?: boolean;
   placasSeleccionadas?: Set<string>;
   onToggleRuta?: (placa: string) => void;
+  compacta?: boolean;
 }) {
   if (loading) {
     return (
       <div className="flex flex-col gap-2 p-2" aria-busy="true">
-        <Skeleton className="h-28 w-full rounded-xl" />
-        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
+        <Skeleton className="h-20 w-full rounded-xl" />
       </div>
     );
   }
@@ -204,8 +217,8 @@ function PanelLista({
         <p className="text-sm font-medium">Nadie en esta lista</p>
         <p className="text-sm text-pretty text-muted-foreground">
           {modo === "recoger"
-            ? `No hay motos ≥ ${formatearCOP(DEUDA_MIN_RECOGER_CAMPO_COP)} con GPS activo a ≤ ${DISTANCIA_MAX_RECOGER_KM} km.`
-            : "No hay motos entre $200.000 y $450.000."}
+            ? "No hay motos cerca para recoger. Toca Mi ubicación."
+            : "No hay motos para llamar ahora."}
         </p>
       </div>
     );
@@ -235,6 +248,7 @@ function PanelLista({
             onToggleRuta={
               onToggleRuta ? () => onToggleRuta(m.placa) : undefined
             }
+            compacta={compacta}
           />
         </li>
       ))}
@@ -256,11 +270,13 @@ export function RecogerBogotaWorkspace() {
     formatearOrigenInput(leerOrigenGuardado()),
   );
   const [origenError, setOrigenError] = useState<string | null>(null);
+  const [mostrarCoords, setMostrarCoords] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState<string | null>(null);
   const [avisoCopiado, setAvisoCopiado] = useState<string | null>(null);
   const [mapaFullscreen, setMapaFullscreen] = useState(false);
   const [listaOverlay, setListaOverlay] = useState(true);
   const [esDesktop, setEsDesktop] = useState(false);
+  const [masAcciones, setMasAcciones] = useState(false);
 
   const [modoGeocerca, setModoGeocerca] = useState(false);
   const [verticesGeocerca, setVerticesGeocerca] = useState<PuntoRuta[]>([]);
@@ -275,6 +291,7 @@ export function RecogerBogotaWorkspace() {
   const [rutaLinkCopiado, setRutaLinkCopiado] = useState(false);
   const [rutaError, setRutaError] = useState<string | null>(null);
   const [gpsOrigenCargando, setGpsOrigenCargando] = useState(false);
+  const gpsAutoIntentado = useRef(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -284,12 +301,7 @@ export function RecogerBogotaWorkspace() {
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  const aplicarOrigen = useCallback(() => {
-    const next = parseOrigenCoords(coordsInput);
-    if (!next) {
-      setOrigenError("Formato: latitud, longitud (ej. 4.66, -74.06)");
-      return;
-    }
+  const guardarOrigen = useCallback((next: OrigenGps) => {
     setOrigen(next);
     setCoordsInput(formatearOrigenInput(next));
     setOrigenError(null);
@@ -298,7 +310,16 @@ export function RecogerBogotaWorkspace() {
     } catch {
       // ignore
     }
-  }, [coordsInput]);
+  }, []);
+
+  const aplicarOrigen = useCallback(() => {
+    const next = parseOrigenCoords(coordsInput);
+    if (!next) {
+      setOrigenError("Escribe latitud y longitud, ej. 4.66, -74.06");
+      return;
+    }
+    guardarOrigen(next);
+  }, [coordsInput, guardarOrigen]);
 
   const usarMiGpsOrigen = useCallback(async () => {
     setGpsOrigenCargando(true);
@@ -309,18 +330,19 @@ export function RecogerBogotaWorkspace() {
         setOrigenError(mensajeErrorGps(res.motivo));
         return;
       }
-      const next = { lat: res.gps.lat, lng: res.gps.lng };
-      setOrigen(next);
-      setCoordsInput(formatearOrigenInput(next));
-      try {
-        localStorage.setItem(STORAGE_ORIGEN_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      guardarOrigen({ lat: res.gps.lat, lng: res.gps.lng });
     } finally {
       setGpsOrigenCargando(false);
     }
-  }, []);
+  }, [guardarOrigen]);
+
+  // Auto-GPS al entrar a Recoger si no hay origen guardado
+  useEffect(() => {
+    if (vista !== "recoger" || gpsAutoIntentado.current || esDesktop) return;
+    if (hayOrigenGuardado()) return;
+    gpsAutoIntentado.current = true;
+    void usarMiGpsOrigen();
+  }, [vista, esDesktop, usarMiGpsOrigen]);
 
   const cargar = useCallback(async (force = false) => {
     const q = force ? "?refresh=1" : "";
@@ -497,8 +519,21 @@ export function RecogerBogotaWorkspace() {
   );
 
   const seleccionarPlaca = useCallback((placa: string) => {
-    setSeleccionada((prev) => (prev === placa ? null : placa));
+    setSeleccionada((prev) => {
+      const next = prev === placa ? null : placa;
+      setMasAcciones(false);
+      return next;
+    });
   }, []);
+
+  // Scroll fila seleccionada a la vista
+  useEffect(() => {
+    if (!seleccionada) return;
+    const el = document.querySelector(
+      `[data-placa="${CSS.escape(seleccionada)}"]`,
+    );
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [seleccionada]);
 
   const togglePlacaRuta = useCallback((placa: string) => {
     setPlacasSeleccionadas((prev) => {
@@ -537,7 +572,7 @@ export function RecogerBogotaWorkspace() {
     setPlacasSeleccionadas(new Set(dentro));
     if (dentro.length === 0) {
       setRutaError(
-        "Geomalla cerrada. No hay motos con GPS dentro — amplía la zona o borra y vuelve a dibujar.",
+        "Zona cerrada. No hay motos dentro — amplía o borra y dibuja de nuevo.",
       );
     } else {
       setRutaError(null);
@@ -724,15 +759,21 @@ export function RecogerBogotaWorkspace() {
     vista === "recoger" &&
     Boolean(poligonoGeocerca && poligonoGeocerca.length >= 3);
 
+  const padListaSeleccion =
+    motoSeleccionada && !esDesktop
+      ? "pb-[calc(9rem+env(safe-area-inset-bottom))]"
+      : "pb-[calc(5.5rem+env(safe-area-inset-bottom))]";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-4 lg:px-6">
-        <div className="mx-auto flex w-full max-w-[414px] flex-col gap-3 lg:max-w-none">
-          <div className="flex items-start justify-between gap-3">
+      <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/95 px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-3 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-4 lg:px-6">
+        <div className="mx-auto flex w-full max-w-[414px] flex-col gap-2.5 lg:max-w-none">
+          {/* Desktop: título + actualizar */}
+          <div className="hidden items-start justify-between gap-3 lg:flex">
             <div className="min-w-0">
               <h1 className="text-lg font-bold tracking-tight">Bogotá</h1>
               <p className="mt-0.5 text-xs text-pretty text-muted-foreground">
-                Geomalla en mapa → Generar ruta → comparte link Modo Recogida
+                Recoger cerca · Llamar deuda menor
               </p>
             </div>
             <Button
@@ -747,77 +788,147 @@ export function RecogerBogotaWorkspace() {
               }}
             >
               <RefreshCwIcon className="size-4" aria-hidden />
-              <span className="ml-1.5 hidden sm:inline">
-                {loading ? "…" : "Actualizar"}
-              </span>
+              <span className="ml-1.5">{loading ? "…" : "Actualizar"}</span>
             </Button>
           </div>
 
-          <Tabs
-            value={vista}
-            onValueChange={(v) => setVista(v as VistaTab)}
+          {/* Tabs: botones con aria */}
+          <div
+            role="tablist"
+            aria-label="Tipo de lista"
+            className="grid h-12 w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1"
           >
-            <TabsList className="grid h-12 w-full grid-cols-2">
-              <TabsTrigger value="recoger" className="h-10 flex-col gap-0 py-1">
-                <span className="text-sm font-semibold">Recoger</span>
-                <span className="text-xs tabular-nums opacity-80">
-                  {paraRecoger.length} · ≥ {formatearCOP(DEUDA_MIN_RECOGER_CAMPO_COP)}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="llamar" className="h-10 flex-col gap-0 py-1">
-                <span className="text-sm font-semibold">Llamar</span>
-                <span className="text-xs tabular-nums opacity-80">
-                  {paraLlamar.length} · deuda menor
-                </span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {vista === "recoger" ? (
-            <form
-              className="flex flex-col gap-1.5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                aplicarOrigen();
-              }}
+            <button
+              type="button"
+              role="tab"
+              id="tab-recoger"
+              aria-selected={vista === "recoger"}
+              aria-controls="panel-bogota"
+              className={cn(
+                "flex h-10 flex-col items-center justify-center rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                vista === "recoger"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setVista("recoger")}
             >
-              <Label htmlFor="origen-coords" className="text-xs">
-                Tu ubicación (radio {DISTANCIA_MAX_RECOGER_KM} km)
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="origen-coords"
-                  type="text"
-                  inputMode="decimal"
-                  value={coordsInput}
-                  onChange={(e) => {
-                    setCoordsInput(e.target.value);
-                    setOrigenError(null);
-                  }}
-                  placeholder="4.66, -74.06"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="h-11 flex-1 text-base tabular-nums"
-                />
-                <Button type="submit" className="h-11 shrink-0 rounded-lg">
-                  Aplicar
-                </Button>
-              </div>
+              <span>Recoger</span>
+              <span className="text-xs font-medium tabular-nums opacity-80">
+                {paraRecoger.length} motos
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-llamar"
+              aria-selected={vista === "llamar"}
+              aria-controls="panel-bogota"
+              className={cn(
+                "flex h-10 flex-col items-center justify-center rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                vista === "llamar"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              onClick={() => setVista("llamar")}
+            >
+              <span>Llamar</span>
+              <span className="text-xs font-medium tabular-nums opacity-80">
+                {paraLlamar.length} motos
+              </span>
+            </button>
+          </div>
+
+          {/* Móvil: Mi ubicación + actualizar */}
+          {vista === "recoger" ? (
+            <div className="flex gap-2 lg:hidden">
               <Button
                 type="button"
-                variant="outline"
-                className="h-10 w-full rounded-lg"
+                variant="secondary"
+                className="h-11 flex-1 rounded-lg text-base font-semibold"
                 disabled={gpsOrigenCargando}
                 onClick={() => void usarMiGpsOrigen()}
               >
-                {gpsOrigenCargando ? "Obteniendo GPS…" : "Usar mi ubicación GPS"}
+                <CrosshairIcon className="mr-1.5 size-4" aria-hidden />
+                {gpsOrigenCargando ? "Buscando…" : "Mi ubicación"}
               </Button>
-              {origenError ? (
-                <p className="text-xs text-destructive" role="alert">
-                  {origenError}
-                </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 shrink-0 rounded-lg"
+                disabled={loading}
+                aria-label="Actualizar lista"
+                onClick={() => {
+                  setLoading(true);
+                  void cargar(true).finally(() => setLoading(false));
+                }}
+              >
+                <RefreshCwIcon className="size-4" aria-hidden />
+              </Button>
+            </div>
+          ) : null}
+
+          {/* Desktop: ubicación con coords opcionales */}
+          {vista === "recoger" && esDesktop ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-11 flex-1 rounded-lg"
+                  disabled={gpsOrigenCargando}
+                  onClick={() => void usarMiGpsOrigen()}
+                >
+                  <CrosshairIcon className="mr-1.5 size-4" aria-hidden />
+                  {gpsOrigenCargando ? "Obteniendo GPS…" : "Mi ubicación"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 shrink-0 rounded-lg text-xs"
+                  onClick={() => setMostrarCoords((v) => !v)}
+                >
+                  {mostrarCoords ? "Ocultar punto" : "Cambiar punto"}
+                </Button>
+              </div>
+              {mostrarCoords ? (
+                <form
+                  className="flex flex-col gap-1.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    aplicarOrigen();
+                  }}
+                >
+                  <Label htmlFor="origen-coords" className="text-xs">
+                    Coordenadas (radio {DISTANCIA_MAX_RECOGER_KM} km)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="origen-coords"
+                      type="text"
+                      inputMode="decimal"
+                      value={coordsInput}
+                      onChange={(e) => {
+                        setCoordsInput(e.target.value);
+                        setOrigenError(null);
+                      }}
+                      placeholder="4.66, -74.06"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="h-11 flex-1 text-base tabular-nums"
+                    />
+                    <Button type="submit" className="h-11 shrink-0 rounded-lg">
+                      Aplicar
+                    </Button>
+                  </div>
+                </form>
               ) : null}
-            </form>
+            </div>
+          ) : null}
+
+          {origenError ? (
+            <p className="text-xs text-destructive" role="alert">
+              {origenError}
+            </p>
           ) : null}
 
           <div>
@@ -836,10 +947,10 @@ export function RecogerBogotaWorkspace() {
 
           {!loading && lista.length > 0 ? (
             <p className="text-xs tabular-nums text-muted-foreground" role="status">
-              {lista.length} cliente{lista.length === 1 ? "" : "s"} · debe{" "}
+              {lista.length} moto{lista.length === 1 ? "" : "s"} ·{" "}
               {formatearCOP(deudaLista)}
-              {poligonoGeocerca ? ` · ${placasSeleccionadas.size} en geomalla` : ""}
-              {actualizadoEnVivo && vista === "recoger"
+              {poligonoGeocerca ? ` · ${placasSeleccionadas.size} en zona` : ""}
+              {actualizadoEnVivo && vista === "recoger" && esDesktop
                 ? ` · GPS ${actualizadoEnVivo}`
                 : null}
             </p>
@@ -852,7 +963,7 @@ export function RecogerBogotaWorkspace() {
           ) : null}
           {rutaLinkCopiado ? (
             <p className="text-xs text-success" role="status">
-              Link de Modo Recogida copiado — envíalo al recolector.
+              Link de ruta copiado — envíalo al recolector.
             </p>
           ) : null}
         </div>
@@ -865,10 +976,9 @@ export function RecogerBogotaWorkspace() {
           aria-label="Compartir ruta de recogida"
         >
           <div className="pointer-events-auto mx-auto flex w-full max-w-[480px] flex-col gap-1.5">
-            <p className="text-center text-[11px] tabular-nums text-rose-200/90">
-              Geomalla · {placasSeleccionadas.size} moto
-              {placasSeleccionadas.size === 1 ? "" : "s"}{" "}
-              {placasSeleccionadas.size === 1 ? "seleccionada" : "seleccionadas"}
+            <p className="text-center text-xs tabular-nums text-rose-200/90">
+              Zona · {placasSeleccionadas.size} moto
+              {placasSeleccionadas.size === 1 ? "" : "s"}
             </p>
             <Button
               type="button"
@@ -880,7 +990,7 @@ export function RecogerBogotaWorkspace() {
               {generandoRuta
                 ? "Generando ruta…"
                 : placasSeleccionadas.size === 0
-                  ? "Sin motos en la geomalla"
+                  ? "Sin motos en la zona"
                   : rutaLinkCopiado
                     ? "Link copiado — compártelo"
                     : `Compartir ruta · ${placasSeleccionadas.size} moto${placasSeleccionadas.size === 1 ? "" : "s"}`}
@@ -889,9 +999,12 @@ export function RecogerBogotaWorkspace() {
         </div>
       ) : null}
 
-      <div
+      <main
+        id="panel-bogota"
+        role="tabpanel"
+        aria-labelledby={vista === "recoger" ? "tab-recoger" : "tab-llamar"}
         className={cn(
-          "mx-auto flex min-h-0 w-full max-w-[414px] flex-1 flex-col overflow-hidden px-3 pt-3 lg:max-w-none lg:px-6",
+          "mx-auto flex min-h-0 w-full max-w-[414px] flex-1 flex-col overflow-hidden px-3 pt-2 lg:max-w-none lg:px-6",
           geomallaCerrada && "pb-24",
         )}
       >
@@ -967,7 +1080,6 @@ export function RecogerBogotaWorkspace() {
           </div>
         ) : null}
 
-        {/* Fullscreen overlay lista */}
         {mapaFullscreen && listaOverlay && vista === "recoger" ? (
           <aside
             className="fixed right-0 top-14 z-[60] flex h-[calc(100dvh-3.5rem)] w-[min(420px,92vw)] flex-col overflow-hidden border-l border-border bg-card/95 shadow-xl backdrop-blur-md"
@@ -1021,7 +1133,7 @@ export function RecogerBogotaWorkspace() {
           </Button>
         ) : null}
 
-        {/* Mobile: mapa arriba + lista abajo */}
+        {/* Mobile: mapa fijo + lista scrollea */}
         {!esDesktop && vista === "recoger" ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <MapaRecogerBogota
@@ -1034,8 +1146,14 @@ export function RecogerBogotaWorkspace() {
                 });
               }}
             />
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-              <PanelLista {...panelListaProps} />
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y",
+                padListaSeleccion,
+              )}
+              data-scroll-main
+            >
+              <PanelLista {...panelListaProps} compacta />
             </div>
           </div>
         ) : null}
@@ -1047,14 +1165,20 @@ export function RecogerBogotaWorkspace() {
           )}
         >
           {vista === "llamar" ? (
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y",
+                padListaSeleccion,
+              )}
+              data-scroll-main
+            >
               <PanelLista {...panelListaProps} />
             </div>
           ) : null}
         </div>
 
-        {/* Barra fija móvil al seleccionar */}
-        {motoSeleccionada && !esDesktop ? (
+        {/* Barra fija móvil al seleccionar (Recoger) */}
+        {motoSeleccionada && !esDesktop && vista === "recoger" ? (
           <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-[414px] px-3">
             <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
               <p className="text-center text-sm font-bold tabular-nums">
@@ -1064,33 +1188,90 @@ export function RecogerBogotaWorkspace() {
                 </span>
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  className="h-11 bg-[#25D366] text-white hover:bg-[#1ebe57]"
-                  onClick={() => void copiarAviso(motoSeleccionada)}
-                >
-                  Copiar aviso
-                </Button>
                 {motoSeleccionada.lat != null && motoSeleccionada.lng != null ? (
-                  <Button type="button" variant="secondary" className="h-11" asChild>
+                  <Button
+                    type="button"
+                    className="h-12 text-base font-bold"
+                    asChild
+                  >
                     <a
-                      href={enlaceMaps(motoSeleccionada.lat, motoSeleccionada.lng)}
+                      href={enlaceMaps(
+                        motoSeleccionada.lat,
+                        motoSeleccionada.lng,
+                      )}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Ir en Maps
+                      <NavigationIcon className="mr-1.5 size-5" aria-hidden />
+                      Ir
                     </a>
                   </Button>
-                ) : enlaceTel(motoSeleccionada.telefono) ? (
-                  <Button type="button" variant="outline" className="h-11" asChild>
-                    <a href={enlaceTel(motoSeleccionada.telefono)!}>Llamar</a>
+                ) : (
+                  <Button type="button" className="h-12 text-base font-bold" disabled>
+                    Sin GPS
                   </Button>
-                ) : null}
+                )}
+                {enlaceTel(motoSeleccionada.telefono) ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-12 text-base font-bold"
+                    asChild
+                  >
+                    <a href={enlaceTel(motoSeleccionada.telefono)!}>
+                      <PhoneIcon className="mr-1.5 size-5" aria-hidden />
+                      Llamar
+                    </a>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 text-base font-bold"
+                    onClick={() => void copiarAviso(motoSeleccionada)}
+                  >
+                    Copiar aviso
+                  </Button>
+                )}
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 text-xs"
+                aria-expanded={masAcciones}
+                onClick={() => setMasAcciones((v) => !v)}
+              >
+                <MoreHorizontalIcon className="mr-1 size-3.5" aria-hidden />
+                {masAcciones ? "Menos" : "Más"}
+              </Button>
+              {masAcciones ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11"
+                    onClick={() => void copiarAviso(motoSeleccionada)}
+                  >
+                    {avisoCopiado === motoSeleccionada.placa
+                      ? "Copiado"
+                      : "Copiar aviso"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11"
+                    onClick={() => void compartirSeguimiento(motoSeleccionada.placa)}
+                  >
+                    {linkCopiado === motoSeleccionada.placa
+                      ? "Link copiado"
+                      : "Compartir"}
+                  </Button>
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
-      </div>
+      </main>
     </div>
   );
 }

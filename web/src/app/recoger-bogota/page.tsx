@@ -6,7 +6,7 @@ import { RecogerBogotaWorkspace } from "@/components/recoger-bogota/RecogerBogot
 
 export default function RecogerBogotaPage() {
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground pt-[max(0.25rem,env(safe-area-inset-top))]">
+    <div className="flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none bg-background text-foreground">
       <MasterGate title="Bogotá" subtitle="Requiere clave master">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <RecogerBogotaWorkspace />

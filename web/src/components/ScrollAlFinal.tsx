@@ -1,8 +1,10 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 const UMBRAL_FINAL_PX = 56;
+const RUTAS_SIN_FAB = new Set(["/recoger-bogota"]);
 
 function contenedorConScroll(): HTMLElement {
   const candidatos = document.querySelectorAll<HTMLElement>("main, [data-scroll-main]");
@@ -30,15 +32,22 @@ function hayScrollDisponible(el: HTMLElement): boolean {
 }
 
 export function ScrollAlFinal() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
+  const oculto = RUTAS_SIN_FAB.has(pathname);
 
   const actualizar = useCallback(() => {
+    if (oculto) {
+      setVisible(false);
+      return;
+    }
     const el = contenedorConScroll();
     setVisible(hayScrollDisponible(el) && !estaCercaDelFinal(el));
-  }, []);
+  }, [oculto]);
 
   useEffect(() => {
     actualizar();
+    if (oculto) return;
     const t = window.setTimeout(actualizar, 400);
     document.addEventListener("scroll", actualizar, true);
     window.addEventListener("resize", actualizar);
@@ -50,7 +59,7 @@ export function ScrollAlFinal() {
       window.removeEventListener("resize", actualizar);
       obs.disconnect();
     };
-  }, [actualizar]);
+  }, [actualizar, oculto]);
 
   const irAlFinal = useCallback(() => {
     const el = contenedorConScroll();
@@ -58,7 +67,7 @@ export function ScrollAlFinal() {
     window.setTimeout(actualizar, 500);
   }, [actualizar]);
 
-  if (!visible) return null;
+  if (oculto || !visible) return null;
 
   return (
     <button

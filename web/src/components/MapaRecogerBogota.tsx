@@ -63,6 +63,11 @@ function htmlMarcador(
   return `<div style="background:${bg};color:#fff;font:700 10px/1.1 ui-monospace,monospace;padding:4px 6px;border-radius:8px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);white-space:nowrap">${placa}</div>`;
 }
 
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export function MapaRecogerBogota({
   motos,
   origen,
@@ -115,10 +120,10 @@ export function MapaRecogerBogota({
       mapa.fitBounds(circuloRef.current.getBounds(), {
         padding: [28, 28],
         maxZoom: 14,
-        animate: animar,
+        animate: animar && !prefersReducedMotion(),
       });
     } else {
-      mapa.setView([lat, lng], 12, { animate: animar });
+      mapa.setView([lat, lng], 12, { animate: animar && !prefersReducedMotion() });
     }
   }
 
@@ -131,10 +136,14 @@ export function MapaRecogerBogota({
 
       const o = origenRef.current;
       const mapa = L.map(contenedorRef.current, {
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: true,
         scrollWheelZoom: true,
       }).setView([o.lat, o.lng], 12);
+
+      L.control.zoom({ position: "bottomright" }).addTo(mapa);
+
+      L.DomEvent.disableScrollPropagation(mapa.getContainer());
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -181,7 +190,7 @@ export function MapaRecogerBogota({
         fillColor: "#38bdf8",
         fillOpacity: 1,
       })
-        .bindTooltip("Punto de origen", { direction: "top" })
+        .bindTooltip("Tu ubicación", { direction: "top" })
         .addTo(mapa);
 
       const capaMotos = L.layerGroup().addTo(mapa);
@@ -276,7 +285,13 @@ export function MapaRecogerBogota({
 
       if (seleccionada && seleccionada !== selPrevRef.current) {
         const sel = motos.find((x) => x.placa === seleccionada);
-        if (sel) mapa.panTo([sel.lat, sel.lng], { animate: true });
+        if (sel) {
+          if (prefersReducedMotion()) {
+            mapa.setView([sel.lat, sel.lng], 16, { animate: false });
+          } else {
+            mapa.flyTo([sel.lat, sel.lng], 16, { duration: 0.6 });
+          }
+        }
       }
       selPrevRef.current = seleccionada;
     })();
@@ -394,33 +409,34 @@ export function MapaRecogerBogota({
           ? "fixed inset-0 z-50 h-dvh w-dvw"
           : embebido
             ? "h-full min-h-[280px] w-full"
-            : "h-[min(38vh,340px)] min-h-[240px] shrink-0 w-full",
+            : "h-[42dvh] min-h-[220px] max-h-[320px] shrink-0 w-full",
         className,
       )}
     >
       <div
         ref={contenedorRef}
-        className="absolute inset-0 z-0 h-full w-full [&_.leaflet-container]:!h-full [&_.leaflet-container]:!w-full"
+        className="absolute inset-0 z-0 h-full w-full touch-none [&_.leaflet-container]:!h-full [&_.leaflet-container]:!w-full [&_.leaflet-container]:touch-none"
       />
-      <p className="pointer-events-none absolute bottom-2 left-2 z-[400] max-w-[calc(100%-5rem)] rounded-md bg-zinc-950/85 px-2 py-1 text-[10px] font-medium text-zinc-300">
+      <p className="pointer-events-none absolute bottom-2 left-2 z-[400] max-w-[calc(100%-5rem)] rounded-md bg-zinc-950/85 px-2 py-1 text-xs font-medium text-zinc-300">
         {modoGeocerca
-          ? `Geomalla · ${verticesGeocerca.length} puntos · toca para añadir`
+          ? `Dibujando zona · ${verticesGeocerca.length} puntos · toca el mapa`
           : poligonoGeocerca
-            ? `Zona activa · ${placasEnRutaCount} moto${placasEnRutaCount === 1 ? "" : "s"} en ruta`
-            : `En vivo · ${radioKm} km · ${motos.length} motos`}
+            ? `Zona activa · ${placasEnRutaCount} moto${placasEnRutaCount === 1 ? "" : "s"}`
+            : `${radioKm} km · ${motos.length} moto${motos.length === 1 ? "" : "s"}`}
       </p>
 
       {onToggleGeocerca ? (
-        <div className="absolute left-2 top-14 z-[400] flex flex-col gap-1.5">
+        <div className="absolute left-2 top-2 z-[400] flex flex-col gap-1.5">
           <Button
             type="button"
             variant={modoGeocerca ? "default" : "secondary"}
             size="sm"
             className="h-10 rounded-lg bg-card/95 shadow-md"
+            aria-pressed={modoGeocerca}
             onClick={onToggleGeocerca}
           >
             <HexagonIcon className="mr-1.5 size-4" aria-hidden />
-            {modoGeocerca ? "Dibujando…" : "Geomalla"}
+            {modoGeocerca ? "Dibujando…" : "Dibujar zona"}
           </Button>
           {modoGeocerca && verticesGeocerca.length >= 3 && !poligonoGeocerca ? (
             <Button
@@ -430,7 +446,7 @@ export function MapaRecogerBogota({
               className="h-10 rounded-lg bg-card/95 shadow-md"
               onClick={onCerrarGeocerca}
             >
-              Cerrar polígono
+              Listo
             </Button>
           ) : null}
           {(verticesGeocerca.length > 0 || poligonoGeocerca) && onLimpiarGeocerca ? (
@@ -459,7 +475,7 @@ export function MapaRecogerBogota({
           {generandoRuta
             ? "Generando ruta…"
             : placasEnRutaCount === 0
-              ? "Sin motos en geomalla"
+              ? "Sin motos en la zona"
               : `Compartir ruta · ${placasEnRutaCount} moto${placasEnRutaCount === 1 ? "" : "s"}`}
         </Button>
       ) : null}

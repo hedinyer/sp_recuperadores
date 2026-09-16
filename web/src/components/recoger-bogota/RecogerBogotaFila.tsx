@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import {
   CopyIcon,
   MapPinIcon,
+  MoreHorizontalIcon,
   NavigationIcon,
   PhoneIcon,
   Share2Icon,
@@ -48,6 +50,7 @@ export function RecogerBogotaFila({
   modoRuta,
   enRuta,
   onToggleRuta,
+  compacta,
 }: {
   moto: FilaRecogerBogota;
   indice: number;
@@ -64,9 +67,14 @@ export function RecogerBogotaFila({
   modoRuta?: boolean;
   enRuta?: boolean;
   onToggleRuta?: () => void;
+  /** Móvil: solo placa + plata + distancia; acciones van en la barra fija. */
+  compacta?: boolean;
 }) {
+  const [masAbierto, setMasAbierto] = useState(false);
+
   return (
     <article
+      data-placa={moto.placa}
       className={cn(
         "rounded-xl border bg-card transition-colors",
         seleccionada
@@ -74,138 +82,186 @@ export function RecogerBogotaFila({
           : "border-border/80",
       )}
     >
-      <button
-        type="button"
-        className="flex w-full flex-col gap-1 rounded-xl px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        aria-pressed={seleccionada}
-        onClick={onSeleccionar}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {modoRuta && onToggleRuta ? (
-                <input
-                  type="checkbox"
-                  checked={enRuta}
-                  aria-label={`Incluir ${moto.placa} en la ruta`}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={() => onToggleRuta()}
-                  className="size-5 shrink-0 rounded border-border accent-primary"
-                />
-              ) : (
-                <span className="text-xs font-bold tabular-nums text-muted-foreground">
-                  {indice}
-                </span>
-              )}
-              <p className="text-base font-bold tracking-[0.12em] text-foreground">
-                {moto.placa}
+      <div className="flex items-stretch gap-0">
+        {modoRuta && onToggleRuta ? (
+          <div className="flex shrink-0 items-center border-r border-border/60 px-2.5">
+            <input
+              type="checkbox"
+              checked={enRuta}
+              aria-label={`Incluir ${moto.placa} en la ruta`}
+              onChange={() => onToggleRuta()}
+              className="size-5 shrink-0 rounded border-border accent-primary"
+            />
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 flex-col gap-1 rounded-xl px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          aria-pressed={seleccionada}
+          onClick={onSeleccionar}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                {!modoRuta ? (
+                  <span className="text-xs font-bold tabular-nums text-muted-foreground">
+                    {indice}
+                  </span>
+                ) : null}
+                <p className="text-base font-bold tracking-[0.12em] text-foreground">
+                  {moto.placa}
+                </p>
+                {moto.pago_hoy ? (
+                  <Badge variant="secondary" className="bg-success/15 text-success">
+                    Pagó hoy
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                {moto.nombre || "Sin nombre"}
               </p>
-              {moto.pago_hoy ? (
-                <Badge variant="secondary" className="bg-success/15 text-success">
-                  Pagó hoy
-                </Badge>
+              {modo === "llamar" && moto.telefono ? (
+                <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
+                  {moto.telefono}
+                </p>
               ) : null}
             </div>
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              {moto.nombre || "Sin nombre"}
-            </p>
-            {modo === "llamar" && moto.telefono ? (
-              <p className="mt-0.5 text-sm font-medium tabular-nums text-foreground">
-                {moto.telefono}
+            <div className="shrink-0 text-right">
+              <p className="text-lg font-bold tabular-nums text-destructive">
+                {formatearCOP(moto.deuda_total)}
               </p>
-            ) : null}
+              {modo === "recoger" ? (
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  a {formatearDistancia(moto.distancia_km)}
+                </p>
+              ) : null}
+            </div>
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-lg font-bold tabular-nums text-destructive">
-              {formatearCOP(moto.deuda_total)}
-            </p>
-            {modo === "recoger" ? (
-              <p className="text-xs tabular-nums text-muted-foreground">
-                {formatearDistancia(moto.distancia_km)}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        {modo === "recoger" ? (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <Badge
-              variant="secondary"
-              className={
-                moto.gps.funcional
-                  ? "bg-success/15 text-success"
-                  : "text-muted-foreground"
-              }
-            >
-              {moto.gps.funcional
-                ? `GPS ${moto.gps.estado_etiqueta}`
-                : moto.gps.estado_etiqueta || "Sin GPS"}
-            </Badge>
-          </div>
-        ) : null}
-      </button>
-
-      <div className="flex flex-wrap gap-2 border-t border-border/60 px-2 py-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 min-h-[44px] flex-1 rounded-lg bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20"
-          onClick={onCopiarAviso}
-        >
-          <CopyIcon className="mr-1.5 size-4" aria-hidden />
-          {avisoCopiado ? "Copiado" : "Copiar aviso"}
-        </Button>
-        {enlaceTel ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 min-h-[44px] min-w-[44px] rounded-lg"
-            aria-label={`Llamar ${moto.placa}`}
-            asChild
-          >
-            <a href={enlaceTel}>
-              <PhoneIcon className="size-4" aria-hidden />
-            </a>
-          </Button>
-        ) : null}
-        {modo === "recoger" && enlaceMaps ? (
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-11 min-h-[44px] flex-1 rounded-lg"
-              asChild
-            >
-              <a href={enlaceMaps} target="_blank" rel="noopener noreferrer">
-                <NavigationIcon className="mr-1.5 size-4" aria-hidden />
-                Ir en Maps
-              </a>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 min-h-[44px] min-w-[44px] rounded-lg"
-              aria-label={`Compartir seguimiento ${moto.placa}`}
-              onClick={onCompartirSeguimiento}
-            >
-              <Share2Icon className="size-4" aria-hidden />
-              <span className="sr-only">
-                {linkCopiado ? "Link copiado" : "Compartir seguimiento"}
-              </span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-11 min-h-[44px] w-full rounded-lg text-sm"
-              asChild
-            >
-              <a href={enlaceSeguir} target="_blank" rel="noopener noreferrer">
-                <MapPinIcon className="mr-1.5 size-4" aria-hidden />
-                Ver en vivo
-              </a>
-            </Button>
-          </>
-        ) : null}
+          {modo === "recoger" && !compacta ? (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <Badge
+                variant="secondary"
+                className={
+                  moto.gps.funcional
+                    ? "bg-success/15 text-success"
+                    : "text-muted-foreground"
+                }
+              >
+                {moto.gps.funcional
+                  ? `GPS ${moto.gps.estado_etiqueta}`
+                  : moto.gps.estado_etiqueta || "Sin GPS"}
+              </Badge>
+            </div>
+          ) : null}
+        </button>
       </div>
+
+      {/* Acciones: en compacta (móvil recoger) se omiten; en llamar o desktop se muestran */}
+      {!compacta || modo === "llamar" ? (
+        <div className="flex flex-wrap gap-2 border-t border-border/60 px-2 py-2">
+          {modo === "llamar" ? (
+            <>
+              {enlaceTel ? (
+                <Button
+                  type="button"
+                  className="h-11 min-h-[44px] flex-1 rounded-lg text-base font-semibold"
+                  asChild
+                >
+                  <a href={enlaceTel}>
+                    <PhoneIcon className="mr-1.5 size-4" aria-hidden />
+                    Llamar
+                  </a>
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-[44px] flex-1 rounded-lg bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20"
+                onClick={onCopiarAviso}
+              >
+                <CopyIcon className="mr-1.5 size-4" aria-hidden />
+                {avisoCopiado ? "Copiado" : "Copiar aviso"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 min-h-[44px] flex-1 rounded-lg bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/20"
+                onClick={onCopiarAviso}
+              >
+                <CopyIcon className="mr-1.5 size-4" aria-hidden />
+                {avisoCopiado ? "Copiado" : "Copiar aviso"}
+              </Button>
+              {enlaceTel ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 min-h-[44px] min-w-[44px] rounded-lg"
+                  aria-label={`Llamar ${moto.placa}`}
+                  asChild
+                >
+                  <a href={enlaceTel}>
+                    <PhoneIcon className="size-4" aria-hidden />
+                  </a>
+                </Button>
+              ) : null}
+              {enlaceMaps ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-11 min-h-[44px] flex-1 rounded-lg"
+                    asChild
+                  >
+                    <a href={enlaceMaps} target="_blank" rel="noopener noreferrer">
+                      <NavigationIcon className="mr-1.5 size-4" aria-hidden />
+                      Ir
+                    </a>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 min-h-[44px] min-w-[44px] rounded-lg"
+                    aria-expanded={masAbierto}
+                    aria-label={`Más acciones ${moto.placa}`}
+                    onClick={() => setMasAbierto((v) => !v)}
+                  >
+                    <MoreHorizontalIcon className="size-4" aria-hidden />
+                  </Button>
+                  {masAbierto ? (
+                    <div className="flex w-full flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 min-h-[44px] flex-1 rounded-lg"
+                        aria-label={`Compartir seguimiento ${moto.placa}`}
+                        onClick={onCompartirSeguimiento}
+                      >
+                        <Share2Icon className="mr-1.5 size-4" aria-hidden />
+                        {linkCopiado ? "Link copiado" : "Compartir"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-11 min-h-[44px] flex-1 rounded-lg text-sm"
+                        asChild
+                      >
+                        <a href={enlaceSeguir} target="_blank" rel="noopener noreferrer">
+                          <MapPinIcon className="mr-1.5 size-4" aria-hidden />
+                          Ver en vivo
+                        </a>
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : null}
     </article>
   );
 }
