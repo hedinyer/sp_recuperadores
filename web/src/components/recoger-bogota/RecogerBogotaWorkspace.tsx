@@ -8,6 +8,7 @@ import {
   PhoneIcon,
   RefreshCwIcon,
   RouteIcon,
+  XIcon,
 } from "lucide-react";
 
 import { MapaRecogerBogota } from "@/components/MapaRecogerBogota";
@@ -761,7 +762,9 @@ export function RecogerBogotaWorkspace() {
 
   const padListaSeleccion =
     motoSeleccionada && !esDesktop
-      ? "pb-[calc(9rem+env(safe-area-inset-bottom))]"
+      ? masAcciones
+        ? "pb-[calc(11rem+env(safe-area-inset-bottom))]"
+        : "pb-[calc(8rem+env(safe-area-inset-bottom))]"
       : "pb-[calc(5.5rem+env(safe-area-inset-bottom))]";
 
   return (
@@ -1177,21 +1180,36 @@ export function RecogerBogotaWorkspace() {
           ) : null}
         </div>
 
-        {/* Barra fija móvil al seleccionar (Recoger) */}
+        {/* Barra fija móvil al seleccionar (Recoger) — compacta + Cerrar */}
         {motoSeleccionada && !esDesktop && vista === "recoger" ? (
           <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-[414px] px-3">
-            <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
-              <p className="text-center text-sm font-bold tabular-nums">
-                {motoSeleccionada.placa} ·{" "}
-                <span className="text-destructive">
-                  {formatearCOP(motoSeleccionada.deuda_total)}
-                </span>
-              </p>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-border bg-background/95 p-2.5 shadow-lg backdrop-blur">
+              <div className="mb-2 flex items-center gap-2">
+                <p className="min-w-0 flex-1 truncate text-sm font-bold tabular-nums">
+                  {motoSeleccionada.placa}{" "}
+                  <span className="text-destructive">
+                    {formatearCOP(motoSeleccionada.deuda_total)}
+                  </span>
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-10 shrink-0 rounded-lg px-3 text-sm font-semibold"
+                  aria-label="Cerrar y ver la lista"
+                  onClick={() => {
+                    setSeleccionada(null);
+                    setMasAcciones(false);
+                  }}
+                >
+                  <XIcon className="mr-1 size-4" aria-hidden />
+                  Cerrar
+                </Button>
+              </div>
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
                 {motoSeleccionada.lat != null && motoSeleccionada.lng != null ? (
                   <Button
                     type="button"
-                    className="h-12 text-base font-bold"
+                    className="h-11 text-base font-bold"
                     asChild
                   >
                     <a
@@ -1202,12 +1220,12 @@ export function RecogerBogotaWorkspace() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      <NavigationIcon className="mr-1.5 size-5" aria-hidden />
+                      <NavigationIcon className="mr-1.5 size-4" aria-hidden />
                       Ir
                     </a>
                   </Button>
                 ) : (
-                  <Button type="button" className="h-12 text-base font-bold" disabled>
+                  <Button type="button" className="h-11 text-base font-bold" disabled>
                     Sin GPS
                   </Button>
                 )}
@@ -1215,11 +1233,11 @@ export function RecogerBogotaWorkspace() {
                   <Button
                     type="button"
                     variant="secondary"
-                    className="h-12 text-base font-bold"
+                    className="h-11 text-base font-bold"
                     asChild
                   >
                     <a href={enlaceTel(motoSeleccionada.telefono)!}>
-                      <PhoneIcon className="mr-1.5 size-5" aria-hidden />
+                      <PhoneIcon className="mr-1.5 size-4" aria-hidden />
                       Llamar
                     </a>
                   </Button>
@@ -1227,29 +1245,29 @@ export function RecogerBogotaWorkspace() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-12 text-base font-bold"
+                    className="h-11 text-base font-bold"
                     onClick={() => void copiarAviso(motoSeleccionada)}
                   >
-                    Copiar aviso
+                    Aviso
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 min-w-[44px] rounded-lg px-3"
+                  aria-expanded={masAcciones}
+                  aria-label={masAcciones ? "Ocultar más acciones" : "Más acciones"}
+                  onClick={() => setMasAcciones((v) => !v)}
+                >
+                  <MoreHorizontalIcon className="size-5" aria-hidden />
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 text-xs"
-                aria-expanded={masAcciones}
-                onClick={() => setMasAcciones((v) => !v)}
-              >
-                <MoreHorizontalIcon className="mr-1 size-3.5" aria-hidden />
-                {masAcciones ? "Menos" : "Más"}
-              </Button>
               {masAcciones ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11"
+                    className="h-10"
                     onClick={() => void copiarAviso(motoSeleccionada)}
                   >
                     {avisoCopiado === motoSeleccionada.placa
@@ -1259,7 +1277,7 @@ export function RecogerBogotaWorkspace() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11"
+                    className="h-10"
                     onClick={() => void compartirSeguimiento(motoSeleccionada.placa)}
                   >
                     {linkCopiado === motoSeleccionada.placa
