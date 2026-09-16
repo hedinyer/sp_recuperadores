@@ -34,7 +34,7 @@ import {
 import type { PuntoRuta } from "@/lib/rutaOsrm";
 import { cn } from "@/lib/utils";
 
-const DEUDA_MIN_RECOGER_CAMPO_COP = 450_000;
+const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
 const DISTANCIA_MAX_RECOGER_KM = 30;
 const ORIGEN_DEFAULT = { lat: 4.667372044635534, lng: -74.06239794213879 } as const;
 const STORAGE_ORIGEN_KEY = "recoger-bogota-origen";
