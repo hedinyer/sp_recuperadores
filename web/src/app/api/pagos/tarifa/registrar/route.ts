@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { registrarPagoTarifa } from "@/lib/railwebTarifa";
-import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
+import { fetchVehiculoPorPlaca, esFuenteBga } from "@/lib/vehiculoPorPlaca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +55,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const vehiculoCheck = await fetchVehiculoPorPlaca(placa);
+    if (esFuenteBga(vehiculoCheck)) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta placa está activa en BGA. No se puede registrar la tarifa en Railweb.",
+          placa: placaIngresada,
+          fuente: "bga",
+        },
+        { status: 400 },
+      );
+    }
+
     const result = await registrarPagoTarifa({
       placa,
       monto,
@@ -78,6 +91,7 @@ export async function POST(request: Request) {
             deuda_total: vehiculo.deuda_total,
             deuda_cuotas: vehiculo.deuda_cuotas,
             deuda_multas: vehiculo.deuda_multas,
+            fuente: vehiculo.fuente || "railweb",
           }
         : null,
     });

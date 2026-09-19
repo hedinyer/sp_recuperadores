@@ -1,7 +1,6 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
 import { getDatabaseUrls } from "@/lib/dbUrls";
 import { queryPg } from "@/lib/pgPool";
+import { clientSp, SEDES_SP } from "@/lib/spSedes";
 import {
   forecastUnidades,
   sumarForecasts,
@@ -72,32 +71,6 @@ export type VentasPayload = {
 };
 
 const SEDE_ORDER: SedeId[] = ["bga", "girardot", "bogota", "railweb"];
-
-const SEDES_SP: Array<{
-  id: Exclude<SedeId, "railweb">;
-  label: string;
-  url: string;
-  key: string;
-}> = [
-  {
-    id: "bga",
-    label: "Bucaramanga (BGA)",
-    url: "https://ngjpndqmkhhdqjjljfmp.supabase.co",
-    key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBuZHFta2hoZHFqamxqZm1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MTAzNjAsImV4cCI6MjEwMDQ4NjM2MH0.98FK60wSqwhfxbdnHM8rESkDLD6v3p0V6D6bFM3zACY",
-  },
-  {
-    id: "girardot",
-    label: "Girardot",
-    url: "https://iilgrapnrkwdcouielwz.supabase.co",
-    key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpbGdyYXBucmt3ZGNvdWllbHd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NDEyODEsImV4cCI6MjA5NjUxNzI4MX0.82GJcFxinFQqxI8OSh40JdivYWK9hr1GRw6lyiqW_3E",
-  },
-  {
-    id: "bogota",
-    label: "Bogotá",
-    url: "https://ziihqvtjacqzwmcmpiyp.supabase.co",
-    key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppaWhxdnRqYWNxendtY21waXlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5ODYyODEsImV4cCI6MjA5OTU2MjI4MX0.DpEws4CRAb3B6Y35TJ7o0afxpaFu56Jfsh-9IKeCQkc",
-  },
-];
 
 const SEDE_LABEL: Record<SedeId, string> = {
   bga: "Bucaramanga (BGA)",
@@ -186,12 +159,6 @@ function estimadoContratoSp(r: Record<string, unknown>): number {
   const inicial = num(r.cuota_inicial_monto);
   const cuota = num(r.monto_cuota_periodo);
   return inicial + cuota * periodosAnuales(r.frecuencia_pago);
-}
-
-function clientSp(url: string, key: string): SupabaseClient {
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 }
 
 async function fetchAllPages<T extends Record<string, unknown>>(

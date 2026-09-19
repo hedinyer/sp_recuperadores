@@ -16,6 +16,7 @@ export type VehiculoResumen = {
   deuda_total: string;
   deuda_cuotas?: string;
   deuda_multas?: string;
+  fuente?: string;
 };
 
 type Destinatario = { configuracionId: number; cuenta: string };
@@ -56,6 +57,7 @@ export function PagosRailwebPanel({
   const [placa, setPlaca] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [vehiculo, setVehiculo] = useState<VehiculoResumen | null>(null);
+  const [bloqueadoBga, setBloqueadoBga] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorRepetida, setErrorRepetida] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
@@ -107,6 +109,7 @@ export function PagosRailwebPanel({
     setErrorRepetida(false);
     setOkMsg(null);
     setConfirmado(false);
+    setBloqueadoBga(false);
     const p = placa.trim().toUpperCase();
     if (!p) {
       setError("Escribe la placa");
@@ -120,14 +123,24 @@ export function PagosRailwebPanel({
       const json = (await res.json()) as {
         error?: string;
         vehiculo?: VehiculoResumen;
+        bloqueado_railweb?: boolean;
+        mensaje_bloqueo?: string | null;
       };
       if (!res.ok || !json.vehiculo) {
         throw new Error(json.error ?? "No se encontró la placa");
       }
       setVehiculo(json.vehiculo);
       setPlaca(String(json.vehiculo.placa || p).toUpperCase());
+      if (json.bloqueado_railweb) {
+        setBloqueadoBga(true);
+        setError(
+          json.mensaje_bloqueo ??
+            "Esta placa está activa en BGA. No registres la tarifa en Railweb.",
+        );
+      }
     } catch (e) {
       setVehiculo(null);
+      setBloqueadoBga(false);
       setError(e instanceof Error ? e.message : "Error al consultar la placa");
     } finally {
       setBuscando(false);
@@ -144,6 +157,12 @@ export function PagosRailwebPanel({
     }
     if (!vehiculo) {
       setError("Consulta la placa primero");
+      return;
+    }
+    if (bloqueadoBga || String(vehiculo.fuente ?? "").toLowerCase() === "bga") {
+      setError(
+        "Esta placa está activa en BGA. No se puede registrar la tarifa en Railweb.",
+      );
       return;
     }
     const p = (vehiculo.placa || placa).trim();
@@ -209,6 +228,7 @@ export function PagosRailwebPanel({
     }
   }, [
     confirmado,
+    bloqueadoBga,
     vehiculo,
     placa,
     monto,
@@ -223,6 +243,7 @@ export function PagosRailwebPanel({
   const cuota = parseMoneyField(vehiculo?.valor_cuota);
   const listo =
     Boolean(vehiculo) &&
+    !bloqueadoBga &&
     Math.round(Number(monto) || 0) > 0 &&
     Boolean(fechaPago.trim()) &&
     Boolean(referencia.trim()) &&
@@ -294,12 +315,23 @@ export function PagosRailwebPanel({
             </dd>
           </div>
           <div>
-            <dt className="text-zinc-500">Debe</dt>
+            <dt className="text-zinc-500">
+              {bloqueadoBga ? "Debe (BGA)" : "Debe"}
+            </dt>
             <dd className="mt-0.5 tabular-nums font-semibold text-amber-200">
               {formatearCOP(deuda)}
             </dd>
           </div>
         </dl>
+      ) : null}
+
+      {bloqueadoBga ? (
+        <Alert className="border-amber-400/50 bg-amber-500/15 py-2">
+          <AlertDescription className="text-xs text-amber-50">
+            Placa activa en BGA: consulta la deuda aquí, pero no subas tarifa a
+            Railweb.
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="grid grid-cols-2 gap-2">
@@ -310,7 +342,7 @@ export function PagosRailwebPanel({
             inputMode="numeric"
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
-            disabled={disabled || registrando}
+            disabled={disabled || registrando || bloqueadoBga}
             className="h-9 bg-zinc-950/60 tabular-nums"
           />
         </label>
@@ -320,7 +352,7 @@ export function PagosRailwebPanel({
             type="date"
             value={fechaPago}
             onChange={(e) => setFechaPago(e.target.value)}
-            disabled={disabled || registrando}
+            disabled={disabled || registrando || bloqueadoBga}
             className="h-9 bg-zinc-950/60"
           />
         </label>
@@ -332,7 +364,7 @@ export function PagosRailwebPanel({
           id={refId}
           value={referencia}
           onChange={(e) => setReferencia(e.target.value)}
-          disabled={disabled || registrando}
+          disabled={disabled || registrando || bloqueadoBga}
           className="h-9 bg-zinc-950/60"
           placeholder="Ref. del comprobante"
         />
@@ -344,7 +376,7 @@ export function PagosRailwebPanel({
           <select
             className="h-9 rounded-md border border-border bg-zinc-950 px-2 text-sm text-zinc-100"
             value={configuracionId ?? ""}
-            disabled={disabled || registrando}
+            disabled={disabled || registrando || bloqueadoBga}
             onChange={(e) =>
               setConfiguracionId(
                 e.target.value ? Number(e.target.value) : null,
@@ -365,7 +397,7 @@ export function PagosRailwebPanel({
           type="checkbox"
           className="mt-0.5"
           checked={confirmado}
-          disabled={registrando || !listo}
+          disabled={registrando || !listo || bloqueadoBga}
           onChange={(e) => setConfirmado(e.target.checked)}
         />
         Confirmo subir esta tarifa a Railweb (no se borra nada).
@@ -375,7 +407,7 @@ export function PagosRailwebPanel({
         type="button"
         size="sm"
         className="w-full"
-        disabled={disabled || registrando || !listo || !confirmado}
+        disabled={disabled || registrando || !listo || !confirmado || bloqueadoBga}
         onClick={() => void registrar()}
       >
         {registrando ? (

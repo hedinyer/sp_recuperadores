@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
+import { fetchVehiculoPorPlaca, esFuenteBga } from "@/lib/vehiculoPorPlaca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Solo lectura ERP. No elimina asignaciones ni registros. */
+/** Solo lectura. No elimina asignaciones ni registros. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const placa = searchParams.get("placa")?.trim();
@@ -31,7 +31,12 @@ export async function GET(request: Request) {
         deuda_total: vehiculo.deuda_total,
         deuda_cuotas: vehiculo.deuda_cuotas,
         deuda_multas: vehiculo.deuda_multas,
+        fuente: vehiculo.fuente || "railweb",
       },
+      bloqueado_railweb: esFuenteBga(vehiculo),
+      mensaje_bloqueo: esFuenteBga(vehiculo)
+        ? "Esta placa está activa en BGA. No registres la tarifa en Railweb."
+        : null,
     });
   } catch (e) {
     const msg =

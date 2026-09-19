@@ -775,6 +775,7 @@ export default function Home() {
               </div>
 
               {(() => {
+                if ((v.fuente ?? "").toLowerCase() === "bga") return null;
                 const etiqueta =
                   (v.etiqueta_estado ?? "").trim() ||
                   (() => {
@@ -806,17 +807,19 @@ export default function Home() {
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
-                    {(v.etiqueta_estado ?? "").trim() ||
-                    ((v.estado_contrato ?? "").trim() &&
-                      (v.estado_contrato ?? "").toLowerCase() !== "activo")
-                      ? `Deuda al quedar ${(
-                          v.etiqueta_estado ||
-                          v.estado_contrato ||
-                          "inactivo"
-                        )
-                          .toString()
-                          .toLowerCase()}`
-                      : "Valor para estar al día"}
+                    {(v.fuente ?? "").toLowerCase() === "bga"
+                      ? "Deuda según BGA"
+                      : (v.etiqueta_estado ?? "").trim() ||
+                          ((v.estado_contrato ?? "").trim() &&
+                            (v.estado_contrato ?? "").toLowerCase() !== "activo")
+                        ? `Deuda al quedar ${(
+                            v.etiqueta_estado ||
+                            v.estado_contrato ||
+                            "inactivo"
+                          )
+                            .toString()
+                            .toLowerCase()}`
+                        : "Valor para estar al día"}
                   </p>
                   {modoMaster ? (
                     <div className="flex items-center gap-1.5 shrink-0 -mt-0.5">

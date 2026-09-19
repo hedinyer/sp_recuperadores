@@ -13,6 +13,8 @@ type Props = {
   motivoEstado?: string | null;
   fechaCorte?: string | null;
   deudaAlCorte?: boolean;
+  /** Origen de la deuda: railweb (ERP) o bga (Supabase SP). */
+  fuente?: string | null;
 };
 
 export function DeudaResumenSection({
@@ -27,7 +29,11 @@ export function DeudaResumenSection({
   motivoEstado,
   fechaCorte,
   deudaAlCorte = false,
+  fuente,
 }: Props) {
+  const esBga = String(fuente ?? "").toLowerCase() === "bga";
+  const etiquetaUi = esBga ? null : etiquetaEstado;
+  const deudaAlCorteUi = esBga ? false : deudaAlCorte;
   const cuotasPend =
     cuotasPendientes != null ? Number(cuotasPendientes) : null;
   const minimoRecibir = minimoCobroDeuda(deudaTotal);
@@ -37,16 +43,18 @@ export function DeudaResumenSection({
   return (
     <>
       <EstadoContratoBanner
-        etiqueta={etiquetaEstado}
-        motivo={motivoEstado}
-        fechaCorte={fechaCorte}
-        deudaAlCorte={deudaAlCorte}
+        etiqueta={etiquetaUi}
+        motivo={esBga ? null : motivoEstado}
+        fechaCorte={esBga ? null : fechaCorte}
+        deudaAlCorte={deudaAlCorteUi}
       />
       <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
         <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
-          {deudaAlCorte || etiquetaEstado
-            ? `Deuda al quedar ${String(etiquetaEstado || "inactivo").toLowerCase()}`
-            : "Valor para estar al día"}
+          {esBga
+            ? "Deuda según BGA"
+            : deudaAlCorteUi || etiquetaUi
+              ? `Deuda al quedar ${String(etiquetaUi || "inactivo").toLowerCase()}`
+              : "Valor para estar al día"}
         </p>
 
         {loading ? (
@@ -68,7 +76,7 @@ export function DeudaResumenSection({
                 Multas {formatearCOP(String(multas))}
               </p>
             )}
-            {minimoRecibir != null && !etiquetaEstado && (
+            {minimoRecibir != null && !etiquetaUi && (
               <p className="mt-2 text-sm text-amber-300/95 leading-snug">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-amber-400/80 block mb-0.5">
                   Mínimo a recibir (40%)

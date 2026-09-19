@@ -11,6 +11,7 @@ import {
   SQL_JOINS_PAGO_TARIFA,
 } from "@/lib/sqlPagosCuota";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
+import { fetchVehiculoPorPlacaBga } from "@/lib/vehiculoPorPlacaBga";
 
 type ClienteDbRow = {
   contrato_id: string | number;
@@ -90,6 +91,26 @@ export function fechaCorteDeuda(
   const d = new Date(fechaCancelacion);
   if (Number.isNaN(d.getTime())) return undefined;
   return d;
+}
+
+/** True si la fila proviene de Supabase BGA (no del ERP Railweb). */
+export function esFuenteBga(
+  fila: Record<string, string> | null | undefined,
+): boolean {
+  return String(fila?.fuente ?? "").toLowerCase() === "bga";
+}
+
+/**
+ * Preferir BGA cuando hay compra activa allí y Railweb está retenido/inactivo
+ * o no tiene la placa.
+ */
+export function debePreferirBga(
+  railweb: Record<string, string> | null,
+  bga: Record<string, string> | null,
+): boolean {
+  if (!bga) return false;
+  if (!railweb) return true;
+  return !esDeudaCobrable(railweb.estado_contrato, railweb.estado_vehiculo);
 }
 
 type RegistroDbRow = {
@@ -367,6 +388,7 @@ export function invalidarCachePlaca(placa: string): void {
 
 /**
  * Una fila del reporte para una placa (sin cargar los ~900 contratos).
+ * Cruza Railweb con BGA: si Railweb está retenido/inactivo y BGA activa, usa BGA.
  */
 export async function fetchVehiculoPorPlaca(
   placa: string,
@@ -380,16 +402,32 @@ export async function fetchVehiculoPorPlaca(
     return cached.fila;
   }
 
-  const urls = getDatabaseUrls();
-  let fila: Record<string, string> | null = null;
+  const [railweb, bga] = await Promise.all([
+    fetchVehiculoPorPlacaRailweb(placaNorm),
+    fetchVehiculoPorPlacaBga(placaNorm),
+  ]);
 
+  let fila: Record<string, string> | null;
+  if (debePreferirBga(railweb, bga)) {
+    fila = bga;
+  } else if (railweb) {
+    fila = { ...railweb, fuente: railweb.fuente || "railweb" };
+  } else {
+    fila = bga;
+  }
+
+  cachePlaca.set(placaNorm, { fila, expira: ahora + CACHE_TTL_MS });
+  return fila;
+}
+
+async function fetchVehiculoPorPlacaRailweb(
+  placaNorm: string,
+): Promise<Record<string, string> | null> {
+  const urls = getDatabaseUrls();
   for (const url of urls) {
     try {
       const found = await fetchDesdeUrl(url, placaNorm);
-      if (found) {
-        fila = found;
-        break;
-      }
+      if (found) return found;
     } catch (e) {
       console.warn(
         "[vehiculoPorPlaca] Error en una base:",
@@ -397,9 +435,7 @@ export async function fetchVehiculoPorPlaca(
       );
     }
   }
-
-  cachePlaca.set(placaNorm, { fila, expira: ahora + CACHE_TTL_MS });
-  return fila;
+  return null;
 }
 
 /** Comprueba si la placa tiene contrato activo (query mínima). */

@@ -70,6 +70,7 @@ type DeudaPlaca = {
   motivo_estado?: string;
   fecha_corte?: string;
   deuda_al_corte?: boolean;
+  fuente?: string;
 };
 
 function enlaceWhatsApp(telefono: string | undefined): string | null {
@@ -305,6 +306,7 @@ export default function RecuperadoresPage() {
               motivo_estado: v.motivo_estado || undefined,
               fecha_corte: v.fecha_corte || undefined,
               deuda_al_corte: v.deuda_al_corte === "1",
+              fuente: v.fuente || undefined,
             },
             false,
           ] as const;
@@ -1008,6 +1010,7 @@ export default function RecuperadoresPage() {
                       motivoEstado={deuda?.motivo_estado}
                       fechaCorte={deuda?.fecha_corte}
                       deudaAlCorte={deuda?.deuda_al_corte}
+                      fuente={deuda?.fuente}
                     />
 
                     {deuda?.nombre ? (
