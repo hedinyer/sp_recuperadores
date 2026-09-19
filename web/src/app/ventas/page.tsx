@@ -5,15 +5,31 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { VentasGrafica } from "@/components/VentasGrafica";
 import { VentasMix } from "@/components/VentasMix";
 import { formatearCOP } from "@/lib/formatoDinero";
-import { kpisDeVentana, hoyBogota } from "@/lib/ventasMix";
+import {
+  forecastUnidades,
+  type ForecastResult,
+} from "@/lib/ventasForecast";
+import {
+  construirSerieCliente,
+  etiquetaTipoFiltro,
+  filtrarPorTipo,
+  hoyBogota,
+  kpisDeVentana,
+} from "@/lib/ventasMix";
 import type {
   SedeId,
+  TipoFiltroVentas,
   TotalesKpi,
   VentanaDias,
   VentasPayload,
 } from "@/lib/ventasMetricas";
 
-const VENTANAS: VentanaDias[] = [7, 15, 30, 60, 90, 120];
+const VENTANAS: VentanaDias[] = [3, 7, 15, 30, 60, 90, 120];
+const TIPOS: { id: TipoFiltroVentas; label: string }[] = [
+  { id: "credito", label: "Crédito" },
+  { id: "contado", label: "Contado" },
+  { id: "ambos", label: "Ambos" },
+];
 
 const SEDE_ORDER: SedeId[] = ["bga", "girardot", "bogota", "railweb"];
 
@@ -23,6 +39,8 @@ const SEDE_LABEL: Record<SedeId, string> = {
   bogota: "Bogotá",
   railweb: "Railweb (Julian)",
 };
+
+const FORECAST_VACIO: ForecastResult = forecastUnidades([]);
 
 function VentanaChips({
   ventanaDias,
@@ -52,6 +70,41 @@ function VentanaChips({
             }`}
           >
             {d} días
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TipoChips({
+  tipo,
+  onChange,
+}: {
+  tipo: TipoFiltroVentas;
+  onChange: (t: TipoFiltroVentas) => void;
+}) {
+  return (
+    <div
+      className="flex flex-wrap gap-2"
+      role="group"
+      aria-label="Tipo de venta"
+    >
+      {TIPOS.map(({ id, label }) => {
+        const active = tipo === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            aria-pressed={active}
+            className={`min-h-11 rounded-lg px-3 text-xs font-medium transition-transform active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
+              active
+                ? "bg-sky-400 text-zinc-950"
+                : "border border-zinc-700 bg-zinc-900 text-zinc-400"
+            }`}
+          >
+            {label}
           </button>
         );
       })}
@@ -173,6 +226,7 @@ function KpiPanel({
   headingId,
   ok = true,
   error,
+  tipoFiltro = "ambos",
 }: {
   t: TotalesKpi;
   prev: TotalesKpi;
@@ -181,7 +235,10 @@ function KpiPanel({
   headingId?: string;
   ok?: boolean;
   error?: string | null;
+  tipoFiltro?: TipoFiltroVentas;
 }) {
+  const showContado = tipoFiltro === "ambos" || tipoFiltro === "contado";
+  const showCredito = tipoFiltro === "ambos" || tipoFiltro === "credito";
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 shadow-[inset_0_1px_0_0_oklch(1_0_0/0.04)]">
       {heading ? (
@@ -213,7 +270,12 @@ function KpiPanel({
         <div className="relative flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-              Unidades totales
+              Unidades
+              {tipoFiltro === "credito"
+                ? " crédito"
+                : tipoFiltro === "contado"
+                  ? " contado"
+                  : " totales"}
             </p>
             <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight text-white sm:text-5xl">
               {t.total_n.toLocaleString("es-CO")}
@@ -228,7 +290,66 @@ function KpiPanel({
         </div>
       </div>
 
-      <div className="grid divide-y divide-zinc-800/80 md:grid-cols-2 md:divide-x md:divide-y-0">
+      {tipoFiltro === "ambos" ? (
+        <div className="grid divide-y divide-zinc-800/80 md:grid-cols-2 md:divide-x md:divide-y-0">
+          <div className="px-5 py-5 sm:px-6">
+            <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-400/90">
+              <span
+                className="inline-block size-1.5 rounded-full bg-emerald-400"
+                aria-hidden="true"
+              />
+              Contado
+            </p>
+            <div className="grid grid-cols-2 gap-6">
+              <KpiMetric
+                label="Unidades"
+                value={t.contado_n.toLocaleString("es-CO")}
+                actual={t.contado_n}
+                prev={prev.contado_n}
+              />
+              <KpiMetric
+                label="Valor venta"
+                value={formatearCOP(t.contado_valor)}
+                actual={t.contado_valor}
+                prev={prev.contado_valor}
+                esDinero
+              />
+            </div>
+          </div>
+
+          <div className="px-5 py-5 sm:px-6">
+            <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-400/90">
+              <span
+                className="inline-block size-1.5 rounded-full bg-sky-400"
+                aria-hidden="true"
+              />
+              Crédito
+            </p>
+            <div className="grid grid-cols-1 gap-5 min-[420px]:grid-cols-3">
+              <KpiMetric
+                label="Unidades"
+                value={t.credito_n.toLocaleString("es-CO")}
+                actual={t.credito_n}
+                prev={prev.credito_n}
+              />
+              <KpiMetric
+                label="Cuotas iniciales"
+                value={formatearCOP(t.credito_inicial_total)}
+                actual={t.credito_inicial_total}
+                prev={prev.credito_inicial_total}
+                esDinero
+              />
+              <KpiMetric
+                label="Estimado contrato"
+                value={formatearCOP(t.credito_estimado_total)}
+                actual={t.credito_estimado_total}
+                prev={prev.credito_estimado_total}
+                esDinero
+              />
+            </div>
+          </div>
+        </div>
+      ) : showContado ? (
         <div className="px-5 py-5 sm:px-6">
           <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-400/90">
             <span
@@ -253,7 +374,7 @@ function KpiPanel({
             />
           </div>
         </div>
-
+      ) : showCredito ? (
         <div className="px-5 py-5 sm:px-6">
           <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-400/90">
             <span
@@ -285,6 +406,42 @@ function KpiPanel({
             />
           </div>
         </div>
+      ) : null}
+
+      <div className="border-t border-zinc-800/80 px-5 py-5 sm:px-6">
+        <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-400/90">
+          <span
+            className="inline-block size-1.5 rounded-full bg-amber-400"
+            aria-hidden="true"
+          />
+          Condición
+        </p>
+        <div className="grid grid-cols-2 gap-6 min-[420px]:grid-cols-3">
+          <KpiMetric
+            label="Nuevas"
+            value={t.nuevas_n.toLocaleString("es-CO")}
+            actual={t.nuevas_n}
+            prev={prev.nuevas_n}
+          />
+          <KpiMetric
+            label="De segunda"
+            value={t.segunda_n.toLocaleString("es-CO")}
+            actual={t.segunda_n}
+            prev={prev.segunda_n}
+          />
+          {t.desconocida_n > 0 || prev.desconocida_n > 0 ? (
+            <KpiMetric
+              label="Sin clasificar"
+              value={t.desconocida_n.toLocaleString("es-CO")}
+              actual={t.desconocida_n}
+              prev={prev.desconocida_n}
+            />
+          ) : null}
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-zinc-500 text-pretty">
+          Segunda = segunda mano o recuperada. Railweb y filas sin señal
+          quedan sin clasificar.
+        </p>
       </div>
     </div>
   );
@@ -317,6 +474,8 @@ function KpiSection({
   hasta,
   ventanaDias,
   onVentanaDiasChange,
+  tipoFiltro,
+  onTipoFiltroChange,
 }: {
   t: TotalesKpi;
   prev: TotalesKpi;
@@ -324,6 +483,8 @@ function KpiSection({
   hasta: string;
   ventanaDias: VentanaDias;
   onVentanaDiasChange: (d: VentanaDias) => void;
+  tipoFiltro: TipoFiltroVentas;
+  onTipoFiltroChange: (t: TipoFiltroVentas) => void;
 }) {
   const periodo =
     desde && hasta
@@ -343,21 +504,25 @@ function KpiSection({
             <span className="sr-only">Del </span>
             {periodo}
             <span className="sr-only">
-              . Comparado con los {ventanaDias} días anteriores. La misma
-              ventana aplica a las gráficas.
+              . {etiquetaTipoFiltro(tipoFiltro)}. Comparado con los{" "}
+              {ventanaDias} días anteriores.
             </span>
           </p>
         </div>
-        <VentanaChips
-          ventanaDias={ventanaDias}
-          onChange={onVentanaDiasChange}
-        />
+        <div className="flex flex-col items-end gap-2">
+          <TipoChips tipo={tipoFiltro} onChange={onTipoFiltroChange} />
+          <VentanaChips
+            ventanaDias={ventanaDias}
+            onChange={onVentanaDiasChange}
+          />
+        </div>
       </div>
 
       <KpiPanel
         t={t}
         prev={prev}
-        heroHint="Contado + crédito · las cuatro sedes sumadas"
+        tipoFiltro={tipoFiltro}
+        heroHint={`${etiquetaTipoFiltro(tipoFiltro)} · las cuatro sedes`}
       />
     </section>
   );
@@ -368,12 +533,13 @@ export default function VentasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ventanaDias, setVentanaDias] = useState<VentanaDias>(90);
+  const [tipoFiltro, setTipoFiltro] = useState<TipoFiltroVentas>("credito");
 
   const cargar = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/ventas", { cache: "no-store" });
+      const res = await fetch("/api/ventas?refresh=1", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "No se pudo cargar");
       setData(json as VentasPayload);
@@ -392,17 +558,27 @@ export default function VentasPage() {
     void cargar();
   }, [cargar]);
 
+  const ventasFiltradas = useMemo(() => {
+    if (!data) return [];
+    return filtrarPorTipo(data.ventas_recientes, tipoFiltro);
+  }, [data, tipoFiltro]);
+
+  const ventasDetalle = useMemo(() => {
+    if (!data) return [];
+    return filtrarPorTipo(data.ventas, tipoFiltro);
+  }, [data, tipoFiltro]);
+
   const kpis = useMemo(() => {
     if (!data) return null;
-    return kpisDeVentana(data.ventas_recientes, ventanaDias, hoyBogota());
-  }, [data, ventanaDias]);
+    return kpisDeVentana(ventasFiltradas, ventanaDias, hoyBogota());
+  }, [data, ventasFiltradas, ventanaDias]);
 
   const kpisSedes = useMemo(() => {
     if (!data || !kpis?.hasta) return [];
     return SEDE_ORDER.map((id) => {
       const meta = data.sedes.find((s) => s.id === id);
       const slice = kpisDeVentana(
-        data.ventas_recientes.filter((v) => v.sede === id),
+        ventasFiltradas.filter((v) => v.sede === id),
         ventanaDias,
         kpis.hasta,
       );
@@ -414,7 +590,43 @@ export default function VentasPage() {
         ...slice,
       };
     });
-  }, [data, ventanaDias, kpis?.hasta]);
+  }, [data, ventasFiltradas, ventanaDias, kpis?.hasta]);
+
+  const serieFiltrada = useMemo(
+    () => construirSerieCliente(ventasFiltradas),
+    [ventasFiltradas],
+  );
+
+  const forecastFiltrado = useMemo(() => {
+    if (serieFiltrada.length === 0) return FORECAST_VACIO;
+    return forecastUnidades(
+      serieFiltrada.map((d) => ({
+        fecha: d.fecha,
+        unidades: d.unidades,
+        estimado_cop: d.estimado_cop,
+        contado_n: d.contado_n,
+        credito_n: d.credito_n,
+      })),
+      30,
+    );
+  }, [serieFiltrada]);
+
+  const forecastPorSede = useMemo(() => {
+    const out = {} as Record<SedeId, ForecastResult>;
+    for (const id of SEDE_ORDER) {
+      const pts = serieFiltrada.map((d) => ({
+        fecha: d.fecha,
+        unidades: d.by_sede[id].unidades,
+        estimado_cop: d.by_sede[id].estimado_cop,
+        contado_n: 0,
+        credito_n: 0,
+      }));
+      out[id] = pts.some((p) => p.unidades > 0)
+        ? forecastUnidades(pts, 30)
+        : FORECAST_VACIO;
+    }
+    return out;
+  }, [serieFiltrada]);
 
   return (
     <div className="min-h-dvh bg-zinc-950 text-zinc-100">
@@ -422,14 +634,14 @@ export default function VentasPage() {
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 max-w-2xl">
             <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-              Público · sin clave · corte diario 6:00 Colombia
+              Público · sin clave · cache ~15 min · cron 6:00 Colombia
             </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-white text-balance">
               Ventas de motos
             </h1>
             <p className="mt-2 text-sm text-zinc-400 text-pretty">
-              Contado y crédito · BGA, Girardot, Bogotá y Railweb. Datos
-              refrescados cada día a las 6:00 (America/Bogota).
+              Filtra crédito, contado o ambos · BGA, Girardot, Bogotá y
+              Railweb. Crédito = inicial confirmada (fecha = selección).
             </p>
           </div>
           <button
@@ -442,7 +654,13 @@ export default function VentasPage() {
         </header>
 
         <div role="status" aria-live="polite" className="sr-only">
-          {loading ? "Cargando métricas" : error ? `Error: ${error}` : data ? "Métricas cargadas" : ""}
+          {loading
+            ? "Cargando métricas"
+            : error
+              ? `Error: ${error}`
+              : data
+                ? `Métricas cargadas · ${etiquetaTipoFiltro(tipoFiltro)}`
+                : ""}
         </div>
 
         {loading && (
@@ -470,19 +688,23 @@ export default function VentasPage() {
               hasta={kpis.hasta}
               ventanaDias={ventanaDias}
               onVentanaDiasChange={setVentanaDias}
+              tipoFiltro={tipoFiltro}
+              onTipoFiltroChange={setTipoFiltro}
             />
 
             <VentasGrafica
-              serie={data.serie}
-              forecast={data.forecast}
-              forecastPorSede={data.forecast_por_sede}
+              serie={serieFiltrada}
+              forecast={forecastFiltrado}
+              forecastPorSede={forecastPorSede}
               historiaDesde={data.historia_desde}
               ventanaDias={ventanaDias}
+              tipoFiltro={tipoFiltro}
             />
 
             <VentasMix
-              ventasRecientes={data.ventas_recientes}
+              ventasRecientes={ventasFiltradas}
               ventanaDias={ventanaDias}
+              tipoFiltro={tipoFiltro}
             />
 
             <section className="flex flex-col gap-4" aria-labelledby="por-sede-titulo">
@@ -494,7 +716,7 @@ export default function VentasPage() {
                   Por sede
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400 text-pretty">
-                  Misma ventana: últimos {ventanaDias} días
+                  {etiquetaTipoFiltro(tipoFiltro)} · últimos {ventanaDias} días
                   {kpis.desde && kpis.hasta
                     ? ` (${fechaLegible(kpis.desde)} – ${fechaLegible(kpis.hasta)})`
                     : ""}
@@ -508,7 +730,8 @@ export default function VentasPage() {
                   headingId={`sede-${s.id}`}
                   t={s.totales}
                   prev={s.totales_prev}
-                  heroHint="Contado + crédito · esta sede"
+                  tipoFiltro={tipoFiltro}
+                  heroHint={`${etiquetaTipoFiltro(tipoFiltro)} · esta sede`}
                   ok={s.ok}
                   error={s.error}
                 />
@@ -607,17 +830,24 @@ export default function VentasPage() {
 
             <section>
               <h2 className="mb-3 text-lg font-semibold tracking-tight text-white">
-                Detalle del periodo ({data.ventas.length})
+                Detalle del periodo ({ventasDetalle.length})
               </h2>
               <div className="overflow-x-auto rounded-2xl border border-zinc-800">
-                <table className="w-full min-w-[720px] text-left text-[12px]">
+                <table className="w-full min-w-[780px] text-left text-[12px]">
                   <thead className="bg-zinc-900 text-zinc-400">
                     <tr>
-                      {["Fecha", "Sede", "Tipo", "Placa", "Modelo", "Valor"].map(
-                        (h, i) => (
+                      {[
+                        "Fecha",
+                        "Sede",
+                        "Tipo",
+                        "Condición",
+                        "Placa",
+                        "Modelo",
+                        "Valor",
+                      ].map((h, i) => (
                           <th
                             key={h}
-                            className={`px-3 py-2 font-medium ${i >= 5 ? "text-right" : "text-left"}`}
+                            className={`px-3 py-2 font-medium ${i >= 6 ? "text-right" : "text-left"}`}
                           >
                             {h}
                           </th>
@@ -626,17 +856,17 @@ export default function VentasPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.ventas.length === 0 ? (
+                    {ventasDetalle.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="px-3 py-6 text-center text-zinc-500"
                         >
                           Sin ventas en el periodo
                         </td>
                       </tr>
                     ) : (
-                      data.ventas.map((v) => (
+                      ventasDetalle.map((v) => (
                         <tr
                           key={v.id}
                           className="border-t border-zinc-800 text-zinc-200"
@@ -655,6 +885,13 @@ export default function VentasPage() {
                             >
                               {v.tipo}
                             </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            {v.condicion === "nueva"
+                              ? "Nueva"
+                              : v.condicion === "segunda"
+                                ? "Segunda"
+                                : "—"}
                           </td>
                           <td className="px-3 py-2 font-mono text-[11px]">
                             {v.placa ?? "—"}
@@ -678,10 +915,9 @@ export default function VentasPage() {
               {new Date(data.generado_en).toLocaleString("es-CO", {
                 timeZone: "America/Bogota",
               })}
-              . Crédito cuenta solo motos con ≥1 pago de cuota
-              (cuota_adelantada o tarifa). Contado = ventas_moto. Estimado SP =
-              inicial + cuota × periodos del año; Railweb = inicial + tarifa ×
-              días. Solo SELECT.
+              . Vista: {etiquetaTipoFiltro(tipoFiltro)}. Crédito = inicial
+              confirmada (fecha = selección). Contado = ventas_moto. Condición:
+              nueva vs segunda.
             </p>
           </>
         )}

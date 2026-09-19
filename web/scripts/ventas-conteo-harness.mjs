@@ -2,9 +2,8 @@
  * Harness canónico de ventas.
  * Alineado con ventasMetricas.ts:
  *   Contado = ventas_moto (fecha created_at Bogotá)
- *   Crédito SP = ≥1 pago confirmado contexto ∈ {cuota_adelantada, tarifa, producto_cuota}
- *                (NO usa flag pago_cuota_confirmado solo)
- *   Fecha SP = pago_inicial_confirmado_at → fecha_entrega → seleccionado_at
+ *   Crédito SP = pago_inicial_confirmado + estado ≠ cancelada
+ *                Fecha = seleccionado_at (día operativo en tienda)
  *   Rail = opcion_compra + EXISTS ítem tarifa pagada; fecha = fecha_inicio
  * Ventanas [hoy-(N-1), hoy] America/Bogota.
  *
@@ -69,16 +68,13 @@ if (!RAIL) {
   process.exit(1);
 }
 
-const CUOTA_CTX = new Set(["tarifa", "producto_cuota", "cuota_adelantada"]);
-
-async function fetchAll(sb, table, select) {
+async function fetchAll(sb, table, select, apply) {
   const page = 1000;
   const out = [];
   for (let from = 0; from < 50_000; from += page) {
-    const { data, error } = await sb
-      .from(table)
-      .select(select)
-      .range(from, from + page - 1);
+    let q = sb.from(table).select(select).range(from, from + page - 1);
+    if (apply) q = apply(q);
+    const { data, error } = await q;
     if (error) throw new Error(`${table}: ${error.message}`);
     out.push(...(data ?? []));
     if ((data ?? []).length < page) break;
@@ -103,38 +99,23 @@ async function spRows(sede) {
     });
   }
 
-  const pagos = await fetchAll(
-    sb,
-    "pagos",
-    "user_moto_compra_id, contexto_pago, estado",
-  );
-  const compraHasCuota = new Set();
-  for (const p of pagos) {
-    if (p.estado !== "confirmado" || !p.user_moto_compra_id) continue;
-    if (CUOTA_CTX.has(p.contexto_pago)) {
-      compraHasCuota.add(String(p.user_moto_compra_id));
-    }
-  }
-
   const credito = await fetchAll(
     sb,
     "user_moto_compra",
-    "id, estado, placa, fecha_entrega, seleccionado_at, pago_inicial_confirmado_at",
+    "id, estado, placa, seleccionado_at, pago_inicial_confirmado",
+    (q) => q.neq("estado", "cancelada").eq("pago_inicial_confirmado", true),
   );
 
   for (const r of credito) {
     if (r.estado === "cancelada") continue;
-    if (!compraHasCuota.has(String(r.id))) continue;
-    const fechaVenta =
-      ymdBogota(r.pago_inicial_confirmado_at) ||
-      ymdBogota(r.fecha_entrega) ||
-      ymdBogota(r.seleccionado_at);
+    if (r.pago_inicial_confirmado !== true) continue;
+    const fechaVenta = ymdBogota(r.seleccionado_at);
     if (!fechaVenta) continue;
     out.push({
       sede: sede.id,
       tipo: "credito",
       fecha: fechaVenta,
-      def: "sp_con_cuota",
+      def: "sp_inicial_sel",
       placa: r.placa,
     });
   }
@@ -205,8 +186,12 @@ function metrics(slice) {
   };
 }
 
+function diaMetrics(all, ymd) {
+  return metrics(all.filter((r) => r.fecha === ymd));
+}
+
 console.log("Hoy Bogotá:", HOY);
-console.log("Canónica: ≥1 cuota_adelantada|tarifa|producto_cuota (+ contado)\n");
+console.log("Canónica: pago_inicial_confirmado + fecha=seleccionado_at (+ contado)\n");
 
 const [spParts, rail] = await Promise.all([
   Promise.all(SEDES.map((s) => spRows(s))),
@@ -214,13 +199,26 @@ const [spParts, rail] = await Promise.all([
 ]);
 const all = [...spParts.flat(), ...rail];
 
-const VENTANAS = [7, 15, 30, 60, 90, 120];
+const AYER = addDays(HOY, -1);
+const mAyer = diaMetrics(all, AYER);
+const mHoy = diaMetrics(all, HOY);
+console.log(`Ayer ${AYER}: total ${mAyer.total} (BGA ${mAyer.bga} · Gir ${mAyer.gir} · Bog ${mAyer.bog} · Rail ${mAyer.rail})`);
+console.log(`Hoy  ${HOY}: total ${mHoy.total} (BGA ${mHoy.bga} · Gir ${mHoy.gir} · Bog ${mHoy.bog} · Rail ${mHoy.rail})`);
+console.log(
+  "  BGA ayer/hoy:",
+  mAyer.bga,
+  "/",
+  mHoy.bga,
+  mAyer.bga === 11 && mHoy.bga === 18 ? "✓ coincide con ops BGA 11/18" : "",
+);
+
+const VENTANAS = [3, 7, 15, 30, 60, 90, 120];
 const SEDES_KEYS = ["bga", "gir", "bog", "rail"];
 const fails = [];
 const warns = [];
 const block = [];
 
-console.log("N | total | contado | credito | bga | gir | bog | rail");
+console.log("\nN | total | contado | credito | bga | gir | bog | rail");
 for (const n of VENTANAS) {
   const desde = addDays(HOY, -(n - 1));
   const m = metrics(sliceVentana(all, n));
@@ -245,19 +243,14 @@ for (let i = 0; i < VENTANAS.length - 1; i++) {
   }
 }
 
-const row7 = block[0];
-if (row7.bog <= 0) {
-  fails.push("Bogotá 7d = 0 (regresión: debe incluir cuota_adelantada)");
-}
-
 const basura = all.filter(
   (r) =>
-    r.def === "sp_con_cuota" &&
+    r.def === "sp_inicial_sel" &&
     (!r.placa || String(r.placa).toUpperCase() === "XXXX"),
 );
 if (basura.length) {
   warns.push(
-    `${basura.length} crédito SP con placa vacía/XXXX (no excluidas de la fórmula)`,
+    `${basura.length} crédito SP con placa vacía/XXXX (incluidas; ops BGA suele ignorarlas)`,
   );
 }
 
@@ -265,7 +258,7 @@ const desde7 = addDays(HOY, -6);
 const bog7 = all.filter(
   (r) =>
     r.sede === "bogota" &&
-    r.def === "sp_con_cuota" &&
+    r.def === "sp_inicial_sel" &&
     r.fecha >= desde7 &&
     r.fecha <= HOY,
 );
@@ -276,9 +269,12 @@ const veredicto = { ok, fails, warns };
 
 const report = {
   hoy: HOY,
+  ayer: AYER,
+  dia_ayer: mAyer,
+  dia_hoy: mHoy,
   definicion:
-    "contado ventas_moto + crédito con ≥1 pago cuota_adelantada|tarifa|producto_cuota; rail ítem tarifa",
-  definiciones: { CANONICA_cuota: block },
+    "contado ventas_moto + crédito pago_inicial_confirmado fecha=seleccionado_at; rail ítem tarifa",
+  definiciones: { CANONICA_inicial_sel: block },
   veredicto,
 };
 

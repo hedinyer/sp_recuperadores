@@ -7,10 +7,24 @@ import {
   type ForecastResult,
   type SerieDiariaPunto,
 } from "@/lib/ventasForecast";
-import { filtrarUltimosDias, hoyBogota, normalizarColor, normalizarFrecuencia, normalizarModelo } from "@/lib/ventasMix";
-import type { SedeId, TotalesKpi, VentaFila, VentanaDias } from "@/lib/ventasTipos";
+import { filtrarUltimosDias, hoyBogota, normalizarColor, normalizarFrecuencia, normalizarModelo, totalesDesdeVentas } from "@/lib/ventasMix";
+import type {
+  CondicionVenta,
+  SedeId,
+  TipoFiltroVentas,
+  TotalesKpi,
+  VentaFila,
+  VentanaDias,
+} from "@/lib/ventasTipos";
 
-export type { SedeId, TotalesKpi, VentaFila, VentanaDias };
+export type {
+  CondicionVenta,
+  SedeId,
+  TipoFiltroVentas,
+  TotalesKpi,
+  VentaFila,
+  VentanaDias,
+};
 
 function campoModelo(v: unknown): string | null {
   const n = normalizarModelo(v != null ? String(v) : null);
@@ -130,14 +144,69 @@ function fechaSolo(v: unknown): string {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
-/** Fecha de venta a crédito SP = día en que se confirmó la cuota inicial. */
+/**
+ * Fecha de venta a crédito SP = día operativo de selección en tienda
+ * (`seleccionado_at` en America/Bogota). No usar cascada con
+ * pago_inicial_confirmado_at / fecha_entrega: mueve ventas de día.
+ */
 function fechaCreditoSp(r: Record<string, unknown>): string {
-  const iniAt = fechaSolo(r.pago_inicial_confirmado_at);
-  if (iniAt) return iniAt;
-  const fe = fechaSolo(r.fecha_entrega);
-  if (fe) return fe;
   if (r.seleccionado_at == null) return "";
   return ymdBogota(new Date(String(r.seleccionado_at)));
+}
+
+function pagoInicialConfirmado(r: Record<string, unknown>): boolean {
+  return r.pago_inicial_confirmado === true;
+}
+
+type CondicionCanon = "nueva" | "segunda_mano" | "recuperada";
+
+function asCondicionCanon(v: unknown): CondicionCanon | null {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "nueva") return "nueva";
+  if (s === "segunda_mano" || s === "segunda" || s === "usada") {
+    return "segunda_mano";
+  }
+  if (s === "recuperada") return "recuperada";
+  return null;
+}
+
+function bucketCondicion(c: CondicionCanon | null): CondicionVenta {
+  if (c === "nueva") return "nueva";
+  if (c === "segunda_mano" || c === "recuperada") return "segunda";
+  return "desconocida";
+}
+
+function condicionFromAdminData(admin: unknown): CondicionCanon | null {
+  if (!admin || typeof admin !== "object") return null;
+  return asCondicionCanon((admin as Record<string, unknown>).condicion);
+}
+
+function referenciaSugiereUsada(ref: unknown): boolean {
+  const s = String(ref ?? "").toLowerCase();
+  return /usada|segunda|recuperad/.test(s);
+}
+
+/**
+ * Cascada SP (alineada a contratos BGA/Bogotá):
+ * columna/admin_data → referencia USADA → garaje_motos → bike_id solo = nueva.
+ */
+function resolverCondicionSp(
+  r: Record<string, unknown>,
+  garajeById: Map<string, CondicionCanon>,
+): CondicionVenta {
+  const explicit =
+    asCondicionCanon(r.condicion) ?? condicionFromAdminData(r.admin_data);
+  if (explicit) return bucketCondicion(explicit);
+  if (referenciaSugiereUsada(r.referencia)) return "segunda";
+  const gid = r.garaje_moto_id != null ? String(r.garaje_moto_id) : "";
+  if (gid && garajeById.has(gid)) {
+    return bucketCondicion(garajeById.get(gid) ?? null);
+  }
+  // Catálogo bike_table sin señal de usada → nueva de fábrica.
+  if (r.bike_id != null && String(r.bike_id).trim() !== "") return "nueva";
+  return "desconocida";
 }
 
 function periodosAnuales(frecuencia: unknown): number {
@@ -184,46 +253,76 @@ async function historialSp(
 ): Promise<VentaFila[]> {
   const supabase = clientSp(sede.url, sede.key);
 
-  const [contadoRows, creditoRows, pagosCuota] = await Promise.all([
+  const creditoSelectBase =
+    "id, modelo, color, placa, cuota_inicial_monto, monto_cuota_periodo, frecuencia_pago, fecha_entrega, seleccionado_at, estado, pago_inicial_confirmado, pago_inicial_confirmado_at, admin_data, garaje_moto_id, bike_id, referencia";
+  // Bogotá tiene columna `condicion`; BGA/Girardot no (va en admin_data).
+  const creditoSelect =
+    sede.id === "bogota"
+      ? `${creditoSelectBase}, condicion`
+      : creditoSelectBase;
+
+  const [contadoRows, creditoRows] = await Promise.all([
     fetchAllPages<Record<string, unknown>>((from, to) =>
       supabase
         .from("ventas_moto")
         .select(
-          "id, modelo, color, placa, cliente_nombre, valor_venta, monto_pagado, created_at",
+          "id, modelo, color, placa, cliente_nombre, valor_venta, monto_pagado, created_at, bike_id",
         )
         .order("created_at", { ascending: true })
         .range(from, to),
     ),
+    // Venta crédito = inicial confirmada (no exigir 1ª cuota periódica).
     fetchAllPages<Record<string, unknown>>((from, to) =>
       supabase
         .from("user_moto_compra")
-        .select(
-          "id, modelo, color, placa, cuota_inicial_monto, monto_cuota_periodo, frecuencia_pago, fecha_entrega, seleccionado_at, estado, pago_inicial_confirmado, pago_inicial_confirmado_at",
-        )
+        // Cast: select dinámico rompe el parser tipado de supabase-js.
+        .select(creditoSelect as "id")
         .neq("estado", "cancelada")
+        .eq("pago_inicial_confirmado", true)
         .order("seleccionado_at", { ascending: true })
-        .range(from, to),
-    ),
-    // Venta crédito = ≥1 pago de cuota (adelantada del 1er pago o tarifa periódica).
-    fetchAllPages<Record<string, unknown>>((from, to) =>
-      supabase
-        .from("pagos")
-        .select("user_moto_compra_id, contexto_pago, estado")
-        .eq("estado", "confirmado")
-        .in("contexto_pago", ["tarifa", "producto_cuota", "cuota_adelantada"])
-        .range(from, to),
+        .range(from, to) as PromiseLike<{
+        data: Record<string, unknown>[] | null;
+        error: { message: string } | null;
+      }>,
     ),
   ]);
 
-  const conCuota = new Set<string>();
-  for (const p of pagosCuota) {
-    if (p.user_moto_compra_id == null) continue;
-    conCuota.add(String(p.user_moto_compra_id));
+  const garajeIds = [
+    ...new Set(
+      creditoRows
+        .map((r) =>
+          r.garaje_moto_id != null ? String(r.garaje_moto_id) : "",
+        )
+        .filter(Boolean),
+    ),
+  ];
+  const garajeById = new Map<string, CondicionCanon>();
+  if (garajeIds.length > 0) {
+    // Chunk .in() por si hay muchas.
+    for (let i = 0; i < garajeIds.length; i += 200) {
+      const chunk = garajeIds.slice(i, i + 200);
+      const { data, error } = await supabase
+        .from("garaje_motos")
+        .select("id, condicion")
+        .in("id", chunk);
+      if (error) break;
+      for (const g of data ?? []) {
+        const c = asCondicionCanon(
+          (g as { condicion?: unknown }).condicion,
+        );
+        if (c) garajeById.set(String((g as { id: unknown }).id), c);
+      }
+    }
   }
 
   const ventas: VentaFila[] = [];
 
   for (const r of contadoRows) {
+    // Contado sin campo condicion: bike_id → nueva; si no, desconocida.
+    const condicion: CondicionVenta =
+      r.bike_id != null && String(r.bike_id).trim() !== ""
+        ? "nueva"
+        : "desconocida";
     ventas.push({
       id: `contado-${sede.id}-${String(r.id)}`,
       sede: sede.id,
@@ -237,11 +336,12 @@ async function historialSp(
       cliente: r.cliente_nombre != null ? String(r.cliente_nombre) : null,
       valor: num(r.valor_venta),
       valor_label: "valor_venta",
+      condicion,
     });
   }
 
   for (const r of creditoRows) {
-    if (!conCuota.has(String(r.id))) continue;
+    if (!pagoInicialConfirmado(r)) continue;
     const fecha = fechaCreditoSp(r);
     if (!fecha) continue;
     const inicial = num(r.cuota_inicial_monto);
@@ -261,6 +361,7 @@ async function historialSp(
       inicial,
       cuota_periodo: num(r.monto_cuota_periodo),
       valor_label: "estimado (inicial + cuotas año)",
+      condicion: resolverCondicionSp(r, garajeById),
     });
   }
 
@@ -347,6 +448,7 @@ async function historialRailweb(): Promise<VentaFila[]> {
       inicial: num(r.cuota_inicial),
       cuota_periodo: num(r.tarifa),
       valor_label: "estimado (inicial + tarifa×días)",
+      condicion: "desconocida" as const,
     };
   });
 }
@@ -382,20 +484,7 @@ function metricasDeVentas(
 }
 
 function totalesDeSedes(sedes: SedeMetricas[]): TotalesKpi {
-  const creditoSp = sedes
-    .filter((s) => s.id !== "railweb")
-    .reduce((sum, s) => sum + s.credito_inicial, 0);
-  const rail = sedes.find((s) => s.id === "railweb");
-  return {
-    contado_n: sedes.reduce((s, z) => s + z.contado_n, 0),
-    contado_valor: sedes.reduce((s, z) => s + z.contado_valor, 0),
-    credito_n: sedes.reduce((s, z) => s + z.credito_n, 0),
-    credito_valor_sp: creditoSp,
-    credito_valor_railweb: rail?.credito_estimado ?? 0,
-    credito_estimado_total: sedes.reduce((s, z) => s + z.credito_estimado, 0),
-    credito_inicial_total: sedes.reduce((s, z) => s + z.credito_inicial, 0),
-    total_n: sedes.reduce((s, z) => s + z.total_n, 0),
-  };
+  return totalesDesdeVentas(sedes.flatMap((s) => s.ventas));
 }
 
 function emptyBySede(): Record<SedeId, { unidades: number; estimado_cop: number }> {

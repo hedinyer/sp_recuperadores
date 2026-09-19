@@ -8,17 +8,19 @@ import {
 export const VENTAS_CACHE_TAG = "ventas-metricas";
 
 /**
- * Snapshot diario de ventas. Se invalida con revalidateTag desde el cron 6:00 COT.
- * revalidate 24h como red de seguridad si el cron falla.
+ * Snapshot de ventas. Key v3 = split nueva/segunda.
+ * revalidate 15 min para que “hoy” no quede congelado desde las 6:00.
+ * Cron 6:00 COT sigue forzando refresh vía refrescarVentasCache.
  */
 export const getVentasCached = unstable_cache(
   async (): Promise<VentasPayload> => cargarMetricasVentas(),
-  ["ventas-metricas-diario-v1"],
-  { tags: [VENTAS_CACHE_TAG], revalidate: 60 * 60 * 24 },
+  ["ventas-metricas-v3-nueva-segunda"],
+  { tags: [VENTAS_CACHE_TAG], revalidate: 60 * 15 },
 );
 
-/** Invalida y vuelve a cargar (usado por el cron de las 6am Colombia). */
+/** Invalida y carga fresco (cron 6am / refresh manual). */
 export async function refrescarVentasCache(): Promise<VentasPayload> {
   revalidateTag(VENTAS_CACHE_TAG);
-  return getVentasCached();
+  // No devolver getVentasCached() aquí: en el mismo request puede seguir stale.
+  return cargarMetricasVentas();
 }

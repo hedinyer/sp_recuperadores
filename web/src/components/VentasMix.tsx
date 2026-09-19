@@ -18,9 +18,10 @@ import {
 } from "recharts";
 
 import { formatearCOP } from "@/lib/formatoDinero";
-import type { VentaFila, VentanaDias } from "@/lib/ventasTipos";
+import type { TipoFiltroVentas, VentaFila, VentanaDias } from "@/lib/ventasTipos";
 import {
   construirMix,
+  etiquetaTipoFiltro,
   filtrarUltimosDias,
   type MixPayload,
 } from "@/lib/ventasMix";
@@ -48,6 +49,7 @@ const STACK_COLORS = [
 type Props = {
   ventasRecientes: VentaFila[];
   ventanaDias: VentanaDias;
+  tipoFiltro: TipoFiltroVentas;
 };
 
 const tip = {
@@ -173,7 +175,11 @@ function HeatmapModeloColor({ mix }: { mix: MixPayload }) {
   );
 }
 
-export function VentasMix({ ventasRecientes, ventanaDias }: Props) {
+export function VentasMix({
+  ventasRecientes,
+  ventanaDias,
+  tipoFiltro,
+}: Props) {
   const mix = useMemo(
     () => construirMix(filtrarUltimosDias(ventasRecientes, ventanaDias)),
     [ventasRecientes, ventanaDias],
@@ -220,9 +226,9 @@ export function VentasMix({ ventasRecientes, ventanaDias }: Props) {
           Mix de producto
         </h2>
         <p className="mt-1 text-sm text-zinc-400 text-pretty">
-          Últimos {ventanaDias} días (misma ventana que Evolución). Qué se
-          vende: modelo, color, forma de pago y concentración. En Railweb el
-          modelo es la serie (Nkd 125, Sbr 150, Chr 125…).
+          {etiquetaTipoFiltro(tipoFiltro)} · últimos {ventanaDias} días (misma
+          ventana que Evolución). Qué se vende: modelo, color, forma de pago y
+          concentración.
         </p>
       </div>
 

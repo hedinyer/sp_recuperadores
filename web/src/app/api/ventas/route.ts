@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 
-import { getVentasCached } from "@/lib/ventasCache";
+import { getVentasCached, refrescarVentasCache } from "@/lib/ventasCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Público: sin clave. Sirve el snapshot cacheado (refresco diario 6:00 COT vía cron).
+ * Público: sin clave. Snapshot con revalidate ~15 min.
+ * ?refresh=1 fuerza recarga desde fuentes (botón Actualizar).
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const payload = await getVentasCached();
+    const refresh =
+      new URL(request.url).searchParams.get("refresh") === "1";
+    const payload = refresh
+      ? await refrescarVentasCache()
+      : await getVentasCached();
     return NextResponse.json(payload, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        "Cache-Control": refresh
+          ? "no-store"
+          : "public, s-maxage=60, stale-while-revalidate=300",
       },
     });
   } catch (e) {

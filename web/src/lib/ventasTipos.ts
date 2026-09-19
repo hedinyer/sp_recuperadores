@@ -2,7 +2,12 @@
 
 export type SedeId = "bga" | "girardot" | "bogota" | "railweb";
 
-export type VentanaDias = 7 | 15 | 30 | 60 | 90 | 120;
+export type VentanaDias = 3 | 7 | 15 | 30 | 60 | 90 | 120;
+
+/** Filtro UI: contado, crédito o ambos. */
+export type TipoFiltroVentas = "ambos" | "contado" | "credito";
+
+export type CondicionVenta = "nueva" | "segunda" | "desconocida";
 
 export type VentaFila = {
   id: string;
@@ -22,6 +27,11 @@ export type VentaFila = {
   inicial?: number;
   /** Solo crédito: monto cuota del periodo. */
   cuota_periodo?: number;
+  /**
+   * Nueva vs de segunda (segunda_mano + recuperada).
+   * Contado/Railweb sin señal → desconocida.
+   */
+  condicion: CondicionVenta;
 };
 
 export type TotalesKpi = {
@@ -33,4 +43,7 @@ export type TotalesKpi = {
   credito_estimado_total: number;
   credito_inicial_total: number;
   total_n: number;
+  nuevas_n: number;
+  segunda_n: number;
+  desconocida_n: number;
 };

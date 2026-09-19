@@ -14,9 +14,12 @@ import {
 } from "recharts";
 
 import type { ForecastResult } from "@/lib/ventasForecast";
-import type { DiaSerie } from "@/lib/ventasMetricas";
-import { hoyBogota } from "@/lib/ventasMix";
-import type { SedeId, VentanaDias } from "@/lib/ventasTipos";
+import {
+  etiquetaTipoFiltro,
+  hoyBogota,
+  type SerieDiaCliente,
+} from "@/lib/ventasMix";
+import type { SedeId, TipoFiltroVentas, VentanaDias } from "@/lib/ventasTipos";
 
 const SEDE_ORDER: SedeId[] = ["bga", "girardot", "bogota", "railweb"];
 
@@ -35,11 +38,12 @@ const SEDE_LABEL: Record<SedeId, string> = {
 };
 
 type Props = {
-  serie: DiaSerie[];
+  serie: SerieDiaCliente[];
   forecast: ForecastResult;
   forecastPorSede: Record<SedeId, ForecastResult>;
   historiaDesde: string | null;
   ventanaDias: VentanaDias;
+  tipoFiltro: TipoFiltroVentas;
 };
 
 type ChartRow = {
@@ -57,7 +61,7 @@ function tickLabel(ymd: string): string {
 }
 
 function buildForecastChart(
-  serie: DiaSerie[],
+  serie: SerieDiaCliente[],
   forecast: ForecastResult,
   sede?: SedeId,
 ): ChartRow[] {
@@ -186,6 +190,7 @@ export function VentasGrafica({
   forecastPorSede,
   historiaDesde,
   ventanaDias,
+  tipoFiltro,
 }: Props) {
   const serieCortada = useMemo(() => {
     if (serie.length === 0) return serie;
@@ -236,9 +241,10 @@ export function VentasGrafica({
           Evolución y proyección
         </h2>
         <p className="mt-1 text-sm text-zinc-400 text-pretty">
-          Ventana: últimos {ventanaDias} días (misma que los KPIs). Historia
-          desde {historiaDesde ?? "—"}. Modelo: {forecast.metodo}. Entrenado
-          hasta {forecast.entrenado_hasta || "—"} ({forecast.n_obs} días).
+          {etiquetaTipoFiltro(tipoFiltro)} · ventana últimos {ventanaDias} días
+          (misma que los KPIs). Historia desde {historiaDesde ?? "—"}. Modelo:{" "}
+          {forecast.metodo}. Entrenado hasta {forecast.entrenado_hasta || "—"}{" "}
+          ({forecast.n_obs} días).
         </p>
       </div>
 

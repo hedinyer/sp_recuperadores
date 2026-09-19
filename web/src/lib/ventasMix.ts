@@ -1,4 +1,9 @@
-import type { SedeId, TotalesKpi, VentaFila } from "@/lib/ventasTipos";
+import type {
+  SedeId,
+  TipoFiltroVentas,
+  TotalesKpi,
+  VentaFila,
+} from "@/lib/ventasTipos";
 
 export type MixKeyCount = {
   key: string;
@@ -197,6 +202,75 @@ function addDaysYmd(ymd: string, days: number): string {
   }).format(d);
 }
 
+/** Filtra contado / crédito / ambos (UI). */
+export function filtrarPorTipo(
+  ventas: VentaFila[],
+  tipo: TipoFiltroVentas,
+): VentaFila[] {
+  if (tipo === "ambos") return ventas;
+  return ventas.filter((v) => v.tipo === tipo);
+}
+
+export type SerieDiaCliente = {
+  fecha: string;
+  unidades: number;
+  estimado_cop: number;
+  contado_n: number;
+  credito_n: number;
+  by_sede: Record<SedeId, { unidades: number; estimado_cop: number }>;
+};
+
+function emptyBySedeCliente(): Record<
+  SedeId,
+  { unidades: number; estimado_cop: number }
+> {
+  return {
+    bga: { unidades: 0, estimado_cop: 0 },
+    girardot: { unidades: 0, estimado_cop: 0 },
+    bogota: { unidades: 0, estimado_cop: 0 },
+    railweb: { unidades: 0, estimado_cop: 0 },
+  };
+}
+
+/** Serie diaria desde filas (cliente; respeta filtro contado/crédito). */
+export function construirSerieCliente(ventas: VentaFila[]): SerieDiaCliente[] {
+  if (ventas.length === 0) return [];
+  const fechas = ventas.map((v) => v.fecha).filter(Boolean).sort();
+  const min = fechas[0];
+  const max = fechas[fechas.length - 1];
+  const bucket = new Map<string, SerieDiaCliente>();
+  let cur = min;
+  for (let i = 0; i < 4000 && cur <= max; i++) {
+    bucket.set(cur, {
+      fecha: cur,
+      unidades: 0,
+      estimado_cop: 0,
+      contado_n: 0,
+      credito_n: 0,
+      by_sede: emptyBySedeCliente(),
+    });
+    cur = addDaysYmd(cur, 1);
+  }
+  for (const v of ventas) {
+    if (!v.fecha) continue;
+    const day = bucket.get(v.fecha);
+    if (!day) continue;
+    day.unidades += 1;
+    day.estimado_cop += v.valor;
+    if (v.tipo === "contado") day.contado_n += 1;
+    else day.credito_n += 1;
+    day.by_sede[v.sede].unidades += 1;
+    day.by_sede[v.sede].estimado_cop += v.valor;
+  }
+  return [...bucket.values()];
+}
+
+export function etiquetaTipoFiltro(tipo: TipoFiltroVentas): string {
+  if (tipo === "contado") return "Solo contado";
+  if (tipo === "credito") return "Solo crédito";
+  return "Contado + crédito";
+}
+
 /** Fecha calendario America/Bogota (YYYY-MM-DD). */
 export function hoyBogota(d = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -226,6 +300,9 @@ export function totalesDesdeVentas(ventas: VentaFila[]): TotalesKpi {
   let credito_valor_railweb = 0;
   let credito_estimado_total = 0;
   let credito_inicial_total = 0;
+  let nuevas_n = 0;
+  let segunda_n = 0;
+  let desconocida_n = 0;
   for (const v of ventas) {
     if (v.tipo === "contado") {
       contado_n += 1;
@@ -237,6 +314,9 @@ export function totalesDesdeVentas(ventas: VentaFila[]): TotalesKpi {
       if (v.sede === "railweb") credito_valor_railweb += v.valor;
       else credito_valor_sp += v.inicial ?? 0;
     }
+    if (v.condicion === "nueva") nuevas_n += 1;
+    else if (v.condicion === "segunda") segunda_n += 1;
+    else desconocida_n += 1;
   }
   return {
     contado_n,
@@ -247,6 +327,9 @@ export function totalesDesdeVentas(ventas: VentaFila[]): TotalesKpi {
     credito_estimado_total,
     credito_inicial_total,
     total_n: ventas.length,
+    nuevas_n,
+    segunda_n,
+    desconocida_n,
   };
 }
 
