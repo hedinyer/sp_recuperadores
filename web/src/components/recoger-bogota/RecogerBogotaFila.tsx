@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   CopyIcon,
   MapPinIcon,
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { EstadoGpsPlaca } from "@/lib/gpsEstadoPlacas";
 import { formatearCOP } from "@/lib/formatoDinero";
+import type { FuenteUbicacion } from "@/lib/ubicacionFusion";
 import { cn } from "@/lib/utils";
 
 export type FilaRecogerBogota = {
@@ -26,12 +27,33 @@ export type FilaRecogerBogota = {
   lng: number | null;
   gps: EstadoGpsPlaca;
   pago_hoy: boolean;
+  fuentes: { gps: boolean; airtag: boolean };
+  fuente_activa: FuenteUbicacion | null;
+  airtag: {
+    visto_en: string | null;
+    accuracy_m: number | null;
+  } | null;
 };
 
 function formatearDistancia(km: number | null): string {
-  if (km == null) return "Sin GPS";
+  if (km == null) return "Sin ubicación";
   if (km < 1) return `${Math.round(km * 1000)} m`;
   return `${km.toFixed(1)} km`;
+}
+
+function formatearVistoHace(iso: string | null | undefined): string | null {
+  if (!iso?.trim()) return null;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const diff = Date.now() - ms;
+  if (diff < 0) return null;
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "ahora";
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} d`;
 }
 
 export function RecogerBogotaFila({
@@ -71,6 +93,9 @@ export function RecogerBogotaFila({
   compacta?: boolean;
 }) {
   const [masAbierto, setMasAbierto] = useState(false);
+  const masPanelId = useId();
+  const tieneUbicacion = moto.lat != null && moto.lng != null;
+  const vistoAirTag = formatearVistoHace(moto.airtag?.visto_en);
 
   return (
     <article
@@ -140,18 +165,35 @@ export function RecogerBogotaFila({
           </div>
           {modo === "recoger" && !compacta ? (
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <Badge
-                variant="secondary"
-                className={
-                  moto.gps.funcional
-                    ? "bg-success/15 text-success"
-                    : "text-muted-foreground"
-                }
-              >
-                {moto.gps.funcional
-                  ? `GPS ${moto.gps.estado_etiqueta}`
-                  : moto.gps.estado_etiqueta || "Sin GPS"}
-              </Badge>
+              {moto.fuentes.gps ? (
+                <Badge
+                  variant="secondary"
+                  className={
+                    moto.gps.funcional
+                      ? "bg-success/15 text-success"
+                      : "text-muted-foreground"
+                  }
+                >
+                  GPS {moto.gps.estado_etiqueta || "Sin señal"}
+                </Badge>
+              ) : null}
+              {moto.fuentes.airtag ? (
+                <Badge
+                  variant="secondary"
+                  className={
+                    moto.fuente_activa === "airtag"
+                      ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
+                      : "text-muted-foreground"
+                  }
+                >
+                  AirTag{vistoAirTag ? ` · ${vistoAirTag}` : ""}
+                </Badge>
+              ) : null}
+              {!moto.fuentes.gps && !moto.fuentes.airtag ? (
+                <Badge variant="secondary" className="text-muted-foreground">
+                  Sin ubicación
+                </Badge>
+              ) : null}
             </div>
           ) : null}
         </button>
@@ -208,41 +250,44 @@ export function RecogerBogotaFila({
                   </a>
                 </Button>
               ) : null}
-              {enlaceMaps ? (
+              {tieneUbicacion ? (
                 <>
+                  {enlaceMaps ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-11 min-h-[44px] flex-1 rounded-lg"
+                      asChild
+                    >
+                      <a href={enlaceMaps} target="_blank" rel="noopener noreferrer">
+                        <NavigationIcon className="mr-1.5 size-4" aria-hidden />
+                        Ir
+                      </a>
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="outline"
                     className="h-11 min-h-[44px] flex-1 rounded-lg"
-                    asChild
+                    aria-label={`Compartir seguimiento ${moto.placa}`}
+                    onClick={onCompartirSeguimiento}
                   >
-                    <a href={enlaceMaps} target="_blank" rel="noopener noreferrer">
-                      <NavigationIcon className="mr-1.5 size-4" aria-hidden />
-                      Ir
-                    </a>
+                    <Share2Icon className="mr-1.5 size-4" aria-hidden />
+                    {linkCopiado ? "Link copiado" : "Compartir"}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     className="h-11 min-h-[44px] min-w-[44px] rounded-lg"
                     aria-expanded={masAbierto}
+                    aria-controls={masPanelId}
                     aria-label={`Más acciones ${moto.placa}`}
                     onClick={() => setMasAbierto((v) => !v)}
                   >
                     <MoreHorizontalIcon className="size-4" aria-hidden />
                   </Button>
                   {masAbierto ? (
-                    <div className="flex w-full flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 min-h-[44px] flex-1 rounded-lg"
-                        aria-label={`Compartir seguimiento ${moto.placa}`}
-                        onClick={onCompartirSeguimiento}
-                      >
-                        <Share2Icon className="mr-1.5 size-4" aria-hidden />
-                        {linkCopiado ? "Link copiado" : "Compartir"}
-                      </Button>
+                    <div id={masPanelId} className="flex w-full flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="ghost"

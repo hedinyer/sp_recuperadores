@@ -1,4 +1,9 @@
 import type { PatronPago } from "@/lib/analisisMorosidad";
+import {
+  fetchUbicacionesAirTag,
+  resolverUbicacionAirTag,
+  type UbicacionAirTag,
+} from "@/lib/airtagLocations";
 import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
 import { DEUDA_MIN_ASIGNADA_COP } from "@/lib/eliminarAsignacionBajaDeuda";
 import {
@@ -9,6 +14,10 @@ import {
 } from "@/lib/gpsEstadoPlacas";
 import { variantesPlaca } from "@/lib/placaGps";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
+import {
+  fusionarUbicacionGpsAirTag,
+  type FuenteUbicacion,
+} from "@/lib/ubicacionFusion";
 import {
   preferirDispositivoGps,
   type UbicacionGpsMoto,
@@ -57,11 +66,18 @@ export type MotoRecogerBogota = {
   lng: number | null;
   distancia_km: number | null;
   gps: EstadoGpsPlaca;
+  fuentes: { gps: boolean; airtag: boolean };
+  fuente_activa: FuenteUbicacion | null;
+  airtag: {
+    visto_en: string | null;
+    accuracy_m: number | null;
+  } | null;
 } & PatronPago;
 
 export type ResumenRecogerBogota = {
   total: number;
   con_gps: number;
+  con_ubicacion: number;
   deuda_total: number;
   generado_en: string;
 };
@@ -96,19 +112,40 @@ function resolverUbicacionGps(
   return mejor;
 }
 
+async function cargarMapaAirTagSeguro(): Promise<Map<string, UbicacionAirTag>> {
+  try {
+    return await fetchUbicacionesAirTag();
+  } catch (e) {
+    console.warn(
+      "[recogerBogota] AirTags no disponibles:",
+      e instanceof Error ? e.message : e,
+    );
+    return new Map();
+  }
+}
+
 export type PosicionLiveRecoger = {
   placa: string;
   lat: number | null;
   lng: number | null;
   distancia_km: number | null;
   gps: EstadoGpsPlaca;
+  fuentes: { gps: boolean; airtag: boolean };
+  fuente_activa: FuenteUbicacion | null;
+  airtag: {
+    visto_en: string | null;
+    accuracy_m: number | null;
+  } | null;
 };
 
-/** Solo GPS fresco (sin recalcular deudas). */
+/** Solo posiciones frescas (sin recalcular deudas). */
 export async function posicionesLiveRecogerBogota(
   placas: string[],
 ): Promise<{ posiciones: PosicionLiveRecoger[]; actualizadoEn: string }> {
-  const mapa = await cargarMapaGpsUnificado(true);
+  const [mapa, mapaAirTag] = await Promise.all([
+    cargarMapaGpsUnificado(true),
+    cargarMapaAirTagSeguro(),
+  ]);
   const vistas = new Set<string>();
   const posiciones: PosicionLiveRecoger[] = [];
 
@@ -117,9 +154,12 @@ export async function posicionesLiveRecogerBogota(
     if (!placa || vistas.has(placa)) continue;
     vistas.add(placa);
 
-    const ubicacion = resolverUbicacionGps(placa, mapa);
-    const lat = ubicacion?.lat ?? null;
-    const lng = ubicacion?.lng ?? null;
+    const ubicacionGps = resolverUbicacionGps(placa, mapa);
+    const ubicacionAirTag = resolverUbicacionAirTag(placa, mapaAirTag);
+    const fusion = fusionarUbicacionGpsAirTag(ubicacionGps, ubicacionAirTag);
+
+    const lat = fusion?.lat ?? null;
+    const lng = fusion?.lng ?? null;
     posiciones.push({
       placa,
       lat,
@@ -128,9 +168,12 @@ export async function posicionesLiveRecogerBogota(
         lat != null && lng != null
           ? distanciaKm(ORIGEN_RECOGER_BOGOTA, { lat, lng })
           : null,
-      gps: ubicacion
+      gps: ubicacionGps
         ? resolverEstadoGpsPlaca(placa, mapa)
         : ESTADO_GPS_SIN_DISPOSITIVO,
+      fuentes: fusion?.fuentes ?? { gps: false, airtag: false },
+      fuente_activa: fusion?.fuente_activa ?? null,
+      airtag: fusion?.airtag ?? null,
     });
   }
 
@@ -144,9 +187,10 @@ export async function listarMotosRecogerBogota(
   resumen: ResumenRecogerBogota;
   origen: typeof ORIGEN_RECOGER_BOGOTA;
 }> {
-  const [{ atrasos }, mapa] = await Promise.all([
+  const [{ atrasos }, mapa, mapaAirTag] = await Promise.all([
     fetchAtrasosDesdeDb(refresh),
     cargarMapaGpsUnificado(),
+    cargarMapaAirTagSeguro(),
   ]);
 
   const candidatas = atrasos.filter(
@@ -156,13 +200,16 @@ export async function listarMotosRecogerBogota(
   );
 
   const motos: MotoRecogerBogota[] = candidatas.map((a) => {
-    const ubicacion = resolverUbicacionGps(a.placa, mapa);
-    const gps = ubicacion
+    const ubicacionGps = resolverUbicacionGps(a.placa, mapa);
+    const ubicacionAirTag = resolverUbicacionAirTag(a.placa, mapaAirTag);
+    const fusion = fusionarUbicacionGpsAirTag(ubicacionGps, ubicacionAirTag);
+
+    const gps = ubicacionGps
       ? resolverEstadoGpsPlaca(a.placa, mapa)
       : ESTADO_GPS_SIN_DISPOSITIVO;
 
-    const lat = ubicacion?.lat ?? null;
-    const lng = ubicacion?.lng ?? null;
+    const lat = fusion?.lat ?? null;
+    const lng = fusion?.lng ?? null;
     const distancia_km =
       lat != null && lng != null
         ? distanciaKm(ORIGEN_RECOGER_BOGOTA, { lat, lng })
@@ -181,6 +228,9 @@ export async function listarMotosRecogerBogota(
       lng,
       distancia_km,
       gps,
+      fuentes: fusion?.fuentes ?? { gps: false, airtag: false },
+      fuente_activa: fusion?.fuente_activa ?? null,
+      airtag: fusion?.airtag ?? null,
       frecuencia_principal: a.frecuencia_principal,
       frecuencia_etiqueta: a.frecuencia_etiqueta,
       frecuencia_confianza: a.frecuencia_confianza,
@@ -200,6 +250,9 @@ export async function listarMotosRecogerBogota(
   });
 
   const con_gps = motos.filter((m) => m.gps.funcional).length;
+  const con_ubicacion = motos.filter(
+    (m) => m.lat != null && m.lng != null,
+  ).length;
   const deuda_total = motos.reduce((s, m) => s + m.deuda_total, 0);
 
   return {
@@ -207,6 +260,7 @@ export async function listarMotosRecogerBogota(
     resumen: {
       total: motos.length,
       con_gps,
+      con_ubicacion,
       deuda_total,
       generado_en: new Date().toISOString(),
     },

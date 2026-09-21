@@ -11,7 +11,15 @@ type MapaSeguirPlacaProps = {
   moto: PuntoRuta | null;
   ruta: PuntoRuta[];
   placa: string;
+  /** Si true, el mapa sigue tú+moto (o solo la moto). */
+  seguir: boolean;
+  onUsuarioMueveMapa?: () => void;
 };
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 function htmlYo(): string {
   return `<div style="width:18px;height:18px;border-radius:999px;background:#38bdf8;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)"></div>`;
@@ -26,6 +34,8 @@ export function MapaSeguirPlaca({
   moto,
   ruta,
   placa,
+  seguir,
+  onUsuarioMueveMapa,
 }: MapaSeguirPlacaProps) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const mapaRef = useRef<import("leaflet").Map | null>(null);
@@ -33,7 +43,10 @@ export function MapaSeguirPlaca({
   const motoRef = useRef<import("leaflet").Marker | null>(null);
   const polyRef = useRef<import("leaflet").Polyline | null>(null);
   const [listo, setListo] = useState(false);
-  const ajusteRef = useRef(false);
+  const ajusteInicialRef = useRef(false);
+  const ignorarMovimientoRef = useRef(false);
+  const onUsuarioMueveMapaRef = useRef(onUsuarioMueveMapa);
+  onUsuarioMueveMapaRef.current = onUsuarioMueveMapa;
 
   useEffect(() => {
     let cancelado = false;
@@ -53,6 +66,11 @@ export function MapaSeguirPlaca({
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
       }).addTo(mapa);
+
+      mapa.on("dragstart", () => {
+        if (ignorarMovimientoRef.current) return;
+        onUsuarioMueveMapaRef.current?.();
+      });
 
       mapaRef.current = mapa;
       if (!cancelado) setListo(true);
@@ -123,7 +141,9 @@ export function MapaSeguirPlaca({
                 [yo.lat, yo.lng] as [number, number],
                 [moto.lat, moto.lng] as [number, number],
               ]
-            : [];
+            : moto
+              ? [[moto.lat, moto.lng] as [number, number]]
+              : [];
 
       if (latlngs.length >= 2) {
         if (!polyRef.current) {
@@ -135,18 +155,63 @@ export function MapaSeguirPlaca({
         } else {
           polyRef.current.setLatLngs(latlngs);
         }
+      } else if (polyRef.current) {
+        mapa.removeLayer(polyRef.current);
+        polyRef.current = null;
+      }
 
-        if (!ajusteRef.current) {
-          mapa.fitBounds(latlngs, { padding: [40, 40], maxZoom: 16 });
-          ajusteRef.current = true;
+      if (latlngs.length === 0) return;
+
+      const reduceMotion = prefersReducedMotion();
+      const animar = !reduceMotion;
+
+      ignorarMovimientoRef.current = true;
+      const liberar = () => {
+        window.setTimeout(() => {
+          ignorarMovimientoRef.current = false;
+        }, 80);
+      };
+
+      if (!ajusteInicialRef.current) {
+        if (latlngs.length >= 2) {
+          mapa.fitBounds(latlngs, {
+            padding: [40, 40],
+            maxZoom: 16,
+            animate: animar,
+          });
+        } else {
+          mapa.setView(latlngs[0], 15, { animate: animar });
+        }
+        ajusteInicialRef.current = true;
+        liberar();
+        return;
+      }
+
+      if (!seguir) {
+        liberar();
+        return;
+      }
+
+      if (latlngs.length >= 2) {
+        mapa.fitBounds(latlngs, {
+          padding: [48, 48],
+          maxZoom: 16,
+          animate: animar,
+        });
+      } else if (moto) {
+        if (animar) {
+          mapa.panTo([moto.lat, moto.lng], { animate: true, duration: 0.4 });
+        } else {
+          mapa.setView([moto.lat, moto.lng], mapa.getZoom(), { animate: false });
         }
       }
+      liberar();
     })();
 
     return () => {
       cancelado = true;
     };
-  }, [listo, yo, moto, ruta, placa]);
+  }, [listo, yo, moto, ruta, placa, seguir]);
 
   return (
     <div

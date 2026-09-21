@@ -8,6 +8,7 @@ import {
   PhoneIcon,
   RefreshCwIcon,
   RouteIcon,
+  Share2Icon,
   XIcon,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ import {
   obtenerRutaCompleta,
 } from "@/lib/rutaMultiParada";
 import type { PuntoRuta } from "@/lib/rutaOsrm";
+import type { FuenteUbicacion } from "@/lib/ubicacionFusion";
 import { cn } from "@/lib/utils";
 
 const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
@@ -56,6 +58,12 @@ type MotoRecogerBogota = {
   lng: number | null;
   distancia_km: number | null;
   gps: EstadoGpsPlaca;
+  fuentes: { gps: boolean; airtag: boolean };
+  fuente_activa: FuenteUbicacion | null;
+  airtag: {
+    visto_en: string | null;
+    accuracy_m: number | null;
+  } | null;
   frecuencia_etiqueta: string;
   dias_promedio_entre_pagos: number;
   pagos_irregulares: boolean;
@@ -64,6 +72,7 @@ type MotoRecogerBogota = {
 type ResumenRecogerBogota = {
   total: number;
   con_gps: number;
+  con_ubicacion?: number;
   deuda_total: number;
   generado_en: string;
 };
@@ -218,7 +227,7 @@ function PanelLista({
         <p className="text-sm font-medium">Nadie en esta lista</p>
         <p className="text-sm text-pretty text-muted-foreground">
           {modo === "recoger"
-            ? "No hay motos cerca para recoger. Toca Mi ubicación."
+            ? "No hay motos con GPS o AirTag cerca. Toca Mi ubicación."
             : "No hay motos para llamar ahora."}
         </p>
       </div>
@@ -350,7 +359,16 @@ export function RecogerBogotaWorkspace() {
     const res = await fetch(`/api/placas/recoger-bogota${q}`, { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error ?? "Error al cargar");
-    setMotos(data.motos ?? []);
+    setMotos(
+      (data.motos ?? []).map(
+        (m: MotoRecogerBogota): MotoRecogerBogota => ({
+          ...m,
+          fuentes: m.fuentes ?? { gps: Boolean(m.gps?.funcional), airtag: false },
+          fuente_activa: m.fuente_activa ?? (m.lat != null ? "gps" : null),
+          airtag: m.airtag ?? null,
+        }),
+      ),
+    );
     setResumen(data.resumen ?? null);
     setError(null);
   }, []);
@@ -402,6 +420,12 @@ export function RecogerBogotaWorkspace() {
             lng: number | null;
             distancia_km: number | null;
             gps: EstadoGpsPlaca;
+            fuentes?: { gps: boolean; airtag: boolean };
+            fuente_activa?: FuenteUbicacion | null;
+            airtag?: {
+              visto_en: string | null;
+              accuracy_m: number | null;
+            } | null;
           }
         >();
         for (const p of data.posiciones ?? []) {
@@ -412,12 +436,35 @@ export function RecogerBogotaWorkspace() {
           prev.map((m) => {
             const live = porPlaca.get(m.placa.toUpperCase());
             if (!live) return m;
+            // No pisar una ubicación AirTag/GPS previa con un live vacío.
+            const liveTieneCoords = live.lat != null && live.lng != null;
+            if (!liveTieneCoords && m.lat != null && m.lng != null) {
+              return {
+                ...m,
+                gps: live.gps?.proveedor ? live.gps : m.gps,
+                fuentes: {
+                  gps: live.fuentes?.gps ?? m.fuentes.gps,
+                  airtag: live.fuentes?.airtag ?? m.fuentes.airtag,
+                },
+                fuente_activa: m.fuente_activa,
+                airtag:
+                  live.airtag !== undefined && live.airtag != null
+                    ? live.airtag
+                    : m.airtag,
+              };
+            }
             return {
               ...m,
               lat: live.lat,
               lng: live.lng,
               distancia_km: live.distancia_km,
               gps: live.gps,
+              fuentes: live.fuentes ?? m.fuentes,
+              fuente_activa:
+                live.fuente_activa !== undefined
+                  ? live.fuente_activa
+                  : m.fuente_activa,
+              airtag: live.airtag !== undefined ? live.airtag : m.airtag,
             };
           }),
         );
@@ -453,8 +500,9 @@ export function RecogerBogotaWorkspace() {
           : null;
       const conDist = { ...m, distancia_km: dist };
 
+      const tieneUbicacion = m.lat != null && m.lng != null;
       if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
-        if (m.gps.funcional && dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
+        if (tieneUbicacion && dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
           recoger.push(conDist);
         }
       } else {
@@ -465,7 +513,9 @@ export function RecogerBogotaWorkspace() {
       const da = a.distancia_km ?? Infinity;
       const db = b.distancia_km ?? Infinity;
       if (da !== db) return da - db;
-      return Number(b.gps.funcional) - Number(a.gps.funcional);
+      const score = (m: MotoRecogerBogota) =>
+        Number(m.gps.funcional) * 2 + Number(m.fuentes?.airtag);
+      return score(b) - score(a);
     });
     return { paraRecoger: recoger, paraLlamar: llamar };
   }, [motos, origen]);
@@ -514,7 +564,7 @@ export function RecogerBogotaWorkspace() {
           lng: m.lng!,
           deuda_total: m.deuda_total,
           distancia_km: m.distancia_km,
-          online: Boolean(m.gps.funcional),
+          online: Boolean(m.gps.funcional || m.fuentes?.airtag),
         })),
     [paraRecoger],
   );
@@ -954,7 +1004,7 @@ export function RecogerBogotaWorkspace() {
               {formatearCOP(deudaLista)}
               {poligonoGeocerca ? ` · ${placasSeleccionadas.size} en zona` : ""}
               {actualizadoEnVivo && vista === "recoger" && esDesktop
-                ? ` · GPS ${actualizadoEnVivo}`
+                ? ` · en vivo ${actualizadoEnVivo}`
                 : null}
             </p>
           ) : null}
@@ -1226,10 +1276,23 @@ export function RecogerBogotaWorkspace() {
                   </Button>
                 ) : (
                   <Button type="button" className="h-11 text-base font-bold" disabled>
-                    Sin GPS
+                    Sin ubicación
                   </Button>
                 )}
-                {enlaceTel(motoSeleccionada.telefono) ? (
+                {motoSeleccionada.lat != null && motoSeleccionada.lng != null ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-11 text-base font-bold"
+                    aria-label={`Compartir seguimiento ${motoSeleccionada.placa}`}
+                    onClick={() => void compartirSeguimiento(motoSeleccionada.placa)}
+                  >
+                    <Share2Icon className="mr-1.5 size-4" aria-hidden />
+                    {linkCopiado === motoSeleccionada.placa
+                      ? "Copiado"
+                      : "Compartir"}
+                  </Button>
+                ) : enlaceTel(motoSeleccionada.telefono) ? (
                   <Button
                     type="button"
                     variant="secondary"
@@ -1256,6 +1319,7 @@ export function RecogerBogotaWorkspace() {
                   variant="outline"
                   className="h-11 min-w-[44px] rounded-lg px-3"
                   aria-expanded={masAcciones}
+                  aria-controls="recoger-mas-acciones-movil"
                   aria-label={masAcciones ? "Ocultar más acciones" : "Más acciones"}
                   onClick={() => setMasAcciones((v) => !v)}
                 >
@@ -1263,27 +1327,48 @@ export function RecogerBogotaWorkspace() {
                 </Button>
               </div>
               {masAcciones ? (
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div
+                  id="recoger-mas-acciones-movil"
+                  className="mt-2 grid grid-cols-2 gap-2"
+                >
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-10"
+                    className="h-11 min-h-[44px]"
                     onClick={() => void copiarAviso(motoSeleccionada)}
                   >
                     {avisoCopiado === motoSeleccionada.placa
                       ? "Copiado"
                       : "Copiar aviso"}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10"
-                    onClick={() => void compartirSeguimiento(motoSeleccionada.placa)}
-                  >
-                    {linkCopiado === motoSeleccionada.placa
-                      ? "Link copiado"
-                      : "Compartir"}
-                  </Button>
+                  {enlaceTel(motoSeleccionada.telefono) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 min-h-[44px]"
+                      asChild
+                    >
+                      <a href={enlaceTel(motoSeleccionada.telefono)!}>
+                        <PhoneIcon className="mr-1.5 size-4" aria-hidden />
+                        Llamar
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 min-h-[44px]"
+                      asChild
+                    >
+                      <a
+                        href={enlaceSeguirPlaca(motoSeleccionada.placa)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Ver en vivo
+                      </a>
+                    </Button>
+                  )}
                 </div>
               ) : null}
             </div>

@@ -19,6 +19,7 @@ import {
   type PuntoRuta,
   type RutaConduccion,
 } from "@/lib/rutaOsrm";
+import type { FuenteUbicacion } from "@/lib/ubicacionFusion";
 
 const POLL_MOTO_MS = 3_000;
 
@@ -30,6 +31,7 @@ type GpsMotoLive = {
   online: string;
   estado: string;
   time: string;
+  fuente?: FuenteUbicacion;
 };
 
 function placaDesdeParam(raw: string | string[] | undefined): string {
@@ -38,6 +40,16 @@ function placaDesdeParam(raw: string | string[] | undefined): string {
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
+}
+
+function etiquetaFuente(
+  fuente: FuenteUbicacion | null | undefined,
+  fuentes?: { gps: boolean; airtag: boolean } | null,
+): string {
+  if (fuentes?.gps && fuentes?.airtag) return "GPS y AirTag";
+  if (fuente === "airtag" || fuentes?.airtag) return "AirTag";
+  if (fuente === "gps" || fuentes?.gps) return "GPS";
+  return "Sin señal";
 }
 
 export default function SeguirPlacaPage() {
@@ -49,9 +61,18 @@ export default function SeguirPlacaPage() {
   const [gpsActivo, setGpsActivo] = useState(false);
 
   const [moto, setMoto] = useState<GpsMotoLive | null>(null);
+  const [fuentes, setFuentes] = useState<{
+    gps: boolean;
+    airtag: boolean;
+  } | null>(null);
+  const [fuenteActiva, setFuenteActiva] = useState<FuenteUbicacion | null>(
+    null,
+  );
   const [motoMsg, setMotoMsg] = useState<string | null>(null);
   const [motoError, setMotoError] = useState<string | null>(null);
   const [actualizadoEn, setActualizadoEn] = useState<string | null>(null);
+
+  const [seguirMapa, setSeguirMapa] = useState(true);
 
   const [ruta, setRuta] = useState<RutaConduccion | null>(null);
   const rutaOrigenRef = useRef<PuntoRuta | null>(null);
@@ -61,6 +82,10 @@ export default function SeguirPlacaPage() {
   const activarMiGps = useCallback(() => {
     setGpsError(null);
     setGpsActivo(true);
+  }, []);
+
+  const recentrar = useCallback(() => {
+    setSeguirMapa(true);
   }, []);
 
   useEffect(() => {
@@ -94,6 +119,7 @@ export default function SeguirPlacaPage() {
       try {
         const res = await fetch(`/api/seguir/${encodeURIComponent(placa)}`, {
           cache: "no-store",
+          signal: AbortSignal.timeout(20_000),
         });
         const data = await res.json().catch(() => ({}));
         if (cancelled) return;
@@ -102,12 +128,17 @@ export default function SeguirPlacaPage() {
           return;
         }
         setMotoError(null);
+        setFuentes(data.fuentes ?? null);
+        setFuenteActiva(data.fuente ?? data.gps?.fuente ?? null);
         if (data.gps) {
           setMoto(data.gps as GpsMotoLive);
           setMotoMsg(null);
+        } else if (!data.fuentes?.gps && !data.fuentes?.airtag) {
+          // Sin fuentes: puede ser timeout del proveedor; no borrar la última posición.
+          setMotoMsg(data.mensaje ?? "Buscando señal…");
         } else {
           setMoto(null);
-          setMotoMsg(data.mensaje ?? "Sin posición GPS");
+          setMotoMsg(data.mensaje ?? "Sin posición");
         }
         if (data.actualizadoEn) {
           setActualizadoEn(
@@ -119,7 +150,7 @@ export default function SeguirPlacaPage() {
           );
         }
       } catch {
-        if (!cancelled) setMotoError("No se pudo actualizar el GPS");
+        if (!cancelled) setMotoError("No se pudo actualizar la ubicación");
       } finally {
         enCurso = false;
       }
@@ -173,6 +204,8 @@ export default function SeguirPlacaPage() {
   const mapsHref =
     yoPunto && motoPunto ? enlaceGoogleMapsRuta(yoPunto, motoPunto) : null;
 
+  const badgeFuente = etiquetaFuente(fuenteActiva, fuentes);
+
   if (!placa) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-zinc-950 px-4 text-zinc-300">
@@ -188,18 +221,26 @@ export default function SeguirPlacaPage() {
           Seguimiento en vivo
         </p>
         <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-xl font-bold tracking-wide text-white">
+          <h1
+            tabIndex={-1}
+            className="text-xl font-bold tracking-wide text-white outline-none"
+          >
             {placa}
           </h1>
           {moto ? (
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
-                moto.online === "online" || moto.online === "ack"
-                  ? "text-emerald-300 bg-emerald-950/60"
-                  : "text-amber-300 bg-amber-950/50"
+                fuenteActiva === "airtag"
+                  ? "text-sky-300 bg-sky-950/60"
+                  : moto.online === "online" || moto.online === "ack"
+                    ? "text-emerald-300 bg-emerald-950/60"
+                    : "text-amber-300 bg-amber-950/50"
               }`}
             >
-              GPS {moto.estado}
+              {badgeFuente}
+              {fuenteActiva === "gps" && moto.estado
+                ? ` · ${moto.estado}`
+                : ""}
             </span>
           ) : null}
         </div>
@@ -213,12 +254,27 @@ export default function SeguirPlacaPage() {
         </p>
       </header>
 
-      <MapaSeguirPlaca
-        yo={yoPunto}
-        moto={motoPunto}
-        ruta={ruta?.puntos ?? []}
-        placa={placa}
-      />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <MapaSeguirPlaca
+          yo={yoPunto}
+          moto={motoPunto}
+          ruta={ruta?.puntos ?? []}
+          placa={placa}
+          seguir={seguirMapa}
+          onUsuarioMueveMapa={() => setSeguirMapa(false)}
+        />
+        {!seguirMapa && motoPunto ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[500] flex justify-center px-3">
+            <button
+              type="button"
+              className="pointer-events-auto min-h-[44px] rounded-xl bg-zinc-800/95 px-4 text-sm font-semibold text-white shadow-lg ring-1 ring-zinc-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+              onClick={recentrar}
+            >
+              Recentrar
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <footer className="shrink-0 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-zinc-800 space-y-2 bg-zinc-950">
         {gpsError && (
