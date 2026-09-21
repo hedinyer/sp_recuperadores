@@ -20,8 +20,9 @@ import {
   type RutaConduccion,
 } from "@/lib/rutaOsrm";
 import type { FuenteUbicacion } from "@/lib/ubicacionFusion";
+import { fusionarTelemetriaSticky } from "@/lib/ubicacionFusion";
 
-const POLL_MOTO_MS = 3_000;
+const POLL_MOTO_MS = 5_000;
 
 type GpsMotoLive = {
   lat: number;
@@ -43,12 +44,22 @@ function placaDesdeParam(raw: string | string[] | undefined): string {
 }
 
 function etiquetaFuente(
-  fuente: FuenteUbicacion | null | undefined,
-  fuentes?: { gps: boolean; airtag: boolean } | null,
+  preferida: FuenteUbicacion | null | undefined,
+  vistoEn?: string | null,
 ): string {
-  if (fuentes?.gps && fuentes?.airtag) return "GPS y AirTag";
-  if (fuente === "airtag" || fuentes?.airtag) return "AirTag";
-  if (fuente === "gps" || fuentes?.gps) return "GPS";
+  if (preferida === "gps") return "GPS";
+  if (preferida === "airtag") {
+    if (!vistoEn?.trim()) return "Ubicación";
+    const ms = new Date(vistoEn).getTime();
+    if (!Number.isFinite(ms)) return "Ubicación";
+    const diff = Date.now() - ms;
+    const min = Math.floor(diff / 60_000);
+    if (min < 1) return "Visto ahora";
+    if (min < 60) return `Visto hace ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `Visto hace ${h} h`;
+    return `Visto hace ${Math.floor(h / 24)} d`;
+  }
   return "Sin señal";
 }
 
@@ -65,6 +76,9 @@ export default function SeguirPlacaPage() {
     gps: boolean;
     airtag: boolean;
   } | null>(null);
+  const [fuentePreferida, setFuentePreferida] = useState<FuenteUbicacion | null>(
+    null,
+  );
   const [fuenteActiva, setFuenteActiva] = useState<FuenteUbicacion | null>(
     null,
   );
@@ -78,6 +92,13 @@ export default function SeguirPlacaPage() {
   const rutaOrigenRef = useRef<PuntoRuta | null>(null);
   const rutaDestinoRef = useRef<PuntoRuta | null>(null);
   const abortRutaRef = useRef<AbortController | null>(null);
+  const stickyRef = useRef({
+    lat: null as number | null,
+    lng: null as number | null,
+    fuente_preferida: null as FuenteUbicacion | null,
+    fuente_activa: null as FuenteUbicacion | null,
+    fuentes: { gps: false, airtag: false },
+  });
 
   const activarMiGps = useCallback(() => {
     setGpsError(null);
@@ -128,18 +149,68 @@ export default function SeguirPlacaPage() {
           return;
         }
         setMotoError(null);
-        setFuentes(data.fuentes ?? null);
-        setFuenteActiva(data.fuente ?? data.gps?.fuente ?? null);
-        if (data.gps) {
-          setMoto(data.gps as GpsMotoLive);
+
+        const fuenteApi = (raw: unknown): FuenteUbicacion | null => {
+          if (raw === "gps") return "gps";
+          if (raw === "senal" || raw === "airtag") return "airtag";
+          return null;
+        };
+
+        const sticky = fusionarTelemetriaSticky(stickyRef.current, {
+          gps_pos: data.gps_pos ?? null,
+          airtag_pos: data.senal_pos ?? data.airtag_pos ?? null,
+          fuentes: {
+            gps: Boolean(data.gps_pos) || data.fuente === "gps",
+            airtag: Boolean(data.senal_pos ?? data.airtag_pos) ||
+              data.fuente === "senal" ||
+              data.fuente === "airtag",
+          },
+          fuente_preferida: fuenteApi(
+            data.fuente_preferida ?? data.fuente,
+          ),
+          fuente_activa: fuenteApi(data.fuente),
+          lat: data.gps?.lat,
+          lng: data.gps?.lng,
+        });
+        stickyRef.current = {
+          lat: sticky.lat,
+          lng: sticky.lng,
+          fuente_preferida: sticky.fuente_preferida,
+          fuente_activa: sticky.fuente_activa,
+          fuentes: sticky.fuentes,
+        };
+
+        setFuentes(sticky.fuentes);
+        setFuentePreferida(sticky.fuente_preferida);
+        setFuenteActiva(sticky.fuente_activa);
+
+        if (sticky.lat != null && sticky.lng != null) {
+          setMoto({
+            lat: sticky.lat,
+            lng: sticky.lng,
+            speed: data.gps?.speed ?? 0,
+            course: data.gps?.course ?? 0,
+            online:
+              sticky.fuente_activa === "gps"
+                ? (data.gps_pos?.online ?? data.gps?.online ?? "offline")
+                : "ok",
+            estado:
+              sticky.fuente_activa === "gps"
+                ? (data.gps?.estado ?? "GPS")
+                : "Ubicación",
+            time:
+              data.gps?.time ??
+              data.visto_en ??
+              data.senal_pos?.visto_en ??
+              data.airtag?.visto_en ??
+              "",
+            fuente: sticky.fuente_activa ?? undefined,
+          });
           setMotoMsg(null);
-        } else if (!data.fuentes?.gps && !data.fuentes?.airtag) {
-          // Sin fuentes: puede ser timeout del proveedor; no borrar la última posición.
-          setMotoMsg(data.mensaje ?? "Buscando señal…");
         } else {
-          setMoto(null);
-          setMotoMsg(data.mensaje ?? "Sin posición");
+          setMotoMsg(data.mensaje ?? "Buscando señal…");
         }
+
         if (data.actualizadoEn) {
           setActualizadoEn(
             new Date(data.actualizadoEn).toLocaleTimeString("es-CO", {
@@ -204,7 +275,10 @@ export default function SeguirPlacaPage() {
   const mapsHref =
     yoPunto && motoPunto ? enlaceGoogleMapsRuta(yoPunto, motoPunto) : null;
 
-  const badgeFuente = etiquetaFuente(fuenteActiva, fuentes);
+  const badgeFuente = etiquetaFuente(
+    fuentePreferida ?? fuenteActiva,
+    moto?.time ?? null,
+  );
 
   if (!placa) {
     return (
@@ -230,15 +304,17 @@ export default function SeguirPlacaPage() {
           {moto ? (
             <span
               className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
-                fuenteActiva === "airtag"
+                (fuentePreferida ?? fuenteActiva) === "airtag"
                   ? "text-sky-300 bg-sky-950/60"
                   : moto.online === "online" || moto.online === "ack"
                     ? "text-emerald-300 bg-emerald-950/60"
-                    : "text-amber-300 bg-amber-950/50"
+                    : "text-emerald-300/80 bg-emerald-950/40"
               }`}
             >
               {badgeFuente}
-              {fuenteActiva === "gps" && moto.estado
+              {(fuentePreferida ?? fuenteActiva) === "gps" &&
+              moto.estado &&
+              moto.estado !== "GPS"
                 ? ` · ${moto.estado}`
                 : ""}
             </span>

@@ -28,6 +28,7 @@ export type FilaRecogerBogota = {
   gps: EstadoGpsPlaca;
   pago_hoy: boolean;
   fuentes: { gps: boolean; airtag: boolean };
+  fuente_preferida?: FuenteUbicacion | null;
   fuente_activa: FuenteUbicacion | null;
   airtag: {
     visto_en: string | null;
@@ -96,6 +97,16 @@ export function RecogerBogotaFila({
   const masPanelId = useId();
   const tieneUbicacion = moto.lat != null && moto.lng != null;
   const vistoAirTag = formatearVistoHace(moto.airtag?.visto_en);
+  const preferida = moto.fuente_preferida ?? moto.fuente_activa;
+  const etiquetaGps = moto.gps.proveedor_etiqueta
+    ? `GPS ${moto.gps.proveedor_etiqueta}`
+    : "GPS";
+  const estadoGps =
+    moto.gps.funcional
+      ? moto.gps.estado_etiqueta || "En línea"
+      : moto.fuentes.gps
+        ? "última posición"
+        : moto.gps.estado_etiqueta || "Sin señal";
 
   return (
     <article
@@ -165,31 +176,39 @@ export function RecogerBogotaFila({
           </div>
           {modo === "recoger" && !compacta ? (
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              {moto.fuentes.gps ? (
+              {preferida === "gps" || (moto.fuentes.gps && preferida !== "airtag") ? (
                 <Badge
                   variant="secondary"
                   className={
-                    moto.gps.funcional
-                      ? "bg-success/15 text-success"
+                    preferida === "gps"
+                      ? moto.gps.funcional
+                        ? "bg-success/15 text-success"
+                        : "bg-success/10 text-success"
                       : "text-muted-foreground"
                   }
                 >
-                  GPS {moto.gps.estado_etiqueta || "Sin señal"}
+                  {preferida === "gps" ? "● " : ""}
+                  {etiquetaGps}
+                  {preferida === "gps" ? ` · ${estadoGps}` : ""}
                 </Badge>
               ) : null}
-              {moto.fuentes.airtag ? (
+              {preferida === "airtag" && vistoAirTag ? (
                 <Badge
                   variant="secondary"
-                  className={
-                    moto.fuente_activa === "airtag"
-                      ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
-                      : "text-muted-foreground"
-                  }
+                  className="bg-sky-500/15 text-sky-700 dark:text-sky-300"
                 >
-                  AirTag{vistoAirTag ? ` · ${vistoAirTag}` : ""}
+                  ● Visto {vistoAirTag}
                 </Badge>
               ) : null}
-              {!moto.fuentes.gps && !moto.fuentes.airtag ? (
+              {preferida === "airtag" && !vistoAirTag && tieneUbicacion ? (
+                <Badge
+                  variant="secondary"
+                  className="bg-sky-500/15 text-sky-700 dark:text-sky-300"
+                >
+                  ● Ubicación
+                </Badge>
+              ) : null}
+              {!tieneUbicacion && !moto.fuentes.gps && !moto.fuentes.airtag ? (
                 <Badge variant="secondary" className="text-muted-foreground">
                   Sin ubicación
                 </Badge>

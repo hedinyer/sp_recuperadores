@@ -34,13 +34,20 @@ import {
 } from "@/lib/rutaMultiParada";
 import type { PuntoRuta } from "@/lib/rutaOsrm";
 import type { FuenteUbicacion } from "@/lib/ubicacionFusion";
+import {
+  fusionarTelemetriaSticky,
+  type PosicionAirTagLive,
+  type PosicionGpsLive,
+} from "@/lib/ubicacionFusion";
+import type { ProveedorGps } from "@/lib/ubicacionGps";
 import { cn } from "@/lib/utils";
 
 const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
 const DISTANCIA_MAX_RECOGER_KM = 30;
 const ORIGEN_DEFAULT = { lat: 4.667372044635534, lng: -74.06239794213879 } as const;
 const STORAGE_ORIGEN_KEY = "recoger-bogota-origen";
-const POLL_GPS_VIVO_MS = 3_000;
+/** Poll más espaciado: menos parpadeo y menos carga a proveedores. */
+const POLL_GPS_VIVO_MS = 5_000;
 
 type VistaTab = "recoger" | "llamar";
 type OrigenGps = { lat: number; lng: number };
@@ -59,11 +66,15 @@ type MotoRecogerBogota = {
   distancia_km: number | null;
   gps: EstadoGpsPlaca;
   fuentes: { gps: boolean; airtag: boolean };
+  fuente_preferida: FuenteUbicacion | null;
   fuente_activa: FuenteUbicacion | null;
   airtag: {
     visto_en: string | null;
     accuracy_m: number | null;
   } | null;
+  gps_pos: PosicionGpsLive | null;
+  airtag_pos: PosicionAirTagLive | null;
+  gps_proveedor: ProveedorGps | null;
   frecuencia_etiqueta: string;
   dias_promedio_entre_pagos: number;
   pagos_irregulares: boolean;
@@ -227,7 +238,7 @@ function PanelLista({
         <p className="text-sm font-medium">Nadie en esta lista</p>
         <p className="text-sm text-pretty text-muted-foreground">
           {modo === "recoger"
-            ? "No hay motos con GPS o AirTag cerca. Toca Mi ubicación."
+            ? "No hay motos con ubicación cerca. Toca Mi ubicación."
             : "No hay motos para llamar ahora."}
         </p>
       </div>
@@ -364,8 +375,15 @@ export function RecogerBogotaWorkspace() {
         (m: MotoRecogerBogota): MotoRecogerBogota => ({
           ...m,
           fuentes: m.fuentes ?? { gps: Boolean(m.gps?.funcional), airtag: false },
+          fuente_preferida:
+            m.fuente_preferida ??
+            m.fuente_activa ??
+            (m.lat != null ? "gps" : null),
           fuente_activa: m.fuente_activa ?? (m.lat != null ? "gps" : null),
           airtag: m.airtag ?? null,
+          gps_pos: m.gps_pos ?? null,
+          airtag_pos: m.airtag_pos ?? null,
+          gps_proveedor: m.gps_proveedor ?? m.gps?.proveedor ?? null,
         }),
       ),
     );
@@ -421,11 +439,14 @@ export function RecogerBogotaWorkspace() {
             distancia_km: number | null;
             gps: EstadoGpsPlaca;
             fuentes?: { gps: boolean; airtag: boolean };
+            fuente_preferida?: FuenteUbicacion | null;
             fuente_activa?: FuenteUbicacion | null;
             airtag?: {
               visto_en: string | null;
               accuracy_m: number | null;
             } | null;
+            gps_pos?: PosicionGpsLive | null;
+            airtag_pos?: PosicionAirTagLive | null;
           }
         >();
         for (const p of data.posiciones ?? []) {
@@ -436,35 +457,58 @@ export function RecogerBogotaWorkspace() {
           prev.map((m) => {
             const live = porPlaca.get(m.placa.toUpperCase());
             if (!live) return m;
-            // No pisar una ubicación AirTag/GPS previa con un live vacío.
-            const liveTieneCoords = live.lat != null && live.lng != null;
-            if (!liveTieneCoords && m.lat != null && m.lng != null) {
-              return {
-                ...m,
-                gps: live.gps?.proveedor ? live.gps : m.gps,
-                fuentes: {
-                  gps: live.fuentes?.gps ?? m.fuentes.gps,
-                  airtag: live.fuentes?.airtag ?? m.fuentes.airtag,
-                },
+
+            const sticky = fusionarTelemetriaSticky(
+              {
+                lat: m.lat,
+                lng: m.lng,
+                fuente_preferida: m.fuente_preferida,
                 fuente_activa: m.fuente_activa,
-                airtag:
-                  live.airtag !== undefined && live.airtag != null
-                    ? live.airtag
-                    : m.airtag,
-              };
-            }
+                fuentes: m.fuentes,
+                gps_proveedor: m.gps_proveedor,
+              },
+              {
+                gps_pos: live.gps_pos,
+                airtag_pos: live.airtag_pos,
+                fuentes: live.fuentes,
+                fuente_preferida: live.fuente_preferida,
+                fuente_activa: live.fuente_activa,
+                lat: live.lat,
+                lng: live.lng,
+              },
+            );
+
+            // Estado GPS: no degradar a "Sin GPS" si la preferida es GPS y
+            // el live falló el tick; conservar el estado previo.
+            const gpsNext =
+              live.gps?.proveedor || live.gps_pos
+                ? live.gps
+                : sticky.fuente_preferida === "gps"
+                  ? m.gps
+                  : live.gps ?? m.gps;
+
             return {
               ...m,
-              lat: live.lat,
-              lng: live.lng,
-              distancia_km: live.distancia_km,
-              gps: live.gps,
-              fuentes: live.fuentes ?? m.fuentes,
-              fuente_activa:
-                live.fuente_activa !== undefined
-                  ? live.fuente_activa
-                  : m.fuente_activa,
-              airtag: live.airtag !== undefined ? live.airtag : m.airtag,
+              lat: sticky.lat,
+              lng: sticky.lng,
+              // La distancia se recalcula en el memo vs origen del operador.
+              distancia_km: m.distancia_km,
+              gps: gpsNext,
+              fuentes: sticky.fuentes,
+              fuente_preferida: sticky.fuente_preferida,
+              fuente_activa: sticky.fuente_activa,
+              airtag:
+                live.airtag_pos != null
+                  ? {
+                      visto_en: live.airtag_pos.visto_en,
+                      accuracy_m: live.airtag_pos.accuracy_m,
+                    }
+                  : live.airtag !== undefined && live.airtag != null
+                    ? live.airtag
+                    : m.airtag,
+              gps_pos: live.gps_pos ?? m.gps_pos,
+              airtag_pos: live.airtag_pos ?? m.airtag_pos,
+              gps_proveedor: sticky.gps_proveedor,
             };
           }),
         );
@@ -564,7 +608,8 @@ export function RecogerBogotaWorkspace() {
           lng: m.lng!,
           deuda_total: m.deuda_total,
           distancia_km: m.distancia_km,
-          online: Boolean(m.gps.funcional || m.fuentes?.airtag),
+          // Verde si tenemos posición sostenida; no parpadear por offline momentáneo.
+          online: true,
         })),
     [paraRecoger],
   );

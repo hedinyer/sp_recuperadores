@@ -7,7 +7,6 @@ import {
 import {
   buscarUbicacionGps,
   buscarUbicacionGpsEnVivo,
-  mensajeGpsNoDisponible,
   type ResultadoBusquedaGps,
 } from "@/lib/gpsMoto";
 import { fusionarUbicacionGpsAirTag } from "@/lib/ubicacionFusion";
@@ -77,16 +76,14 @@ function respuestaPosicion(
       placa,
       gps: null,
       fuente: null,
-      fuentes: { gps: false, airtag: false },
       mensaje: gpsTimedOut
-        ? "Buscando señal GPS…"
-        : gps
-          ? "Sin posición"
-          : mensajeGpsNoDisponible(placa, "sin_dispositivo"),
+        ? "Buscando señal…"
+        : "Sin posición para esta placa",
       actualizadoEn: new Date().toISOString(),
     };
   }
 
+  // Respuesta pública: sin nombres de proveedor secundario.
   return {
     placa,
     gps: {
@@ -97,17 +94,40 @@ function respuestaPosicion(
       online:
         fusion.fuente_activa === "gps"
           ? (gps?.online ?? "offline")
-          : "airtag",
+          : "ok",
       estado:
         fusion.fuente_activa === "gps"
           ? etiquetaEstadoGps(gps?.online ?? "")
-          : "AirTag",
+          : "Ubicación",
       time: fusion.time ?? "",
-      fuente: fusion.fuente_activa,
+      fuente: fusion.fuente_activa === "gps" ? "gps" : "senal",
     },
-    fuente: fusion.fuente_activa,
-    fuentes: fusion.fuentes,
-    airtag: fusion.airtag,
+    fuente: fusion.fuente_activa === "gps" ? "gps" : "senal",
+    fuente_preferida:
+      fusion.fuente_preferida === "gps" ? "gps" : "senal",
+    visto_en:
+      fusion.fuente_activa !== "gps"
+        ? fusion.airtag?.visto_en ?? fusion.time
+        : null,
+    gps_pos: fusion.gps_pos
+      ? {
+          lat: fusion.gps_pos.lat,
+          lng: fusion.gps_pos.lng,
+          time: fusion.gps_pos.time,
+          online: fusion.gps_pos.online,
+          funcional: fusion.gps_pos.funcional,
+          proveedor: fusion.gps_pos.proveedor,
+        }
+      : null,
+    // Posición secundaria sin etiquetar el origen.
+    senal_pos: fusion.airtag_pos
+      ? {
+          lat: fusion.airtag_pos.lat,
+          lng: fusion.airtag_pos.lng,
+          visto_en: fusion.airtag_pos.visto_en,
+          accuracy_m: fusion.airtag_pos.accuracy_m,
+        }
+      : null,
     actualizadoEn: new Date().toISOString(),
   };
 }

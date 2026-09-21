@@ -17,9 +17,12 @@ import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 import {
   fusionarUbicacionGpsAirTag,
   type FuenteUbicacion,
+  type PosicionAirTagLive,
+  type PosicionGpsLive,
 } from "@/lib/ubicacionFusion";
 import {
   preferirDispositivoGps,
+  type ProveedorGps,
   type UbicacionGpsMoto,
 } from "@/lib/ubicacionGps";
 
@@ -67,11 +70,16 @@ export type MotoRecogerBogota = {
   distancia_km: number | null;
   gps: EstadoGpsPlaca;
   fuentes: { gps: boolean; airtag: boolean };
+  /** Fuente fija de telemetría (no oscila). */
+  fuente_preferida: FuenteUbicacion | null;
   fuente_activa: FuenteUbicacion | null;
   airtag: {
     visto_en: string | null;
     accuracy_m: number | null;
   } | null;
+  gps_pos: PosicionGpsLive | null;
+  airtag_pos: PosicionAirTagLive | null;
+  gps_proveedor: ProveedorGps | null;
 } & PatronPago;
 
 export type ResumenRecogerBogota = {
@@ -131,11 +139,14 @@ export type PosicionLiveRecoger = {
   distancia_km: number | null;
   gps: EstadoGpsPlaca;
   fuentes: { gps: boolean; airtag: boolean };
+  fuente_preferida: FuenteUbicacion | null;
   fuente_activa: FuenteUbicacion | null;
   airtag: {
     visto_en: string | null;
     accuracy_m: number | null;
   } | null;
+  gps_pos: PosicionGpsLive | null;
+  airtag_pos: PosicionAirTagLive | null;
 };
 
 /** Solo posiciones frescas (sin recalcular deudas). */
@@ -172,8 +183,11 @@ export async function posicionesLiveRecogerBogota(
         ? resolverEstadoGpsPlaca(placa, mapa)
         : ESTADO_GPS_SIN_DISPOSITIVO,
       fuentes: fusion?.fuentes ?? { gps: false, airtag: false },
+      fuente_preferida: fusion?.fuente_preferida ?? null,
       fuente_activa: fusion?.fuente_activa ?? null,
       airtag: fusion?.airtag ?? null,
+      gps_pos: fusion?.gps_pos ?? null,
+      airtag_pos: fusion?.airtag_pos ?? null,
     });
   }
 
@@ -229,8 +243,12 @@ export async function listarMotosRecogerBogota(
       distancia_km,
       gps,
       fuentes: fusion?.fuentes ?? { gps: false, airtag: false },
+      fuente_preferida: fusion?.fuente_preferida ?? null,
       fuente_activa: fusion?.fuente_activa ?? null,
       airtag: fusion?.airtag ?? null,
+      gps_pos: fusion?.gps_pos ?? null,
+      airtag_pos: fusion?.airtag_pos ?? null,
+      gps_proveedor: fusion?.gps_pos?.proveedor ?? gps.proveedor,
       frecuencia_principal: a.frecuencia_principal,
       frecuencia_etiqueta: a.frecuencia_etiqueta,
       frecuencia_confianza: a.frecuencia_confianza,
