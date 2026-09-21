@@ -101,12 +101,7 @@ export function RecogerBogotaFila({
   const etiquetaGps = moto.gps.proveedor_etiqueta
     ? `GPS ${moto.gps.proveedor_etiqueta}`
     : "GPS";
-  const estadoGps =
-    moto.gps.funcional
-      ? moto.gps.estado_etiqueta || "En línea"
-      : moto.fuentes.gps
-        ? "última posición"
-        : moto.gps.estado_etiqueta || "Sin señal";
+  const estadoGps = moto.gps.estado_etiqueta || "En línea";
 
   return (
     <article
@@ -176,20 +171,12 @@ export function RecogerBogotaFila({
           </div>
           {modo === "recoger" && !compacta ? (
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              {preferida === "gps" || (moto.fuentes.gps && preferida !== "airtag") ? (
+              {preferida === "gps" && moto.gps.funcional ? (
                 <Badge
                   variant="secondary"
-                  className={
-                    preferida === "gps"
-                      ? moto.gps.funcional
-                        ? "bg-success/15 text-success"
-                        : "bg-success/10 text-success"
-                      : "text-muted-foreground"
-                  }
+                  className="bg-success/15 text-success"
                 >
-                  {preferida === "gps" ? "● " : ""}
-                  {etiquetaGps}
-                  {preferida === "gps" ? ` · ${estadoGps}` : ""}
+                  ● {etiquetaGps} · {estadoGps}
                 </Badge>
               ) : null}
               {preferida === "airtag" && vistoAirTag ? (

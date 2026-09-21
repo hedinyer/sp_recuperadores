@@ -545,8 +545,16 @@ export function RecogerBogotaWorkspace() {
       const conDist = { ...m, distancia_km: dist };
 
       const tieneUbicacion = m.lat != null && m.lng != null;
+      // Solo señal viva: GPS en línea, o ubicación alternativa (sin última posición GPS offline).
+      const gpsEnLinea = Boolean(m.gps.funcional);
+      const senalAlterna =
+        !gpsEnLinea &&
+        (m.fuente_preferida === "airtag" || m.fuente_activa === "airtag") &&
+        tieneUbicacion;
+      const enLinea = tieneUbicacion && (gpsEnLinea || senalAlterna);
+
       if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
-        if (tieneUbicacion && dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
+        if (enLinea && dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
           recoger.push(conDist);
         }
       } else {
