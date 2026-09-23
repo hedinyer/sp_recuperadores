@@ -61,6 +61,7 @@ type MotoRecogerBogota = {
   cuotas_pendientes: number;
   valor_cuota: number;
   pago_hoy: boolean;
+  origen?: "pinilla" | "railway";
   lat: number | null;
   lng: number | null;
   distancia_km: number | null;
@@ -408,7 +409,10 @@ export function RecogerBogotaWorkspace() {
 
   const placasLiveRef = useRef<string[]>([]);
   placasLiveRef.current = motos
-    .filter((m) => m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP)
+    .filter(
+      (m) =>
+        m.origen === "pinilla" || m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP,
+    )
     .map((m) => m.placa);
 
   useEffect(() => {
@@ -553,7 +557,9 @@ export function RecogerBogotaWorkspace() {
         tieneUbicacion;
       const enLinea = tieneUbicacion && (gpsEnLinea || senalAlterna);
 
-      if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
+      if (m.origen === "pinilla") {
+        recoger.push(conDist);
+      } else if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
         if (enLinea && dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
           recoger.push(conDist);
         }

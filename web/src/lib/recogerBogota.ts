@@ -4,7 +4,11 @@ import {
   resolverUbicacionAirTag,
   type UbicacionAirTag,
 } from "@/lib/airtagLocations";
-import { fetchAtrasosDesdeDb } from "@/lib/atrasosFromDb";
+import {
+  fetchAtrasosDesdeSpBogota,
+  type AtrasoPinilla,
+} from "@/lib/atrasosFromSpBogota";
+import { fetchAtrasosDesdeDb, type ResultadoAtraso } from "@/lib/atrasosFromDb";
 import { DEUDA_MIN_ASIGNADA_COP } from "@/lib/eliminarAsignacionBajaDeuda";
 import {
   cargarMapaGpsUnificado,
@@ -56,6 +60,8 @@ export const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
 /** Radio máximo desde el punto de origen para la pestaña Recoger. */
 export const DISTANCIA_MAX_RECOGER_KM = 30;
 
+export type OrigenCarteraRecoger = "pinilla" | "railway";
+
 export type MotoRecogerBogota = {
   placa: string;
   nombre: string;
@@ -65,6 +71,7 @@ export type MotoRecogerBogota = {
   cuotas_pendientes: number;
   valor_cuota: number;
   pago_hoy: boolean;
+  origen: OrigenCarteraRecoger;
   lat: number | null;
   lng: number | null;
   distancia_km: number | null;
@@ -194,6 +201,72 @@ export async function posicionesLiveRecogerBogota(
   return { posiciones, actualizadoEn: new Date().toISOString() };
 }
 
+type CandidataRecoger = {
+  placa: string;
+  nombre: string;
+  telefono: string;
+  cedula: string;
+  deuda_total: number;
+  cuotas_pendientes: number;
+  valor_cuota: number;
+  pago_hoy: boolean;
+  origen: OrigenCarteraRecoger;
+} & PatronPago;
+
+function desdeRailway(a: ResultadoAtraso): CandidataRecoger {
+  return {
+    placa: a.placa,
+    nombre: a.nombre,
+    telefono: a.telefono,
+    cedula: a.cedula,
+    deuda_total: a.deuda_total,
+    cuotas_pendientes: a.cuotas_pendientes,
+    valor_cuota: a.valor_cuota,
+    pago_hoy: a.pago_hoy,
+    origen: "railway",
+    frecuencia_principal: a.frecuencia_principal,
+    frecuencia_etiqueta: a.frecuencia_etiqueta,
+    frecuencia_confianza: a.frecuencia_confianza,
+    dias_promedio_entre_pagos: a.dias_promedio_entre_pagos,
+    regularidad_score: a.regularidad_score,
+    pagos_irregulares: a.pagos_irregulares,
+  };
+}
+
+function mergeCandidatas(
+  railway: ResultadoAtraso[],
+  pinilla: AtrasoPinilla[],
+): CandidataRecoger[] {
+  const byPlaca = new Map<string, CandidataRecoger>();
+  for (const a of railway) {
+    const key = normalizarPlaca(a.placa);
+    if (!key) continue;
+    byPlaca.set(key, desdeRailway(a));
+  }
+  for (const a of pinilla) {
+    const key = normalizarPlaca(a.placa);
+    if (!key) continue;
+    const prev = byPlaca.get(key);
+    if (!prev || a.deuda_total > prev.deuda_total) {
+      byPlaca.set(key, {
+        ...a,
+        nombre: a.nombre || prev?.nombre || "",
+        telefono: a.telefono || prev?.telefono || "",
+        cedula: a.cedula || prev?.cedula || "",
+      });
+    } else {
+      byPlaca.set(key, {
+        ...prev,
+        nombre: prev.nombre || a.nombre,
+        telefono: prev.telefono || a.telefono,
+        cedula: prev.cedula || a.cedula,
+        origen: "pinilla",
+      });
+    }
+  }
+  return [...byPlaca.values()];
+}
+
 export async function listarMotosRecogerBogota(
   refresh = false,
 ): Promise<{
@@ -201,16 +274,17 @@ export async function listarMotosRecogerBogota(
   resumen: ResumenRecogerBogota;
   origen: typeof ORIGEN_RECOGER_BOGOTA;
 }> {
-  const [{ atrasos }, mapa, mapaAirTag] = await Promise.all([
+  const [{ atrasos }, pinilla, mapa, mapaAirTag] = await Promise.all([
     fetchAtrasosDesdeDb(refresh),
+    fetchAtrasosDesdeSpBogota(),
     cargarMapaGpsUnificado(),
     cargarMapaAirTagSeguro(),
   ]);
 
-  const candidatas = atrasos.filter(
+  const candidatas = mergeCandidatas(atrasos, pinilla).filter(
     (a) =>
-      a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP &&
-      !PLACAS_EXCLUIDAS_RECOGER.has(normalizarPlaca(a.placa)),
+      !PLACAS_EXCLUIDAS_RECOGER.has(normalizarPlaca(a.placa)) &&
+      (a.origen === "pinilla" || a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP),
   );
 
   const motos: MotoRecogerBogota[] = candidatas.map((a) => {
@@ -238,6 +312,7 @@ export async function listarMotosRecogerBogota(
       cuotas_pendientes: a.cuotas_pendientes,
       valor_cuota: a.valor_cuota,
       pago_hoy: a.pago_hoy,
+      origen: a.origen,
       lat,
       lng,
       distancia_km,
