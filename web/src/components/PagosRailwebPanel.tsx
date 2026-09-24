@@ -135,7 +135,7 @@ export function PagosRailwebPanel({
         setBloqueadoBga(true);
         setError(
           json.mensaje_bloqueo ??
-            "Esta placa está activa en BGA. No registres la tarifa en Railweb.",
+            "Esta placa está activa en BGA o Bogotá. No registres la tarifa en Railweb.",
         );
       }
     } catch (e) {
@@ -159,9 +159,12 @@ export function PagosRailwebPanel({
       setError("Consulta la placa primero");
       return;
     }
-    if (bloqueadoBga || String(vehiculo.fuente ?? "").toLowerCase() === "bga") {
+    const fuente = String(vehiculo.fuente ?? "").toLowerCase();
+    if (bloqueadoBga || fuente === "bga" || fuente === "bogota") {
       setError(
-        "Esta placa está activa en BGA. No se puede registrar la tarifa en Railweb.",
+        fuente === "bogota"
+          ? "Esta placa está activa en Bogotá. No se puede registrar la tarifa en Railweb."
+          : "Esta placa está activa en BGA. No se puede registrar la tarifa en Railweb.",
       );
       return;
     }

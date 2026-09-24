@@ -105,6 +105,33 @@ function StatMini({
   );
 }
 
+function etiquetaSede(fuente?: string): string {
+  const f = (fuente ?? "").toLowerCase();
+  if (f === "bga") return "BGA";
+  if (f === "bogota") return "Bogotá";
+  return "Railweb";
+}
+
+function labelDeuda(v: Vehiculo): string {
+  const f = (v.fuente ?? "").toLowerCase();
+  if (f === "bga") return "Deuda según BGA";
+  if (f === "bogota") return "Deuda según Bogotá";
+  if (
+    (v.etiqueta_estado ?? "").trim() ||
+    ((v.estado_contrato ?? "").trim() &&
+      (v.estado_contrato ?? "").toLowerCase() !== "activo")
+  ) {
+    return `Deuda al quedar ${(
+      v.etiqueta_estado ||
+      v.estado_contrato ||
+      "inactivo"
+    )
+      .toString()
+      .toLowerCase()}`;
+  }
+  return "Valor para estar al día";
+}
+
 function formatCuotasMora(cuotasPend: number | null): string {
   if (cuotasPend == null || Number.isNaN(cuotasPend) || cuotasPend <= 0) {
     return "0";
@@ -766,16 +793,20 @@ export default function Home() {
             <article className="flex flex-col rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden shadow-lg shadow-black/30">
               {/* Placa */}
               <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-zinc-900 border-b border-zinc-800">
-                <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">
-                  Moto
-                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">
+                    Moto
+                  </span>
+                  <span className="inline-flex items-center rounded-md border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+                    {etiquetaSede(v.fuente)}
+                  </span>
+                </div>
                 <span className="text-2xl font-bold tracking-[0.2em] text-white">
                   {(v.placa || "—").toUpperCase().replace(/\s/g, "")}
                 </span>
               </div>
 
               {(() => {
-                if ((v.fuente ?? "").toLowerCase() === "bga") return null;
                 const etiqueta =
                   (v.etiqueta_estado ?? "").trim() ||
                   (() => {
@@ -807,19 +838,7 @@ export default function Home() {
               <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
-                    {(v.fuente ?? "").toLowerCase() === "bga"
-                      ? "Deuda según BGA"
-                      : (v.etiqueta_estado ?? "").trim() ||
-                          ((v.estado_contrato ?? "").trim() &&
-                            (v.estado_contrato ?? "").toLowerCase() !== "activo")
-                        ? `Deuda al quedar ${(
-                            v.etiqueta_estado ||
-                            v.estado_contrato ||
-                            "inactivo"
-                          )
-                            .toString()
-                            .toLowerCase()}`
-                        : "Valor para estar al día"}
+                    {labelDeuda(v)}
                   </p>
                   {modoMaster ? (
                     <div className="flex items-center gap-1.5 shrink-0 -mt-0.5">
@@ -1011,7 +1030,7 @@ export default function Home() {
                     <div className="text-right">
                       <span className="text-zinc-500">Cuotas pagadas</span>
                       <p className="mt-0.5 font-medium text-zinc-300 tabular-nums">
-                        {v.cuotas_pagadas ?? "—"} / {v.cuotas_generadas ?? "—"}
+                        {v.cuotas_pagadas || "—"} / {v.cuotas_generadas || "—"}
                       </p>
                     </div>
                   </footer>

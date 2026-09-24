@@ -1,6 +1,10 @@
 import { getDatabaseUrls } from "@/lib/dbUrls";
 import { queryPg } from "@/lib/pgPool";
-import { fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
+import { esFuenteSp, fetchVehiculoPorPlaca } from "@/lib/vehiculoPorPlaca";
+import {
+  fetchCobrosSp,
+  type SedeConsultaSp,
+} from "@/lib/vehiculoPorPlacaBga";
 import { supabase } from "@/lib/supabase";
 import { etiquetaRecuperador } from "@/lib/recuperadores";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
@@ -77,6 +81,26 @@ async function registrosCobroPorPlaca(
   }
 
   return items;
+}
+
+async function registrosCobroSp(
+  sede: SedeConsultaSp,
+  compraId: string,
+): Promise<ItemHistorialPlaca[]> {
+  const cobros = await fetchCobrosSp(sede, compraId);
+  return cobros.map((c) => {
+    const partes: string[] = [];
+    if (c.tipo) partes.push(c.tipo);
+    if (c.referencia) partes.push(`Ref. ${c.referencia}`);
+    return {
+      id: `sp-${c.id}`,
+      fecha: c.fecha,
+      categoria: "cobro" as const,
+      titulo: "Cobro registrado",
+      subtitulo: partes.length ? partes.join(" · ") : undefined,
+      monto: c.monto > 0 ? c.monto : undefined,
+    };
+  });
 }
 
 async function eventosRecuperadores(
@@ -168,8 +192,14 @@ export async function obtenerHistorialPlaca(
 
   const cedula = (vehiculo.cedula ?? "").trim();
 
+  const fuente = String(vehiculo.fuente ?? "").toLowerCase();
+  const cobrosPromise =
+    esFuenteSp(vehiculo) && vehiculo.compra_id
+      ? registrosCobroSp(fuente as SedeConsultaSp, vehiculo.compra_id)
+      : registrosCobroPorPlaca(placaNorm);
+
   const [cobrosDb, eventosRec] = await Promise.all([
-    registrosCobroPorPlaca(placaNorm),
+    cobrosPromise,
     eventosRecuperadores(placaNorm),
   ]);
 

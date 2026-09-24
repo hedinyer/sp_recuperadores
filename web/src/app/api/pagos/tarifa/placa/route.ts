@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { fetchVehiculoPorPlaca, esFuenteBga } from "@/lib/vehiculoPorPlaca";
+import {
+  fetchVehiculoPorPlaca,
+  esFuenteSp,
+  mensajeBloqueoRailweb,
+} from "@/lib/vehiculoPorPlaca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +37,9 @@ export async function GET(request: Request) {
         deuda_multas: vehiculo.deuda_multas,
         fuente: vehiculo.fuente || "railweb",
       },
-      bloqueado_railweb: esFuenteBga(vehiculo),
-      mensaje_bloqueo: esFuenteBga(vehiculo)
-        ? "Esta placa está activa en BGA. No registres la tarifa en Railweb."
+      bloqueado_railweb: esFuenteSp(vehiculo),
+      mensaje_bloqueo: esFuenteSp(vehiculo)
+        ? mensajeBloqueoRailweb(vehiculo)
         : null,
     });
   } catch (e) {

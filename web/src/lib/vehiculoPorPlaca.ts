@@ -11,7 +11,11 @@ import {
   SQL_JOINS_PAGO_TARIFA,
 } from "@/lib/sqlPagosCuota";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
-import { fetchVehiculoPorPlacaBga } from "@/lib/vehiculoPorPlacaBga";
+import {
+  esCompraSpEnCalle,
+  esCompraSpVigente,
+  fetchVehiculoPorPlacaSp,
+} from "@/lib/vehiculoPorPlacaBga";
 
 type ClienteDbRow = {
   contrato_id: string | number;
@@ -93,24 +97,76 @@ export function fechaCorteDeuda(
   return d;
 }
 
-/** True si la fila proviene de Supabase BGA (no del ERP Railweb). */
+/** True si la fila proviene de Supabase SP (BGA o Bogotá). */
+export function esFuenteSp(
+  fila: Record<string, string> | null | undefined,
+): boolean {
+  const f = String(fila?.fuente ?? "").toLowerCase();
+  return f === "bga" || f === "bogota";
+}
+
+/** @deprecated usar esFuenteSp */
 export function esFuenteBga(
   fila: Record<string, string> | null | undefined,
 ): boolean {
-  return String(fila?.fuente ?? "").toLowerCase() === "bga";
+  return esFuenteSp(fila);
+}
+
+export function mensajeBloqueoRailweb(
+  fila: Record<string, string> | null | undefined,
+): string {
+  const f = String(fila?.fuente ?? "").toLowerCase();
+  const sede = f === "bogota" ? "Bogotá" : f === "bga" ? "BGA" : "el sistema nuevo";
+  return `Esta placa está activa en ${sede}. No registres la tarifa en Railweb.`;
+}
+
+function fechaSpMs(fila: Record<string, string>): number {
+  const t = new Date(fila.fecha_sp || fila.fecha_inicio || "").getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function esFilaSpVigente(fila: Record<string, string>): boolean {
+  return esCompraSpVigente(fila.estado_sp || fila.estado_contrato);
+}
+
+function esFilaSpEnCalle(fila: Record<string, string>): boolean {
+  if (fila.estado_sp || fila.estado_fisico_sp) {
+    return esCompraSpEnCalle(fila.estado_sp, fila.estado_fisico_sp);
+  }
+  return esDeudaCobrable(fila.estado_contrato, fila.estado_vehiculo);
+}
+
+/** Entre BGA y Bogotá: vigente en calle, luego vigente, luego la más reciente. */
+export function elegirMejorSp(
+  bga: Record<string, string> | null,
+  bogota: Record<string, string> | null,
+): Record<string, string> | null {
+  const rows = [bga, bogota].filter(
+    (r): r is Record<string, string> => r != null,
+  );
+  if (rows.length === 0) return null;
+  if (rows.length === 1) return rows[0];
+
+  const vigentes = rows.filter(esFilaSpVigente);
+  const cand = vigentes.length ? vigentes : rows;
+  const enCalle = cand.filter(esFilaSpEnCalle);
+  const pool = enCalle.length ? enCalle : cand;
+  return [...pool].sort((a, b) => fechaSpMs(b) - fechaSpMs(a))[0];
 }
 
 /**
- * Preferir BGA cuando hay compra activa allí y Railweb está retenido/inactivo
- * o no tiene la placa.
+ * Sistema nuevo vigente gana siempre. Railweb solo si no hay SP vigente.
+ * Si solo hay SP cancelada, se muestra esa.
  */
-export function debePreferirBga(
+export function elegirFilaPlaca(
   railweb: Record<string, string> | null,
   bga: Record<string, string> | null,
-): boolean {
-  if (!bga) return false;
-  if (!railweb) return true;
-  return !esDeudaCobrable(railweb.estado_contrato, railweb.estado_vehiculo);
+  bogota: Record<string, string> | null,
+): Record<string, string> | null {
+  const sp = elegirMejorSp(bga, bogota);
+  if (sp && esFilaSpVigente(sp)) return sp;
+  if (railweb) return { ...railweb, fuente: railweb.fuente || "railweb" };
+  return sp;
 }
 
 type RegistroDbRow = {
@@ -388,7 +444,7 @@ export function invalidarCachePlaca(placa: string): void {
 
 /**
  * Una fila del reporte para una placa (sin cargar los ~900 contratos).
- * Cruza Railweb con BGA: si Railweb está retenido/inactivo y BGA activa, usa BGA.
+ * BGA/Bogotá vigente gana a Railweb: ahí vive la placa ahora.
  */
 export async function fetchVehiculoPorPlaca(
   placa: string,
@@ -402,20 +458,22 @@ export async function fetchVehiculoPorPlaca(
     return cached.fila;
   }
 
-  const [railweb, bga] = await Promise.all([
-    fetchVehiculoPorPlacaRailweb(placaNorm),
-    fetchVehiculoPorPlacaBga(placaNorm),
+  const railwebP = fetchVehiculoPorPlacaRailweb(placaNorm);
+  const [bga, bogota] = await Promise.all([
+    fetchVehiculoPorPlacaSp("bga", placaNorm),
+    fetchVehiculoPorPlacaSp("bogota", placaNorm),
   ]);
 
-  let fila: Record<string, string> | null;
-  if (debePreferirBga(railweb, bga)) {
-    fila = bga;
-  } else if (railweb) {
-    fila = { ...railweb, fuente: railweb.fuente || "railweb" };
-  } else {
-    fila = bga;
+  // ponytail: si SP vigente ya ganó, no esperar el ERP
+  const sp = elegirFilaPlaca(null, bga, bogota);
+  if (sp && esFuenteSp(sp) && esFilaSpVigente(sp)) {
+    cachePlaca.set(placaNorm, { fila: sp, expira: ahora + CACHE_TTL_MS });
+    void railwebP.catch(() => null);
+    return sp;
   }
 
+  const railweb = await railwebP;
+  const fila = elegirFilaPlaca(railweb, bga, bogota);
   cachePlaca.set(placaNorm, { fila, expira: ahora + CACHE_TTL_MS });
   return fila;
 }

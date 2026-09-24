@@ -13,7 +13,7 @@ type Props = {
   motivoEstado?: string | null;
   fechaCorte?: string | null;
   deudaAlCorte?: boolean;
-  /** Origen de la deuda: railweb (ERP) o bga (Supabase SP). */
+  /** Origen de la deuda: railweb (ERP) o bga/bogota (Supabase SP). */
   fuente?: string | null;
 };
 
@@ -31,9 +31,11 @@ export function DeudaResumenSection({
   deudaAlCorte = false,
   fuente,
 }: Props) {
-  const esBga = String(fuente ?? "").toLowerCase() === "bga";
-  const etiquetaUi = esBga ? null : etiquetaEstado;
-  const deudaAlCorteUi = esBga ? false : deudaAlCorte;
+  const f = String(fuente ?? "").toLowerCase();
+  const labelSp =
+    f === "bga" ? "Deuda según BGA" : f === "bogota" ? "Deuda según Bogotá" : null;
+  const etiquetaUi = etiquetaEstado;
+  const deudaAlCorteUi = deudaAlCorte;
   const cuotasPend =
     cuotasPendientes != null ? Number(cuotasPendientes) : null;
   const minimoRecibir = minimoCobroDeuda(deudaTotal);
@@ -44,14 +46,14 @@ export function DeudaResumenSection({
     <>
       <EstadoContratoBanner
         etiqueta={etiquetaUi}
-        motivo={esBga ? null : motivoEstado}
-        fechaCorte={esBga ? null : fechaCorte}
+        motivo={motivoEstado}
+        fechaCorte={fechaCorte}
         deudaAlCorte={deudaAlCorteUi}
       />
       <section className="px-4 pt-4 pb-3 bg-gradient-to-b from-rose-950/70 via-rose-950/30 to-transparent border-b border-zinc-800/80">
         <p className="text-[11px] font-medium uppercase tracking-wider text-rose-300/90">
-          {esBga
-            ? "Deuda según BGA"
+          {labelSp
+            ? labelSp
             : deudaAlCorteUi || etiquetaUi
               ? `Deuda al quedar ${String(etiquetaUi || "inactivo").toLowerCase()}`
               : "Valor para estar al día"}
