@@ -5,7 +5,7 @@ import {
   type UbicacionAirTag,
 } from "@/lib/airtagLocations";
 import {
-  fetchAtrasosDesdeSpBogota,
+  fetchAtrasosSpParaRecoger,
   type AtrasoPinilla,
 } from "@/lib/atrasosFromSpBogota";
 import { fetchAtrasosDesdeDb, type ResultadoAtraso } from "@/lib/atrasosFromDb";
@@ -60,7 +60,13 @@ export const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
 /** Radio máximo desde el punto de origen para la pestaña Recoger. */
 export const DISTANCIA_MAX_RECOGER_KM = 30;
 
-export type OrigenCarteraRecoger = "pinilla" | "railway";
+export type OrigenCarteraRecoger = "pinilla" | "bga" | "bogota" | "railway";
+
+export function esOrigenSpRecoger(
+  origen: OrigenCarteraRecoger | string | null | undefined,
+): boolean {
+  return origen === "pinilla" || origen === "bga" || origen === "bogota";
+}
 
 export type MotoRecogerBogota = {
   placa: string;
@@ -235,7 +241,7 @@ function desdeRailway(a: ResultadoAtraso): CandidataRecoger {
 
 function mergeCandidatas(
   railway: ResultadoAtraso[],
-  pinilla: AtrasoPinilla[],
+  sp: AtrasoPinilla[],
 ): CandidataRecoger[] {
   const byPlaca = new Map<string, CandidataRecoger>();
   for (const a of railway) {
@@ -243,26 +249,17 @@ function mergeCandidatas(
     if (!key) continue;
     byPlaca.set(key, desdeRailway(a));
   }
-  for (const a of pinilla) {
+  // Sistema nuevo gana: ahí vive la placa ahora.
+  for (const a of sp) {
     const key = normalizarPlaca(a.placa);
     if (!key) continue;
     const prev = byPlaca.get(key);
-    if (!prev || a.deuda_total > prev.deuda_total) {
-      byPlaca.set(key, {
-        ...a,
-        nombre: a.nombre || prev?.nombre || "",
-        telefono: a.telefono || prev?.telefono || "",
-        cedula: a.cedula || prev?.cedula || "",
-      });
-    } else {
-      byPlaca.set(key, {
-        ...prev,
-        nombre: prev.nombre || a.nombre,
-        telefono: prev.telefono || a.telefono,
-        cedula: prev.cedula || a.cedula,
-        origen: "pinilla",
-      });
-    }
+    byPlaca.set(key, {
+      ...a,
+      nombre: a.nombre || prev?.nombre || "",
+      telefono: a.telefono || prev?.telefono || "",
+      cedula: a.cedula || prev?.cedula || "",
+    });
   }
   return [...byPlaca.values()];
 }
@@ -274,17 +271,18 @@ export async function listarMotosRecogerBogota(
   resumen: ResumenRecogerBogota;
   origen: typeof ORIGEN_RECOGER_BOGOTA;
 }> {
-  const [{ atrasos }, pinilla, mapa, mapaAirTag] = await Promise.all([
+  const [{ atrasos }, sp, mapa, mapaAirTag] = await Promise.all([
     fetchAtrasosDesdeDb(refresh),
-    fetchAtrasosDesdeSpBogota(),
+    fetchAtrasosSpParaRecoger(),
     cargarMapaGpsUnificado(),
     cargarMapaAirTagSeguro(),
   ]);
 
-  const candidatas = mergeCandidatas(atrasos, pinilla).filter(
+  const candidatas = mergeCandidatas(atrasos, sp).filter(
     (a) =>
       !PLACAS_EXCLUIDAS_RECOGER.has(normalizarPlaca(a.placa)) &&
-      (a.origen === "pinilla" || a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP),
+      (esOrigenSpRecoger(a.origen) ||
+        a.deuda_total > DEUDA_MIN_RECOGER_BOGOTA_COP),
   );
 
   const motos: MotoRecogerBogota[] = candidatas.map((a) => {

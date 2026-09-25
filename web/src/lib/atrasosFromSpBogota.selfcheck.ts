@@ -31,6 +31,26 @@ assert(mapped!.nombre === "Ana Pérez", `nombre ${mapped?.nombre}`);
 assert(mapped!.telefono === "3001234567", `tel ${mapped?.telefono}`);
 assert(mapped!.cedula === "123456", `cedula ${mapped?.cedula}`);
 assert(mapped!.origen === "pinilla", "origen pinilla");
+assert(mapped!.cuotas_pendientes === 6, `cuotas ${mapped?.cuotas_pendientes}`);
+
+assert(
+  mapearFilaPinilla(
+    {
+      dias_atraso: 12,
+      monto_adeudado: 1000,
+      user_moto_compra: { placa: "XYZ99A" },
+    },
+    "bga",
+  )?.origen === "bga",
+  "origen bga",
+);
+assert(
+  mapearFilaPinilla({
+    monto_adeudado: 1000,
+    user_moto_compra: { placa: "ABC12D", estado: "cancelada" },
+  }) === null,
+  "cancelada",
+);
 
 assert(mapearFilaPinilla({ monto_adeudado: 1000 }) === null, "sin placa");
 assert(

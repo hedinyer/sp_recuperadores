@@ -1,9 +1,11 @@
 import { analizarPatronPago, type PatronPago } from "@/lib/analisisMorosidad";
-import { clientSedeSp } from "@/lib/spSedes";
+import { clientSedeSp, type SedeSpId } from "@/lib/spSedes";
 import { normalizarPlaca } from "@/lib/syncPlacaEstado";
 
 const PATRON_VACIO: PatronPago = analizarPatronPago([]);
 const DIAS_RECOGER_BANDEJA = 4;
+
+export type OrigenSpRecoger = "pinilla" | "bga" | "bogota";
 
 export type AtrasoPinilla = {
   placa: string;
@@ -14,7 +16,7 @@ export type AtrasoPinilla = {
   deuda_total: number;
   cuotas_pendientes: number;
   pago_hoy: false;
-  origen: "pinilla";
+  origen: OrigenSpRecoger;
 } & PatronPago;
 
 type HojaVida = {
@@ -38,6 +40,7 @@ type CompraRow = {
   placa?: string | null;
   monto_cuota_periodo?: number | null;
   user_id?: number | null;
+  estado?: string | null;
 };
 
 export type FilaMotosParaRecoger = {
@@ -77,21 +80,19 @@ function contactoDesdeUsers(users: UserRow | UserRow[] | null | undefined): {
   };
 }
 
-/** Fila Pinilla → atraso de Recoger. Null si no hay placa o deuda. */
+/** Fila SP → atraso de Recoger. Null si no hay placa, deuda o compra cancelada. */
 export function mapearFilaPinilla(
   row: FilaMotosParaRecoger,
+  origen: OrigenSpRecoger = "pinilla",
 ): AtrasoPinilla | null {
   const compra = uno(row.user_moto_compra);
+  if (String(compra?.estado ?? "").toLowerCase() === "cancelada") return null;
   const placa = normalizarPlaca(compra?.placa ?? "");
   const deuda = Math.round(Number(row.monto_adeudado) || 0);
   if (!placa || deuda <= 0) return null;
 
-  const pagadas = Number(row.periodos_pagados) || 0;
-  const generadas = Number(row.periodos_debidos) || 0;
-  const pendientes =
-    generadas > 0
-      ? Math.max(0, generadas - pagadas)
-      : Math.max(0, Number(row.dias_atraso) || 0);
+  // ponytail: en SP la mora de calle es dias_atraso
+  const pendientes = Math.max(0, Number(row.dias_atraso) || 0);
 
   const { nombre, telefono, cedula } = contactoDesdeUsers(row.users);
 
@@ -104,7 +105,7 @@ export function mapearFilaPinilla(
     deuda_total: deuda,
     cuotas_pendientes: pendientes,
     pago_hoy: false,
-    origen: "pinilla",
+    origen,
     ...PATRON_VACIO,
   };
 }
@@ -120,7 +121,7 @@ async function fetchDesdeMotosParaRecoger(): Promise<AtrasoPinilla[]> {
 
   if (error) throw new Error(error.message);
   return (data ?? [])
-    .map((row) => mapearFilaPinilla(row as FilaMotosParaRecoger))
+    .map((row) => mapearFilaPinilla(row as FilaMotosParaRecoger, "pinilla"))
     .filter((a): a is AtrasoPinilla => a != null);
 }
 
@@ -133,19 +134,52 @@ type AtrasoVistaRow = {
   periodos_debidos: number | null;
 };
 
-/** ponytail: si RLS tapa motos_para_recoger, atrasos ≥ 4 días es la misma bandeja. */
-async function fetchDesdeAtrasosBandeja(): Promise<AtrasoPinilla[]> {
-  const sb = clientSedeSp("bogota");
-  const { data: atrasos, error: errAtrasos } = await sb
-    .from("atrasos")
-    .select(
-      "user_moto_compra_id, user_id, monto_adeudado, dias_atraso, periodos_pagados, periodos_debidos",
-    )
-    .gt("monto_adeudado", 0)
-    .gte("dias_atraso", DIAS_RECOGER_BANDEJA);
+/** ponytail: .in() de a 200; si hay más ids, otra ronda. */
+async function fetchIn<T>(
+  sb: ReturnType<typeof clientSedeSp>,
+  tabla: string,
+  columnas: string,
+  columnaId: string,
+  ids: string[],
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const { data, error } = await sb
+      .from(tabla)
+      .select(columnas)
+      .in(columnaId, chunk);
+    if (error) throw new Error(error.message);
+    out.push(...((data ?? []) as T[]));
+  }
+  return out;
+}
 
-  if (errAtrasos) throw new Error(errAtrasos.message);
-  const filas = (atrasos ?? []) as AtrasoVistaRow[];
+async function fetchDesdeAtrasosSede(
+  sede: Extract<SedeSpId, "bga" | "bogota">,
+  opts?: { minDias?: number; origen?: OrigenSpRecoger },
+): Promise<AtrasoPinilla[]> {
+  const sb = clientSedeSp(sede);
+  const origen = opts?.origen ?? sede;
+  const minDias = opts?.minDias ?? 0;
+  const page = 1000;
+  const filas: AtrasoVistaRow[] = [];
+
+  for (let from = 0; ; from += page) {
+    let q = sb
+      .from("atrasos")
+      .select(
+        "user_moto_compra_id, user_id, monto_adeudado, dias_atraso, periodos_pagados, periodos_debidos",
+      )
+      .gt("monto_adeudado", 0)
+      .range(from, from + page - 1);
+    if (minDias > 0) q = q.gte("dias_atraso", minDias);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []) as AtrasoVistaRow[];
+    filas.push(...batch);
+    if (batch.length < page) break;
+  }
   if (!filas.length) return [];
 
   const compraIds = [...new Set(filas.map((a) => a.user_moto_compra_id))];
@@ -153,47 +187,58 @@ async function fetchDesdeAtrasosBandeja(): Promise<AtrasoPinilla[]> {
     ...new Set(
       filas
         .map((a) => a.user_id)
-        .filter((id): id is number => id != null),
+        .filter((id): id is number => id != null)
+        .map(String),
     ),
   ];
 
-  const [comprasRes, usersRes] = await Promise.all([
-    sb
-      .from("user_moto_compra")
-      .select("id, placa, monto_cuota_periodo, user_id")
-      .in("id", compraIds),
+  const [compras, users] = await Promise.all([
+    fetchIn<CompraRow>(
+      sb,
+      "user_moto_compra",
+      "id, placa, monto_cuota_periodo, user_id, estado",
+      "id",
+      compraIds,
+    ),
     userIds.length
-      ? sb
-          .from("users")
-          .select("id, user, digital_contracts(hoja_vida_data, created_at)")
-          .in("id", userIds)
-      : Promise.resolve({ data: [] as UserRow[], error: null }),
+      ? fetchIn<UserRow>(
+          sb,
+          "users",
+          "id, user, digital_contracts(hoja_vida_data, created_at)",
+          "id",
+          userIds,
+        )
+      : Promise.resolve([] as UserRow[]),
   ]);
 
-  if (comprasRes.error) throw new Error(comprasRes.error.message);
-  if (usersRes.error) throw new Error(usersRes.error.message);
-
-  const compraById = new Map(
-    ((comprasRes.data ?? []) as CompraRow[]).map((c) => [String(c.id), c]),
-  );
-  const userById = new Map(
-    ((usersRes.data ?? []) as UserRow[]).map((u) => [Number(u.id), u]),
-  );
+  const compraById = new Map(compras.map((c) => [String(c.id), c]));
+  const userById = new Map(users.map((u) => [Number(u.id), u]));
 
   const out: AtrasoPinilla[] = [];
   for (const a of filas) {
-    const mapped = mapearFilaPinilla({
-      dias_atraso: a.dias_atraso,
-      monto_adeudado: a.monto_adeudado,
-      periodos_pagados: a.periodos_pagados,
-      periodos_debidos: a.periodos_debidos,
-      user_id: a.user_id,
-      user_moto_compra: compraById.get(a.user_moto_compra_id) ?? null,
-      users: a.user_id != null ? (userById.get(a.user_id) ?? null) : null,
-    });
+    const mapped = mapearFilaPinilla(
+      {
+        dias_atraso: a.dias_atraso,
+        monto_adeudado: a.monto_adeudado,
+        periodos_pagados: a.periodos_pagados,
+        periodos_debidos: a.periodos_debidos,
+        user_id: a.user_id,
+        user_moto_compra: compraById.get(a.user_moto_compra_id) ?? null,
+        users: a.user_id != null ? (userById.get(a.user_id) ?? null) : null,
+      },
+      origen,
+    );
     if (mapped) out.push(mapped);
   }
   return out;
+}
+
+/** ponytail: si RLS tapa motos_para_recoger, atrasos ≥ 4 días es la misma bandeja. */
+async function fetchDesdeAtrasosBandeja(): Promise<AtrasoPinilla[]> {
+  return fetchDesdeAtrasosSede("bogota", {
+    minDias: DIAS_RECOGER_BANDEJA,
+    origen: "pinilla",
+  });
 }
 
 /** Cola oficial Pinilla (pendientes). Fallback a atrasos ≥ 4 días si RLS bloquea. */
@@ -215,4 +260,53 @@ export async function fetchAtrasosDesdeSpBogota(): Promise<AtrasoPinilla[]> {
       return [];
     }
   }
+}
+
+function mergeAtrasosSp(listas: AtrasoPinilla[][]): AtrasoPinilla[] {
+  const byPlaca = new Map<string, AtrasoPinilla>();
+  for (const lista of listas) {
+    for (const a of lista) {
+      const key = normalizarPlaca(a.placa);
+      if (!key) continue;
+      const prev = byPlaca.get(key);
+      if (!prev || a.deuda_total > prev.deuda_total) {
+        byPlaca.set(key, {
+          ...a,
+          nombre: a.nombre || prev?.nombre || "",
+          telefono: a.telefono || prev?.telefono || "",
+          cedula: a.cedula || prev?.cedula || "",
+        });
+      } else {
+        byPlaca.set(key, {
+          ...prev,
+          nombre: prev.nombre || a.nombre,
+          telefono: prev.telefono || a.telefono,
+          cedula: prev.cedula || a.cedula,
+        });
+      }
+    }
+  }
+  return [...byPlaca.values()];
+}
+
+/** Pinilla oficial + morosos Bogotá + morosos BGA (deuda > 0). */
+export async function fetchAtrasosSpParaRecoger(): Promise<AtrasoPinilla[]> {
+  const [oficial, bogota, bga] = await Promise.all([
+    fetchAtrasosDesdeSpBogota(),
+    fetchDesdeAtrasosSede("bogota").catch((e) => {
+      console.warn(
+        "[atrasosFromSpBogota] bogota:",
+        e instanceof Error ? e.message : e,
+      );
+      return [] as AtrasoPinilla[];
+    }),
+    fetchDesdeAtrasosSede("bga").catch((e) => {
+      console.warn(
+        "[atrasosFromSpBogota] bga:",
+        e instanceof Error ? e.message : e,
+      );
+      return [] as AtrasoPinilla[];
+    }),
+  ]);
+  return mergeAtrasosSp([oficial, bogota, bga]);
 }

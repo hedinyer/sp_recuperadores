@@ -40,6 +40,7 @@ import {
   type PosicionGpsLive,
 } from "@/lib/ubicacionFusion";
 import type { ProveedorGps } from "@/lib/ubicacionGps";
+import { coincideBusquedaRecoger } from "@/lib/recogerBogotaBusqueda";
 import { cn } from "@/lib/utils";
 
 const DEUDA_MIN_RECOGER_CAMPO_COP = 700_000;
@@ -61,7 +62,7 @@ type MotoRecogerBogota = {
   cuotas_pendientes: number;
   valor_cuota: number;
   pago_hoy: boolean;
-  origen?: "pinilla" | "railway";
+  origen?: "pinilla" | "bga" | "bogota" | "railway";
   lat: number | null;
   lng: number | null;
   distancia_km: number | null;
@@ -411,7 +412,10 @@ export function RecogerBogotaWorkspace() {
   placasLiveRef.current = motos
     .filter(
       (m) =>
-        m.origen === "pinilla" || m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP,
+        m.origen === "pinilla" ||
+        m.origen === "bga" ||
+        m.origen === "bogota" ||
+        m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP,
     )
     .map((m) => m.placa);
 
@@ -557,7 +561,11 @@ export function RecogerBogotaWorkspace() {
         tieneUbicacion;
       const enLinea = tieneUbicacion && (gpsEnLinea || senalAlterna);
 
-      if (m.origen === "pinilla") {
+      if (
+        m.origen === "pinilla" ||
+        m.origen === "bga" ||
+        m.origen === "bogota"
+      ) {
         recoger.push(conDist);
       } else if (m.deuda_total >= DEUDA_MIN_RECOGER_CAMPO_COP) {
         if (enLinea && dist != null && dist <= DISTANCIA_MAX_RECOGER_KM) {
@@ -598,17 +606,18 @@ export function RecogerBogotaWorkspace() {
   }, [listaBase, poligonoGeocerca]);
 
   const lista = useMemo(() => {
-    const q = busqueda.trim().toUpperCase();
-    const base = listaFiltradaGeocerca;
-    if (!q) return base;
-    return base.filter(
-      (m) =>
-        m.placa.toUpperCase().includes(q) ||
-        m.nombre.toUpperCase().includes(q) ||
-        m.cedula.includes(q) ||
-        digitosTelefono(m.telefono).includes(q.replace(/\D/g, "")),
-    );
-  }, [listaFiltradaGeocerca, busqueda]);
+    const q = busqueda.trim();
+    if (!q) return listaFiltradaGeocerca;
+    return motos
+      .filter((m) => coincideBusquedaRecoger(m, q))
+      .map((m) => ({
+        ...m,
+        distancia_km:
+          m.lat != null && m.lng != null
+            ? distanciaKm(origen, { lat: m.lat, lng: m.lng })
+            : m.distancia_km,
+      }));
+  }, [listaFiltradaGeocerca, busqueda, motos, origen]);
 
   const deudaLista = lista.reduce((s, m) => s + m.deuda_total, 0);
 

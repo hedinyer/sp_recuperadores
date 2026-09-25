@@ -34,6 +34,7 @@ export type FilaRecogerBogota = {
     visto_en: string | null;
     accuracy_m: number | null;
   } | null;
+  origen?: "pinilla" | "bga" | "bogota" | "railway";
 };
 
 function formatearDistancia(km: number | null): string {
@@ -94,6 +95,7 @@ export function RecogerBogotaFila({
   compacta?: boolean;
 }) {
   const [masAbierto, setMasAbierto] = useState(false);
+  const [telCopiado, setTelCopiado] = useState(false);
   const masPanelId = useId();
   const tieneUbicacion = moto.lat != null && moto.lng != null;
   const vistoAirTag = formatearVistoHace(moto.airtag?.visto_en);
@@ -143,6 +145,11 @@ export function RecogerBogotaFila({
                 <p className="text-base font-bold tracking-[0.12em] text-foreground">
                   {moto.placa}
                 </p>
+                {moto.origen === "bga" || moto.origen === "bogota" ? (
+                  <Badge variant="secondary" className="text-muted-foreground">
+                    {moto.origen === "bga" ? "BGA" : "Bogotá"}
+                  </Badge>
+                ) : null}
                 {moto.pago_hoy ? (
                   <Badge variant="secondary" className="bg-success/15 text-success">
                     Pagó hoy
@@ -152,11 +159,6 @@ export function RecogerBogotaFila({
               <p className="mt-0.5 truncate text-sm text-muted-foreground">
                 {moto.nombre || "Sin nombre"}
               </p>
-              {modo === "llamar" && moto.telefono ? (
-                <p className="mt-0.5 text-base font-semibold tabular-nums text-foreground">
-                  {moto.telefono}
-                </p>
-              ) : null}
             </div>
             <div className="shrink-0 text-right">
               <p className="text-lg font-bold tabular-nums text-destructive">
@@ -204,6 +206,28 @@ export function RecogerBogotaFila({
           ) : null}
         </button>
       </div>
+
+      {moto.telefono.trim() ? (
+        <div className="flex items-center gap-2 px-3 pb-2">
+          <p className="min-w-0 flex-1 text-base font-semibold tabular-nums text-foreground">
+            {moto.telefono}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 min-h-9 shrink-0 rounded-lg"
+            onClick={() => {
+              void navigator.clipboard.writeText(moto.telefono.trim()).then(() => {
+                setTelCopiado(true);
+                window.setTimeout(() => setTelCopiado(false), 1500);
+              });
+            }}
+          >
+            <CopyIcon className="mr-1.5 size-4" aria-hidden />
+            {telCopiado ? "Copiado" : "Copiar"}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Acciones: en compacta (móvil recoger) se omiten; en llamar o desktop se muestran */}
       {!compacta || modo === "llamar" ? (
