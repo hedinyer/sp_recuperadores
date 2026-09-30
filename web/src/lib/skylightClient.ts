@@ -7,6 +7,17 @@ const SKYLIGHT_PASSWORD = "Bera8484!!";
 /** Perfil default en el frame (Marisol). */
 const SKYLIGHT_DEFAULT_CATEGORY_ID = "21995038";
 
+/**
+ * Seed OAuth (Cloudflare bloquea POST /auth/session desde Node/Vercel).
+ * Preferir env; el hardcode es fallback para el frame Marisol.
+ */
+const SKYLIGHT_DEVICE_FINGERPRINT =
+  process.env.SKYLIGHT_DEVICE_FINGERPRINT?.trim() ||
+  "907d5fac-3451-4333-9ae4-307337debcb9";
+const SKYLIGHT_REFRESH_TOKEN_SEED =
+  process.env.SKYLIGHT_REFRESH_TOKEN?.trim() ||
+  "vJMSoUnxOrgBDAzv3MjGBvOD68wn1sJRHzozlQ6cPUQ";
+
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const API_UA = "calendario-marisol-skylight/1.0";
@@ -18,6 +29,8 @@ type TokenCache = {
 };
 
 let tokenCache: TokenCache | null = null;
+/** Último refresh token conocido (rota en cada refresh). */
+let refreshTokenLatest: string | null = SKYLIGHT_REFRESH_TOKEN_SEED || null;
 
 function b64url(buf: Buffer): string {
   return buf.toString("base64url");
@@ -111,11 +124,25 @@ async function oauthLogin(): Promise<TokenCache> {
     }),
   });
 
-  const location = await chaseSkylightRedirect(resp, jar);
-  if (!location?.startsWith("skylight-family:")) {
+  const sessionBody = await resp.text();
+  const oauthLoc = resp.headers.get("location")
+    ? await chaseSkylightRedirect(
+        new Response(null, { status: resp.status, headers: resp.headers }),
+        jar,
+      )
+    : null;
+  if (!oauthLoc?.startsWith("skylight-family:")) {
+    if (
+      resp.status === 403 ||
+      /Attention Required|Just a moment|challenge-platform/i.test(sessionBody)
+    ) {
+      throw new Error(
+        "Skylight: Cloudflare bloqueó el login (usar SKYLIGHT_REFRESH_TOKEN)",
+      );
+    }
     throw new Error("Skylight: credenciales inválidas");
   }
-  const parsed = new URL(location);
+  const parsed = new URL(oauthLoc);
   if (parsed.searchParams.get("state") !== state) {
     throw new Error("Skylight: state OAuth inválido");
   }
@@ -132,6 +159,7 @@ async function oauthLogin(): Promise<TokenCache> {
       code,
       redirect_uri: "skylight-family://welcome",
       code_verifier: verifier,
+      skylight_api_client_device_fingerprint: SKYLIGHT_DEVICE_FINGERPRINT,
     }),
   });
   const payload = (await tokenResp.json()) as {
@@ -145,6 +173,7 @@ async function oauthLogin(): Promise<TokenCache> {
   }
   const created = payload.created_at ?? Math.floor(Date.now() / 1000);
   const expiresIn = payload.expires_in ?? 7200;
+  if (payload.refresh_token) refreshTokenLatest = payload.refresh_token;
   return {
     accessToken: payload.access_token,
     refreshToken: payload.refresh_token ?? null,
@@ -163,6 +192,7 @@ async function oauthRefresh(refreshToken: string): Promise<TokenCache> {
       grant_type: "refresh_token",
       client_id: "skylight-mobile",
       refresh_token: refreshToken,
+      skylight_api_client_device_fingerprint: SKYLIGHT_DEVICE_FINGERPRINT,
     }),
   });
   const payload = (await resp.json()) as {
@@ -176,9 +206,11 @@ async function oauthRefresh(refreshToken: string): Promise<TokenCache> {
   }
   const created = payload.created_at ?? Math.floor(Date.now() / 1000);
   const expiresIn = payload.expires_in ?? 7200;
+  const nextRefresh = payload.refresh_token ?? refreshToken;
+  refreshTokenLatest = nextRefresh;
   return {
     accessToken: payload.access_token,
-    refreshToken: payload.refresh_token ?? refreshToken,
+    refreshToken: nextRefresh,
     expiresAt: (created + expiresIn) * 1000,
   };
 }
@@ -188,16 +220,30 @@ async function getAccessToken(): Promise<string> {
   if (tokenCache && now < tokenCache.expiresAt - 60_000) {
     return tokenCache.accessToken;
   }
-  if (tokenCache?.refreshToken) {
+  const candidates = [
+    tokenCache?.refreshToken,
+    refreshTokenLatest,
+    SKYLIGHT_REFRESH_TOKEN_SEED,
+  ].filter((t): t is string => Boolean(t?.trim()));
+
+  for (const rt of [...new Set(candidates)]) {
     try {
-      tokenCache = await oauthRefresh(tokenCache.refreshToken);
+      tokenCache = await oauthRefresh(rt);
       return tokenCache.accessToken;
     } catch {
-      tokenCache = null;
+      /* probar siguiente / login */
     }
   }
-  tokenCache = await oauthLogin();
-  return tokenCache.accessToken;
+
+  try {
+    tokenCache = await oauthLogin();
+    return tokenCache.accessToken;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `${msg}. Configura SKYLIGHT_REFRESH_TOKEN (Cloudflare bloquea login password).`,
+    );
+  }
 }
 
 async function skylightApi<T>(
