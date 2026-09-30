@@ -1,0 +1,1968 @@
+[
+  {
+    "name": "E flag + plate + BGA",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E flag solo BGA",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "B sel BGA plate",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "B sel BGA",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "D piAt BGA plate",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "D piAt BGA",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E plate no bogota",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E plate excl bogota",
+    "c18": 11,
+    "c19": 19,
+    "score": 1,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 19,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A + plate + solo BGA",
+    "c18": 11,
+    "c19": 20,
+    "score": 2,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 20,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A solo BGA (con vacías)",
+    "c18": 11,
+    "c19": 20,
+    "score": 2,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 20,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A plate no bogota",
+    "c18": 11,
+    "c19": 20,
+    "score": 2,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 20,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E flag + plate",
+    "c18": 11,
+    "c19": 21,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 21,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "C entrega + plate",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "C entrega",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "B sel + plate",
+    "c18": 11,
+    "c19": 21,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 21,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "D piAt + plate",
+    "c18": 11,
+    "c19": 21,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 21,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E + fecha_entrega",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E + fecha_entrega + plate",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E plate no gir",
+    "c18": 11,
+    "c19": 21,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 21,
+        "bySede": {
+          "bga": 19,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "fecha=entrega||sel BGA",
+    "c18": 11,
+    "c19": 21,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 21,
+        "bySede": {
+          "bga": 21,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E plate + tiene fecha_entrega (date entrega)",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A plate + tiene fecha_entrega (date entrega)",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E plate excl bog + tiene ent (date ent)",
+    "c18": 9,
+    "c19": 17,
+    "score": 3,
+    "detail": {
+      "2026-09-18": {
+        "n": 9,
+        "bySede": {
+          "bga": 8,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:DKB08I:entregada:pi=true:sel=2026-07-07:ent=2026-09-18:piAt=2026-07-07"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A + plate",
+    "c18": 11,
+    "c19": 22,
+    "score": 4,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 22,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "C entrega BGA",
+    "c18": 8,
+    "c19": 17,
+    "score": 4,
+    "detail": {
+      "2026-09-18": {
+        "n": 8,
+        "bySede": {
+          "bga": 8,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "E + fecha_entrega BGA",
+    "c18": 8,
+    "c19": 17,
+    "score": 4,
+    "detail": {
+      "2026-09-18": {
+        "n": 8,
+        "bySede": {
+          "bga": 8,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 17,
+        "bySede": {
+          "bga": 17,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRQ54H:entregada:pi=true:sel=2026-09-17:ent=2026-09-19:piAt=2026-09-17",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:DUR51I:entregada:pi=true:sel=2026-09-16:ent=2026-09-19:piAt=2026-09-16",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A plate no girardot",
+    "c18": 11,
+    "c19": 22,
+    "score": 4,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 22,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A plate excl seleccionada",
+    "c18": 11,
+    "c19": 22,
+    "score": 4,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 22,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A plate excl seleccionada+documentos",
+    "c18": 11,
+    "c19": 22,
+    "score": 4,
+    "detail": {
+      "2026-09-18": {
+        "n": 11,
+        "bySede": {
+          "bga": 11,
+          "girardot": 0,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 22,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  },
+  {
+    "name": "A cascade no cancel",
+    "c18": 12,
+    "c19": 22,
+    "score": 5,
+    "detail": {
+      "2026-09-18": {
+        "n": 12,
+        "bySede": {
+          "bga": 11,
+          "girardot": 1,
+          "bogota": 0
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL89I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:OSR71H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSC31H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:HAO83I:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:JRP64H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZOT10H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:KGQ55I:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:GAN66H:lista_retiro:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18",
+          "bga:JRI18H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:TSR11H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "bga:ZPG15H:entregada:pi=true:sel=2026-09-18:ent=2026-09-18:piAt=2026-09-18",
+          "girardot:?:pendiente_pago:pi=true:sel=2026-09-18:ent=:piAt=2026-09-18"
+        ]
+      },
+      "2026-09-19": {
+        "n": 22,
+        "bySede": {
+          "bga": 20,
+          "girardot": 0,
+          "bogota": 2
+        },
+        "estados": [
+          "entregada",
+          "lista_retiro",
+          "pendiente_pago"
+        ],
+        "plates": [
+          "bga:NBL88I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:KGQ53I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:RAZ81H:lista_retiro:pi=true:sel=2026-09-17:ent=:piAt=2026-09-19",
+          "bga:JRN73H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TIQ81H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:JRU72H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE44I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:HAE04I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:ZQC02H:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bga:RBH86H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBE41I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO73I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TRS80H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:TSC71H:pendiente_pago:pi=false:sel=2026-09-19:ent=:piAt=",
+          "bga:TSY82H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBM32I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO74I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:NBO72I:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:OSE71H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bga:ZPL77H:entregada:pi=true:sel=2026-09-19:ent=2026-09-19:piAt=2026-09-19",
+          "bogota:OCM52I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19",
+          "bogota:MPQ57I:lista_retiro:pi=true:sel=2026-09-19:ent=:piAt=2026-09-19"
+        ]
+      }
+    }
+  }
+]

@@ -1,0 +1,106 @@
+{
+  "hoy": "2026-09-19",
+  "ayer": "2026-09-18",
+  "dia_ayer": {
+    "total": 12,
+    "contado": 0,
+    "credito": 12,
+    "bga": 11,
+    "gir": 1,
+    "bog": 0,
+    "rail": 0
+  },
+  "dia_hoy": {
+    "total": 20,
+    "contado": 0,
+    "credito": 20,
+    "bga": 18,
+    "gir": 0,
+    "bog": 2,
+    "rail": 0
+  },
+  "definicion": "contado ventas_moto + crédito pago_inicial_confirmado fecha=seleccionado_at; rail ítem tarifa",
+  "definiciones": {
+    "CANONICA_inicial_sel": [
+      {
+        "n": 7,
+        "desde": "2026-09-13",
+        "hasta": "2026-09-19",
+        "total": 57,
+        "contado": 8,
+        "credito": 49,
+        "bga": 44,
+        "gir": 4,
+        "bog": 9,
+        "rail": 0
+      },
+      {
+        "n": 15,
+        "desde": "2026-09-05",
+        "hasta": "2026-09-19",
+        "total": 91,
+        "contado": 9,
+        "credito": 82,
+        "bga": 59,
+        "gir": 8,
+        "bog": 20,
+        "rail": 4
+      },
+      {
+        "n": 30,
+        "desde": "2026-08-21",
+        "hasta": "2026-09-19",
+        "total": 147,
+        "contado": 10,
+        "credito": 137,
+        "bga": 73,
+        "gir": 22,
+        "bog": 47,
+        "rail": 5
+      },
+      {
+        "n": 60,
+        "desde": "2026-07-22",
+        "hasta": "2026-09-19",
+        "total": 303,
+        "contado": 17,
+        "credito": 286,
+        "bga": 74,
+        "gir": 40,
+        "bog": 116,
+        "rail": 73
+      },
+      {
+        "n": 90,
+        "desde": "2026-06-22",
+        "hasta": "2026-09-19",
+        "total": 448,
+        "contado": 21,
+        "credito": 427,
+        "bga": 74,
+        "gir": 58,
+        "bog": 131,
+        "rail": 185
+      },
+      {
+        "n": 120,
+        "desde": "2026-05-23",
+        "hasta": "2026-09-19",
+        "total": 647,
+        "contado": 21,
+        "credito": 626,
+        "bga": 74,
+        "gir": 58,
+        "bog": 131,
+        "rail": 384
+      }
+    ]
+  },
+  "veredicto": {
+    "ok": true,
+    "fails": [],
+    "warns": [
+      "3 crédito SP con placa vacía/XXXX (incluidas; ops BGA suele ignorarlas)"
+    ]
+  }
+}

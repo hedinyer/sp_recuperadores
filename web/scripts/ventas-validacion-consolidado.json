@@ -1,0 +1,32 @@
+{
+  "hoy": "2026-09-11",
+  "fuente_numerica": "scripts/ventas-conteo-harness.json CANONICA_cuota",
+  "definicion": "contado=ventas_moto; crédito SP=≥1 pago confirmado cuota_adelantada|tarifa|producto_cuota; rail=ítem tarifa pagada; ventanas [hoy-(N-1),hoy] Bogotá",
+  "agentes": {
+    "A1_def_codigo": {
+      "ok": true,
+      "nota": "FAIL inicial por OR pago_cuota_confirmado en harness viejo; corregido. A10 confirma diff=0 vs metricas."
+    },
+    "A2_BGA": { "ok": true, "match_harness": true, "7": 10, "30": 25, "120": 25 },
+    "A3_Girardot": { "ok": true, "match_harness": true, "7": 4, "30": 20, "120": 53 },
+    "A4_Bogota": { "ok": true, "match_harness": true, "7": 11, "30": 58, "120": 122 },
+    "A5_Railweb": { "ok": true, "match_harness": true, "7": 2, "30": 19, "120": 420 },
+    "A6_ventanas": { "ok": true, "nota": "Monotonía OK (corrida previa tenía BGA inflado por flag; harness endurecido monótono)" },
+    "A7_doble_conteo": {
+      "ok": true,
+      "warns": ["XXXX en BGA", "dup KFZ34I BGA", "dup OCM58I Bogotá", "22 placas SP 30d también en Rail histórico"]
+    },
+    "A8_fechas_TZ": { "ok": true, "mismatches_utc_vs_bogota": 0 },
+    "A9_bog_no_cero": { "ok": true, "bog_7d": 11, "code_includes_adelantada": true },
+    "A10_API_vs_harness": { "ok": true, "diff_7": 0, "diff_30": 0 }
+  },
+  "veredicto_global": "OK",
+  "numeros": [
+    { "n": 7, "total": 27, "bga": 10, "gir": 4, "bog": 11, "rail": 2 },
+    { "n": 15, "total": 63, "bga": 21, "gir": 14, "bog": 25, "rail": 3 },
+    { "n": 30, "total": 122, "bga": 25, "gir": 20, "bog": 58, "rail": 19 },
+    { "n": 60, "total": 293, "bga": 25, "gir": 42, "bog": 122, "rail": 104 },
+    { "n": 90, "total": 521, "bga": 25, "gir": 53, "bog": 122, "rail": 321 },
+    { "n": 120, "total": 620, "bga": 25, "gir": 53, "bog": 122, "rail": 420 }
+  ]
+}
