@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const SKYLIGHT_BASE = "https://app.ourskylight.com";
 const SKYLIGHT_FRAME_ID = "5519401";
@@ -9,14 +10,23 @@ const SKYLIGHT_DEFAULT_CATEGORY_ID = "21995038";
 
 /**
  * Seed OAuth (Cloudflare bloquea POST /auth/session desde Node/Vercel).
- * Preferir env; el hardcode es fallback para el frame Marisol.
+ * Preferir Supabase skylight_oauth → env → hardcode.
  */
 const SKYLIGHT_DEVICE_FINGERPRINT =
   process.env.SKYLIGHT_DEVICE_FINGERPRINT?.trim() ||
   "907d5fac-3451-4333-9ae4-307337debcb9";
 const SKYLIGHT_REFRESH_TOKEN_SEED =
   process.env.SKYLIGHT_REFRESH_TOKEN?.trim() ||
-  "vJMSoUnxOrgBDAzv3MjGBvOD68wn1sJRHzozlQ6cPUQ";
+  "BqQW04YMjef69D1baO3nrsk5FYHHCWLv1oeKEre-sSk";
+
+/** Tabla skylight_oauth vive en BGA (ngjp…); rota y se reescribe en cada refresh. */
+const OAUTH_SUPABASE_URL =
+  process.env.SKYLIGHT_OAUTH_SUPABASE_URL?.trim() ||
+  "https://ngjpndqmkhhdqjjljfmp.supabase.co";
+const OAUTH_SUPABASE_KEY =
+  process.env.SKYLIGHT_OAUTH_SUPABASE_KEY?.trim() ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBuZHFta2hoZHFqamxqZm1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MTAzNjAsImV4cCI6MjEwMDQ4NjM2MH0.98FK60wSqwhfxbdnHM8rESkDLD6v3p0V6D6bFM3zACY";
+const OAUTH_ROW_ID = "default";
 
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -31,6 +41,49 @@ type TokenCache = {
 let tokenCache: TokenCache | null = null;
 /** Último refresh token conocido (rota en cada refresh). */
 let refreshTokenLatest: string | null = SKYLIGHT_REFRESH_TOKEN_SEED || null;
+let oauthSb: SupabaseClient | null = null;
+
+function oauthClient(): SupabaseClient {
+  if (!oauthSb) {
+    oauthSb = createClient(OAUTH_SUPABASE_URL, OAUTH_SUPABASE_KEY, {
+      auth: { persistSession: false },
+    });
+  }
+  return oauthSb;
+}
+
+async function loadRefreshFromDb(): Promise<string | null> {
+  try {
+    const { data, error } = await oauthClient()
+      .from("skylight_oauth")
+      .select("refresh_token")
+      .eq("id", OAUTH_ROW_ID)
+      .maybeSingle();
+    if (error || !data?.refresh_token) return null;
+    const token = String(data.refresh_token).trim();
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveRefreshToDb(refreshToken: string): Promise<void> {
+  const token = refreshToken.trim();
+  if (!token) return;
+  try {
+    await oauthClient().from("skylight_oauth").upsert(
+      {
+        id: OAUTH_ROW_ID,
+        refresh_token: token,
+        device_fingerprint: SKYLIGHT_DEVICE_FINGERPRINT,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    );
+  } catch {
+    /* best-effort: memoria sigue válida en este cold start */
+  }
+}
 
 function b64url(buf: Buffer): string {
   return buf.toString("base64url");
@@ -173,7 +226,10 @@ async function oauthLogin(): Promise<TokenCache> {
   }
   const created = payload.created_at ?? Math.floor(Date.now() / 1000);
   const expiresIn = payload.expires_in ?? 7200;
-  if (payload.refresh_token) refreshTokenLatest = payload.refresh_token;
+  if (payload.refresh_token) {
+    refreshTokenLatest = payload.refresh_token;
+    void saveRefreshToDb(payload.refresh_token);
+  }
   return {
     accessToken: payload.access_token,
     refreshToken: payload.refresh_token ?? null,
@@ -200,14 +256,19 @@ async function oauthRefresh(refreshToken: string): Promise<TokenCache> {
     refresh_token?: string;
     expires_in?: number;
     created_at?: number;
+    error?: string;
+    error_description?: string;
   };
   if (!payload.access_token) {
-    throw new Error("Skylight: refresh falló");
+    const detail =
+      payload.error_description || payload.error || `HTTP ${resp.status}`;
+    throw new Error(`Skylight: refresh inválido/rotado (${detail})`);
   }
   const created = payload.created_at ?? Math.floor(Date.now() / 1000);
   const expiresIn = payload.expires_in ?? 7200;
   const nextRefresh = payload.refresh_token ?? refreshToken;
   refreshTokenLatest = nextRefresh;
+  await saveRefreshToDb(nextRefresh);
   return {
     accessToken: payload.access_token,
     refreshToken: nextRefresh,
@@ -220,28 +281,36 @@ async function getAccessToken(): Promise<string> {
   if (tokenCache && now < tokenCache.expiresAt - 60_000) {
     return tokenCache.accessToken;
   }
+
+  const fromDb = await loadRefreshFromDb();
+  if (fromDb) refreshTokenLatest = fromDb;
+
   const candidates = [
     tokenCache?.refreshToken,
     refreshTokenLatest,
+    fromDb,
     SKYLIGHT_REFRESH_TOKEN_SEED,
   ].filter((t): t is string => Boolean(t?.trim()));
 
+  const refreshErrors: string[] = [];
   for (const rt of [...new Set(candidates)]) {
     try {
       tokenCache = await oauthRefresh(rt);
       return tokenCache.accessToken;
-    } catch {
-      /* probar siguiente / login */
+    } catch (e) {
+      refreshErrors.push(e instanceof Error ? e.message : String(e));
     }
   }
 
   try {
     tokenCache = await oauthLogin();
+    if (tokenCache.refreshToken) await saveRefreshToDb(tokenCache.refreshToken);
     return tokenCache.accessToken;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const loginMsg = e instanceof Error ? e.message : String(e);
+    const refreshHint = refreshErrors[0] ?? "ningún refresh válido";
     throw new Error(
-      `${msg}. Configura SKYLIGHT_REFRESH_TOKEN (Cloudflare bloquea login password).`,
+      `${loginMsg}. Refresh falló (${refreshHint}). Sembrar skylight_oauth con un refresh fresco.`,
     );
   }
 }
