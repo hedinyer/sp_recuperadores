@@ -1,0 +1,35 @@
+{
+  "corte": "25 de septiembre de 2026",
+  "corte_ymd": "2026-09-25",
+  "taller": 26117000,
+  "zonas": {
+    "santander": {
+      "motos": 657,
+      "cartera": 578417407,
+      "alDia": 241,
+      "mora1a7": 218,
+      "moraMas7": 198
+    },
+    "bogota_chia": {
+      "motos": 194,
+      "cartera": 211621520,
+      "alDia": 30,
+      "mora1a7": 72,
+      "moraMas7": 92
+    },
+    "calle_80": {
+      "motos": 134,
+      "cartera": 48373001,
+      "alDia": 60,
+      "mora1a7": 31,
+      "moraMas7": 43
+    },
+    "girardot": {
+      "motos": 45,
+      "cartera": 7973000,
+      "alDia": 19,
+      "mora1a7": 20,
+      "moraMas7": 6
+    }
+  }
+}

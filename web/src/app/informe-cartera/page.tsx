@@ -1,36 +1,10 @@
-const CORTE = "2 de septiembre de 2026";
+import corte from "./corte.json";
 
-const SANTANDER = {
-  motos: 713,
-  cartera: 604_771_378,
-  alDia: 198,
-  mora1a7: 306,
-  moraMas7: 209,
-};
-
-const BOGOTA_CHIA = {
-  motos: 202,
-  cartera: 158_245_520,
-  alDia: 25,
-  mora1a7: 107,
-  moraMas7: 70,
-};
-
-const CALLE_80 = {
-  motos: 102,
-  cartera: 24_775_003,
-  alDia: 43,
-  mora1a7: 28,
-  moraMas7: 31,
-};
-
-const GIRARDOT = {
-  motos: 32,
-  cartera: 6_113_000,
-  alDia: 16,
-  mora1a7: 11,
-  moraMas7: 5,
-};
+const CORTE = corte.corte;
+const SANTANDER = corte.zonas.santander;
+const BOGOTA_CHIA = corte.zonas.bogota_chia;
+const CALLE_80 = corte.zonas.calle_80;
+const GIRARDOT = corte.zonas.girardot;
 
 const ZONAS = [
   { nombre: "Santander / Bucaramanga", short: "Santander", ...SANTANDER },
@@ -41,7 +15,7 @@ const ZONAS = [
 
 const TOTAL_MOTOS = ZONAS.reduce((s, z) => s + z.motos, 0);
 const TOTAL_CARTERA = ZONAS.reduce((s, z) => s + z.cartera, 0);
-const TALLER = 26_970_000;
+const TALLER = corte.taller;
 const MAX_CARTERA = Math.max(...ZONAS.map((z) => z.cartera));
 
 function millones(n: number): string {
@@ -277,10 +251,11 @@ export default function InformeCarteraPage() {
 
         <p className="text-[11px] text-zinc-600">
           Solo lectura, {CORTE}. Contrato activo y moto activa; no se cuentan
-          inactivos, cancelados ni retenidos. GPS fuera de Santander entra en
-          Bogotá / Chía. Sin GPS se queda en Santander. Al día = cero atraso o
-          sin deuda. Luego 1–7 días y más de 7. Días congelados no generan
-          cuota ni mora.
+          inactivos, cancelados ni retenidos. Si la placa está en Calle 80 o
+          Girardot no se vuelve a contar en Bogotá / Chía ni en Santander. GPS
+          fuera de Santander entra en Bogotá / Chía. Sin GPS se queda en
+          Santander. Al día = cero atraso o sin deuda. Luego 1–7 días y más de
+          7. Días congelados no generan cuota ni mora.
         </p>
       </main>
     </div>

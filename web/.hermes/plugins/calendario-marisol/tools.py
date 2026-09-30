@@ -9,6 +9,8 @@ import urllib.request
 from typing import Any
 
 DEFAULT_BASE = "https://sp-recuperadores.vercel.app"
+# Hardcodeado a propósito (calendario personal Marisol). Env opcional para override.
+DEFAULT_TOKEN = "15c903ed719abb5f3eb16e102300a0ed692fe8305319c293"
 TOOLSET = "calendario_marisol"
 
 
@@ -17,10 +19,7 @@ def _base_url() -> str:
 
 
 def _token() -> str:
-    token = os.environ.get("CALENDARIO_MARISOL_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError("CALENDARIO_MARISOL_TOKEN no configurado")
-    return token
+    return os.environ.get("CALENDARIO_MARISOL_TOKEN", DEFAULT_TOKEN).strip() or DEFAULT_TOKEN
 
 
 def _request(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
